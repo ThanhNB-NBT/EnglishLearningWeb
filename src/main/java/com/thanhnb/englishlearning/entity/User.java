@@ -34,11 +34,11 @@ public class User {
     private String fullName;
 
     @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "user_role DEFAULT 'USER'")
+    @Column(name = "role", length = 20)
     private UserRole role = UserRole.USER;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "english_level", columnDefinition = "english_level DEFAULT 'BEGINNER'")
+    @Column(name = "english_level", length = 20)
     private EnglishLevel englishLevel = EnglishLevel.BEGINNER;
 
     @Column(name = "total_points")
@@ -57,5 +57,9 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Column(name = "is_active")
-    private Boolean isActive = true;
+    private Boolean isActive = false;
+
+    @Column(name = "is_verified")
+    private Boolean isVerified = false; // Xác thực email
+
 }
