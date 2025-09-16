@@ -36,4 +36,4 @@ build/
 /frontend/dist/
 
 ### Application Properties với thông tin nhạy cảm ###
-application-local.properties
+application.local.properties
