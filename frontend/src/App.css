@@ -40,3 +40,9 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Ẩn icon con mắt mặc định của trình duyệt ở input password */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-webkit-input-password-toggle {
+  display: none;
+}

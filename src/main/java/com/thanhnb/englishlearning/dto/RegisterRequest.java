@@ -1,5 +1,7 @@
 package com.thanhnb.englishlearning.dto;
 
+import com.thanhnb.englishlearning.enums.UserRole;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -21,4 +23,6 @@ public class RegisterRequest {
 
     @NotBlank(message = "Họ tên không được để trống")
     private String fullName;
+
+    private UserRole role;
 }

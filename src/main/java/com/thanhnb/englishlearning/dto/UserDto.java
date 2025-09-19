@@ -33,7 +33,7 @@ public class UserDto {
     @Size(max = 100, message = "Họ và tên không được vượt quá 100 ký tự")
     private String fullName;
 
-    private UserRole role = UserRole.USER;
+    private UserRole role;
     private EnglishLevel englishLevel = EnglishLevel.BEGINNER;
     private Integer totalPoints = 0;
     private Integer streakDays = 0;

@@ -34,8 +34,8 @@ public class User {
     private String fullName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", length = 20)
-    private UserRole role = UserRole.USER;
+    @Column(name = "role", length = 20, nullable = false)
+    private UserRole role;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "english_level", length = 20)

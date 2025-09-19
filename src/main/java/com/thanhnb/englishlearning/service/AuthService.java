@@ -42,13 +42,23 @@ public class AuthService {
             throw new RuntimeException("Email đã tồn tại");
         }
 
+        // Xác định role
+        UserRole role = UserRole.USER; // Mặc định
+        if (request.getRole() != null) {
+            try {
+                role = UserRole.valueOf(request.getRole().toString().toUpperCase()); // Chuyển String thành enum
+            } catch (IllegalArgumentException e) {
+                log.warn("Role không hợp lệ, sử dụng mặc định USER: {}", request.getRole());
+            }
+        }
+
         // Tạo user mới
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setFullName(request.getFullName());
-        user.setRole(UserRole.USER);
+        user.setRole(role);
         user.setEnglishLevel(EnglishLevel.BEGINNER);
         user.setTotalPoints(0);
         user.setStreakDays(0);
@@ -90,8 +100,6 @@ public class AuthService {
 
         // Tạo JWT token
         String token = jwtUtil.generateToken(user.getUsername());
-
-        createUserSession(user.getId(), token, ipAddress, userAgent);
 
         return new AuthResponse(
             token,
