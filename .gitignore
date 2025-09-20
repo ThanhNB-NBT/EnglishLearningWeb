@@ -48,7 +48,7 @@ build/
 
 # ========== SENSITIVE FILES ==========
 ### Application Properties với thông tin nhạy cảm ###
-application.local.properties
+application-local.properties
 application-prod.properties
 application-dev.properties
 
