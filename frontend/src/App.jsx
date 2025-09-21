@@ -1,45 +1,49 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import UserLogin from './components/user/Login';
-import UserRegister from './components/user/Register';
-import UserDashboard from './components/user/Dashboard';
-import VerifyEmail from './components/auth/VerifyEmail';
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import Login from './components/user/Login';
+import Register from './components/user/Register';
+import Dashboard from './components/user/Dashboard';
 import AdminLogin from './components/admin/Login';
 import AdminRegister from './components/admin/Register';
 import AdminDashboard from './components/admin/Dashboard';
-import { Toaster} from 'react-hot-toast';
+import VerifyEmail from './components/auth/VerifyEmail';
 
-function App() {
+const App = () => {
   return (
-    <Router>
+    <BrowserRouter>
       <Toaster
-        position="top-right" 
+        position="top-right"
         toastOptions={{
-          duration: 2000, // Đặt thời gian mặc định là 2 giây
+          duration: 2000, // Thời gian hiển thị toast: 2 giây
         }}
       />
       <Routes>
-        <Route path="/user/login" element={<UserLogin />} />
-        <Route path="/user/register" element={<UserRegister />} />
-        <Route path="/user/dashboard" element={<UserDashboard />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/user/login" element={<Login />} />
+        <Route path="/user/register" element={<Register />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/register" element={<AdminRegister />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        {/* Thêm các route khác ở đây */}
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route
-          path="/"
+          path="/user/dashboard"
           element={
-            <div className="p-4">
-              <h1 className="text-3xl font-bold text-blue-600">English Learning</h1>
-              <button className="bg-blue-500 text-white px-4 py-2 rounded">
-                Start Learning
-              </button>
-            </div>
+            <ProtectedRoute allowedRoles={['USER']}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboard />
+            </ProtectedRoute>
           }
         />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
-}
+};
 
 export default App;
