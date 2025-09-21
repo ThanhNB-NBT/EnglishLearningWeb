@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api'; // Sử dụng proxy
+const API_BASE_URL = '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -29,45 +29,36 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const user = localStorage.getItem('user');
+      const role = user ? JSON.parse(user).role : null;
+      console.log('Interceptor: User role before redirect:', role); // Log vai trò
+      console.log('Interceptor: LocalStorage user:', user); // Log dữ liệu user
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = role === 'ADMIN' ? '/admin/login' : '/user/login';
+      console.log('Interceptor: Redirecting to:', role === 'ADMIN' ? '/admin/login' : '/user/login'); // Log đích chuyển hướng
     }
     return Promise.reject(error);
   }
 );
 
-// Auth APIs - Dựa theo AuthController
+// Auth APIs
 export const authAPI = {
-  // GET /api/auth/endpoints - Xem danh sách endpoints
   getEndpoints: () => api.get('/auth/endpoints'),
-
-  // POST /api/auth/register - Đăng ký tài khoản mới
   register: (userData) => api.post('/auth/register', userData),
-
-  // POST /api/auth/login - Đăng nhập
   login: (credentials) => api.post('/auth/login', credentials),
-
-  // POST /api/auth/verify-email - Xác thực email
   verifyEmail: (data) => api.post('/auth/verify-email', data),
-
-  // POST /api/auth/resend-verify-email - Gửi lại OTP xác thực email
   resendVerifyEmail: (data) => api.post('/auth/resend-verify-email', data),
-
-  // POST /api/auth/forgot-password - Quên mật khẩu
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
-
-  // POST /api/auth/verify-reset-password - Xác thực OTP reset password
   verifyResetPassword: (data) => api.post('/auth/verify-reset-password', data),
-
-  // POST /api/auth/logout - Đăng xuất
-  logout: () => api.post('/auth/logout'),
-
-  // POST /api/auth/logout-all - Đăng xuất tất cả thiết bị
+  logout: () => {
+    console.log('Calling authAPI.logout'); // Log khi gọi logout API
+    return api.post('/auth/logout');
+  },
   logoutAll: () => api.post('/auth/logout-all'),
 };
 
-// User APIs - Dựa theo UserController (giữ nguyên)
+// User APIs
 export const userAPI = {
   getAllUsers: () => api.get('/users'),
   getUserById: (id) => api.get(`/users/${id}`),

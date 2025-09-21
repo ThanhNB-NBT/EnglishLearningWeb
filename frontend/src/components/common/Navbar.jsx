@@ -1,11 +1,21 @@
 import React, { useState } from "react";
 import { getUserDisplayName, logout, getUserEmail } from "../../utils/auth";
 import { MoonIcon, SunIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
 
 const Navbar = ({ darkMode, onThemeToggle }) => {
     const [showMenu, setShowMenu] = useState(false);
     const userName = getUserDisplayName();
     const userEmail = getUserEmail();
+
+    const handleLogout = () => {
+        console.log('Navbar: Initiating logout');
+        toast.success('Đăng xuất thành công!', {
+            duration: 1000, // Hiển thị toast trong 1 giây
+        });
+        // Trì hoãn chuyển hướng để toast hiển thị đầy đủ
+        setTimeout(logout, 1100); // Chờ 1.1 giây (hơn duration một chút)
+    };
 
     return (
         <header className="flex items-center justify-between px-8 py-4 bg-white dark:bg-gray-900 dark:text-gray-100 border-b border-gray-900 dark:border-white">
@@ -40,18 +50,18 @@ const Navbar = ({ darkMode, onThemeToggle }) => {
                                 <div className="px-4 py-1 text-gray-600 dark:text-gray-400 text-sm truncate">{userEmail}</div>
                                 <hr className="border-t border-gray-100 dark:border-gray-600 my-2" />
                                 <button
-                                    className="w-full p-2 text-left px-4 py-2 text-gray-900 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition-colors duration-200"
+                                    className="w-full p-2 text-left px-4 py-2 dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors duration-200"
                                 >
                                     Thông tin cá nhân
                                 </button>
                                 <button
-                                    className="w-full p-2 text-left px-4 py-2 text-gray-900 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition-colors duration-200"
+                                    className="w-full p-2 text-left px-4 py-2 dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors duration-200"
                                 >
                                     Cài đặt
                                 </button>
                                 <button
-                                    onClick={logout}
-                                    className="w-full p-2 text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors duration-200"
+                                    onClick={handleLogout}
+                                    className="w-full p-2 text-left px-4 py-2 dark:bg-gray-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 transition-colors duration-200"
                                 >
                                     Đăng xuất
                                 </button>

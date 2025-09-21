@@ -1,19 +1,19 @@
+// File: JwtAuthenticationFilter.java
 package com.thanhnb.englishlearning.config;
 
+import com.thanhnb.englishlearning.service.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -21,90 +21,126 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
-    
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+    private final JwtBlacklistService jwtBlacklistService;
+    private final UserDetailsService userDetailsService; // ✅ ĐÃ THÊM
 
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) 
-            throws ServletException, IOException {
+            @NonNull HttpServletResponse response, 
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String requestPath = request.getServletPath();
-        
-        logger.debug("Processing request: {} {}", request.getMethod(), requestPath);
-
-        // Skip JWT processing cho public endpoints
-        if (isPublicEndpoint(requestPath)) {
-            logger.debug("Public endpoint, skipping JWT validation: {}", requestPath);
+        // ✅ Kiểm tra public endpoints trước
+        if (shouldNotFilter(request)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String authHeader = request.getHeader("Authorization");
-        String jwt = null;
-        String username = null;
-
-        // ✅ Kiểm tra header Authorization đúng cách
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            try {
-                username = jwtUtil.getUsernameFromToken(jwt);
-                logger.debug("Extracted username from JWT: {}", username);
-            } catch (Exception e) {
-                logger.error("Failed to extract username from JWT token", e);
-            }
-        } else {
-            logger.debug("No valid Authorization header found");
-        }
-
-        // Xác thực JWT token nếu có username và chưa authenticated
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            try {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-                
-                // Validate token
-                if (jwtUtil.isTokenValid(jwt)) {
-                    logger.debug("JWT token is valid for user: {}", username);
-                    
-                    UsernamePasswordAuthenticationToken authToken = 
-                        new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                        );
-                    authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                } else {
-                    logger.warn("JWT token is invalid for user: {}", username);
+        try {
+            // Extract JWT token từ Authorization header
+            String token = extractTokenFromRequest(request);
+            
+            if (token != null) {
+                // Kiểm tra token có bị blacklist không (đã logout)
+                if (jwtBlacklistService.isTokenBlacklisted(token)) {
+                    log.debug("Token is blacklisted, request denied");
+                    sendErrorResponse(response, "Token revoked");
+                    return;
                 }
-            } catch (Exception e) {
-                logger.error("Error during JWT authentication for user: {}", username, e);
+                
+                // Validate JWT token
+                if (jwtUtil.isTokenValid(token)) {
+                    // Extract thông tin user từ JWT
+                    String username = jwtUtil.getUsernameFromToken(token);
+                    
+                    // Set authentication context - ✅ ĐÃ SỬA
+                    setAuthenticationContext(username);
+                    
+                    log.debug("JWT authentication successful for user: {}", username);
+                } else {
+                    log.debug("JWT token validation failed");
+                    sendErrorResponse(response, "Invalid token");
+                    return;
+                }
+            } else {
+                log.debug("No JWT token found in request");
+                sendErrorResponse(response, "Missing authentication token");
+                return;
             }
+        } catch (Exception e) {
+            log.error("JWT authentication error: {}", e.getMessage());
+            sendErrorResponse(response, "Authentication error");
+            return;
         }
         
-        // LUÔN gọi filterChain.doFilter()
         filterChain.doFilter(request, response);
     }
 
-    // Method kiểm tra public endpoints
-    private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/auth/register") ||
-               path.startsWith("/api/auth/login") ||
+    /**
+     * Extract JWT token từ Authorization header
+     */
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Set authentication context cho Spring Security - ✅ ĐÃ SỬA
+     */
+    private void setAuthenticationContext(String username) {
+        try {
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            
+            UsernamePasswordAuthenticationToken authToken = 
+                new UsernamePasswordAuthenticationToken(
+                    userDetails, // ✅ Sử dụng UserDetails
+                    null, 
+                    userDetails.getAuthorities() // ✅ Lấy authorities thực
+                );
+            
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        } catch (Exception e) {
+            log.error("Failed to load user details for: {}", username, e);
+            throw new RuntimeException("User not found");
+        }
+    }
+
+    /**
+     * Gửi response lỗi - ✅ ĐÃ THÊM
+     */
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\": \"" + message + "\"}");
+    }
+
+    /**
+     * Skip authentication cho các public endpoints - ✅ ĐÃ CẬP NHẬT
+     */
+    @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        String path = request.getServletPath();
+        
+        return path.startsWith("/api/auth/login") ||
+               path.startsWith("/api/auth/register") ||
                path.startsWith("/api/auth/verify-email") ||
                path.startsWith("/api/auth/resend-verify-email") ||
                path.startsWith("/api/auth/forgot-password") ||
                path.startsWith("/api/auth/verify-reset-password") ||
                path.startsWith("/api/auth/endpoints") ||
-               path.startsWith("/api/users/endpoints") ||
-               path.startsWith("/actuator") ||
-               path.equals("/error");
+               path.startsWith("/api/auth/logout") || // ✅ THÊM
+               path.startsWith("/actuator/") ||
+               path.startsWith("/swagger-ui/") ||
+               path.startsWith("/v3/api-docs") ||
+               path.equals("/error"); // ✅ THÊM
     }
 }

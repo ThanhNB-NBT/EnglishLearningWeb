@@ -1,3 +1,5 @@
+import { authAPI } from "../services/api";
+
 export const saveAuthData = (token, user) => {
     localStorage.setItem('authToken', token);
     localStorage.setItem('user', JSON.stringify(user));
@@ -29,10 +31,16 @@ export const isUser = () => {
 };
 
 export const logout = () => {
+    const user = getUser();
+    const role = user?.role || null;
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
-    const role = getUserRole();
-    window.location.href = role === 'ADMIN' ? '/admin/login' : '/user/login';
+    localStorage.clear();
+    authAPI.logout().catch(err => {
+        console.error('Logout API error:', err);
+    });
+    // Chuyển hướng với query param để thông báo trên trang login
+    window.location.href = `${role === 'ADMIN' ? '/admin/login' : '/user/login'}?loggedOut=true`;
 };
 
 export const isTokenExpired = () => {
@@ -105,10 +113,9 @@ export const initAuthCheck = () => {
 
     setInterval(() => {
         checkTokenAndAutoLogout();
-    }, 5 * 60 * 1000); // Kiểm tra mỗi 5 phút
+    }, 5000);
 };
 
-// Hàm đăng nhập chung
 export const login = (token, user) => {
     saveAuthData(token, user);
     const role = getUserRole();
