@@ -1,5 +1,5 @@
 // File: JwtBlacklistService.java
-package com.thanhnb.englishlearning.service;
+package com.thanhnb.englishlearning.service.user;
 
 import com.thanhnb.englishlearning.util.JwtUtil;
 import lombok.RequiredArgsConstructor;

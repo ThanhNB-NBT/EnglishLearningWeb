@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.service;
+package com.thanhnb.englishlearning.service.user;
 
 import com.thanhnb.englishlearning.enums.OtpType;
 import lombok.RequiredArgsConstructor;
