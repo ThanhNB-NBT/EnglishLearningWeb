@@ -1,6 +1,6 @@
-package com.thanhnb.englishlearning.service;
+package com.thanhnb.englishlearning.service.user;
 
-import com.thanhnb.englishlearning.dto.UserDto;
+import com.thanhnb.englishlearning.dto.user.UserDto;
 import com.thanhnb.englishlearning.entity.User;
 import com.thanhnb.englishlearning.enums.EnglishLevel;
 import com.thanhnb.englishlearning.enums.UserRole;

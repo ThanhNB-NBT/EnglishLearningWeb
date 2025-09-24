@@ -1,8 +1,7 @@
-package com.thanhnb.englishlearning.service;
+package com.thanhnb.englishlearning.service.user;
 
-import com.thanhnb.englishlearning.dto.AuthResponse;
-import com.thanhnb.englishlearning.dto.LoginRequest;
-import com.thanhnb.englishlearning.dto.RegisterRequest;
+import com.thanhnb.englishlearning.dto.user.request.*;
+import com.thanhnb.englishlearning.dto.user.response.*;
 import com.thanhnb.englishlearning.entity.User;
 import com.thanhnb.englishlearning.enums.EnglishLevel;
 import com.thanhnb.englishlearning.enums.OtpType;

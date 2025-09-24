@@ -1,8 +1,9 @@
-package com.thanhnb.englishlearning.dto;
+package com.thanhnb.englishlearning.dto.user;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * DTO để lưu trữ thông tin OTP trong Redis
@@ -16,21 +17,25 @@ public class OtpData {
     /**
      * Mã OTP (6 chữ số)
      */
+    @Schema(description = "Mã OTP (6 chữ số)", example = "123456")
     private String otp;
     
     /**
      * Số lần đã thử nhập sai (tối đa 3 lần)
      */
+    @Schema(description = "Số lần đã thử nhập sai (tối đa 3 lần)", example = "1")
     private int attempts;
     
     /**
      * Thời điểm tạo OTP
      */
+    @Schema(description = "Thời điểm tạo OTP")
     private Long createdAt;
     
     /**
      * IP address của client tạo OTP (để tracking)
      */
+    @Schema(description = "IP address của client tạo OTP (để tracking)")
     private String ipAddress;
     
     /**

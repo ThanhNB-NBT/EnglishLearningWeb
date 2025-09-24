@@ -1,7 +1,7 @@
 // File: JwtAuthenticationFilter.java
 package com.thanhnb.englishlearning.config;
 
-import com.thanhnb.englishlearning.service.JwtBlacklistService;
+import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final JwtBlacklistService jwtBlacklistService;
-    private final UserDetailsService userDetailsService; // ✅ ĐÃ THÊM
+    private final UserDetailsService userDetailsService; 
 
     @Override
     protected void doFilterInternal(
@@ -34,7 +34,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response, 
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        // ✅ Kiểm tra public endpoints trước
         if (shouldNotFilter(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -94,7 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Set authentication context cho Spring Security - ✅ ĐÃ SỬA
+     * Set authentication context cho Spring Security 
      */
     private void setAuthenticationContext(String username) {
         try {
@@ -102,9 +101,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             
             UsernamePasswordAuthenticationToken authToken = 
                 new UsernamePasswordAuthenticationToken(
-                    userDetails, // ✅ Sử dụng UserDetails
+                    userDetails,
                     null, 
-                    userDetails.getAuthorities() // ✅ Lấy authorities thực
+                    userDetails.getAuthorities() // Lấy authorities thực
                 );
             
             SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -115,7 +114,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Gửi response lỗi - ✅ ĐÃ THÊM
+     * Gửi response lỗi
      */
     private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -124,7 +123,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Skip authentication cho các public endpoints - ✅ ĐÃ CẬP NHẬT
+     * Skip authentication cho các public endpoints
      */
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
@@ -137,10 +136,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.startsWith("/api/auth/forgot-password") ||
                path.startsWith("/api/auth/verify-reset-password") ||
                path.startsWith("/api/auth/endpoints") ||
-               path.startsWith("/api/auth/logout") || // ✅ THÊM
+               path.startsWith("/api/auth/logout") || 
                path.startsWith("/actuator/") ||
                path.startsWith("/swagger-ui/") ||
                path.startsWith("/v3/api-docs") ||
-               path.equals("/error"); // ✅ THÊM
+               path.equals("/error"); 
     }
 }
