@@ -1,4 +1,4 @@
-import { authAPI } from "../services/api";
+import { authAPI } from "../api";
 
 export const saveAuthData = (token, user) => {
     localStorage.setItem('authToken', token);

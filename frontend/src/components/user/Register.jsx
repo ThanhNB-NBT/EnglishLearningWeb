@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../../services/api';
+import { authAPI } from '../../api';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import toast, { Toaster } from 'react-hot-toast';
 
