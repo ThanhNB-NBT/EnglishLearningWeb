@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { getUserDisplayName, logout, getUserEmail } from "../../utils/auth";
+import { getUserDisplayName, logout, getUserEmail } from "../auth/authService";
 import { MoonIcon, SunIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 

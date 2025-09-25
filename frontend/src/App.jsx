@@ -1,14 +1,14 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import ProtectedRoute from './components/common/ProtectedRoute';
-import Login from './components/user/Login';
-import Register from './components/user/Register';
-import Dashboard from './components/user/Dashboard';
-import AdminLogin from './components/admin/Login';
-import AdminRegister from './components/admin/Register';
-import AdminDashboard from './components/admin/Dashboard';
-import VerifyEmail from './components/auth/VerifyEmail';
+import ProtectedRoute from './auth/ProtectedRoute';
+import Login from './pages/user/Login';
+import Register from './pages/user/Register';
+import Dashboard from './pages/user/Dashboard';
+import AdminLogin from './pages/admin/Login';
+import AdminRegister from './pages/admin/Register';
+import AdminDashboard from './pages/admin/Dashboard';
+import VerifyEmail from './auth/VerifyEmail';
 
 const App = () => {
   return (
