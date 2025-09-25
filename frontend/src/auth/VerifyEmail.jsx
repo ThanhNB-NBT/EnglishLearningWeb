@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { authAPI } from '../../api';
+import { authAPI } from '../api';
 import toast, { Toaster } from 'react-hot-toast';
 
 const VerifyEmail = () => {
