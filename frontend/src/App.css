@@ -1,7 +1,18 @@
-#root {
+/* Layout specific styles - Override default centering for admin layout */
+.admin-layout #root {
+  display: block;
+  place-items: unset;
+  text-align: left;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+
+/* Keep original styles for non-admin pages */
+.non-admin #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 1rem;
   text-align: center;
 }
 

@@ -1,5 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Card,
+  Input,
+  Button,
+  Typography,
+  Alert,
+  Progress,
+  Chip,
+} from '@material-tailwind/react';
+import {
+  EnvelopeIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+} from '@heroicons/react/24/outline';
 import { authAPI } from '../api';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -9,29 +25,12 @@ const VerifyEmail = () => {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const maxAttempts = 3; // Đồng bộ với backend
+  const maxAttempts = 3;
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || '';
   const role = location.state?.role || '';
 
-  // Xử lý gửi lại OTP
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return;
-    setResendLoading(true);
-    try {
-      await authAPI.resendVerifyEmail({ email });
-      toast.success('Mã OTP đã được gửi lại!', { duration: 2000 });
-      setResendTimer(60); // Đặt lại thời gian chờ 60 giây
-      setAttempts(0); // Reset số lần thử khi gửi lại
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gửi lại OTP thất bại', { duration: 2000 });
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  // Timer đếm ngược
   useEffect(() => {
     let timer;
     if (resendTimer > 0) {
@@ -41,6 +40,21 @@ const VerifyEmail = () => {
     }
     return () => clearInterval(timer);
   }, [resendTimer]);
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    setResendLoading(true);
+    try {
+      await authAPI.resendVerifyEmail({ email });
+      toast.success('Mã OTP đã được gửi lại!', { duration: 2000 });
+      setResendTimer(60);
+      setAttempts(0);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gửi lại OTP thất bại', { duration: 2000 });
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -72,63 +86,163 @@ const VerifyEmail = () => {
     }
   };
 
+  const remainingAttempts = maxAttempts - attempts;
+  const progressValue = ((maxAttempts - remainingAttempts) / maxAttempts) * 100;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-100 py-12 px-4">
-      <Toaster position="top-right" />
-      <div className="max-w-md w-full space-y-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="mx-auto h-16 w-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mb-4">
-              <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 3.26a2 2 0 001.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
+    <div className="min-h-screen overflow-auto flex items-center justify-center bg-gradient-to-br from-purple-200 via-blue-100 to-indigo-200 py-12 px-4">
+      <div className="w-full max-w-4xl flex flex-col md:flex-row gap-6">
+        {/* Main Card (Left) */}
+        <div className="flex-1 max-w-lg">
+          <Card className="p-8 shadow-2xl border-0">
+            <div className="text-center mb-8">
+              <div className="mx-auto h-20 w-20 bg-gradient-to-r from-purple-500 to-blue-600 rounded-full flex items-center justify-center mb-6 shadow-lg">
+                <EnvelopeIcon className="h-10 w-10 text-white" />
+              </div>
+              <Typography variant="h3" color="blue-gray" className="mb-3">
+                Xác Thực Email
+              </Typography>
+              <Typography variant="paragraph" color="blue-gray" className="opacity-70 mb-4">
+                Chúng tôi đã gửi mã xác thực 6 số đến email của bạn
+              </Typography>
+              <Card className="bg-blue-50 border border-blue-200 p-3">
+                <Typography variant="small" color="blue-gray" className="opacity-60 mb-1">
+                  Địa chỉ email
+                </Typography>
+                <Typography variant="paragraph" color="blue" className="font-semibold">
+                  {email}
+                </Typography>
+              </Card>
             </div>
-            <h2 className="text-3xl font-bold text-gray-900">Xác Thực Email</h2>
-            <p className="text-gray-600 mt-2">
-              Chúng tôi đã gửi mã xác thực đến email:
-            </p>
-            <p className="text-blue-600 font-semibold">{email}</p>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mã xác thực (OTP)
-              </label>
-              <input
-                name="otp"
-                value={otp}
-                onChange={e => setOtp(e.target.value)}
-                placeholder="Nhập mã OTP"
-                required
-                maxLength={6}
-                className="w-full px-4 py-4 text-center text-xl font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none tracking-widest"
-                autoFocus
+
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <Typography variant="small" color="blue-gray" className="font-medium">
+                  Số lần thử còn lại
+                </Typography>
+                <Chip
+                  value={`${remainingAttempts}/${maxAttempts}`}
+                  size="sm"
+                  color={remainingAttempts > 1 ? "blue" : remainingAttempts === 1 ? "orange" : "red"}
+                  className="font-medium"
+                />
+              </div>
+              <Progress 
+                value={progressValue} 
+                color={remainingAttempts > 1 ? "blue" : remainingAttempts === 1 ? "orange" : "red"}
+                size="sm"
               />
-              <p className="text-xs text-gray-500 mt-2">
-                Số lần thử còn lại: {maxAttempts - attempts}. Vui lòng nhập mã OTP gồm 6 số.
-              </p>
             </div>
-            <button
-              type="submit"
-              disabled={loading || otp.length !== 6}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <Typography variant="small" color="blue-gray" className="mb-3 font-medium">
+                  Mã xác thực (OTP) <span className="text-red-500">*</span>
+                </Typography>
+                <Input
+                  type="text"
+                  name="otp"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  maxLength={6}
+                  size="lg"
+                  className="!text-center !text-2xl !font-mono !tracking-wider !border-blue-gray-200 focus:!border-purple-500"
+                  labelProps={{
+                    className: "before:content-none after:content-none",
+                  }}
+                  containerProps={{
+                    className: "min-w-0"
+                  }}
+                  autoFocus
+                />
+                <Typography variant="small" color="blue-gray" className="mt-2 opacity-60">
+                  Nhập mã OTP gồm 6 chữ số được gửi đến email của bạn
+                </Typography>
+              </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={loading || otp.length !== 6 || attempts >= maxAttempts}
+                loading={loading}
+                className="w-full bg-gradient-to-r from-purple-500 to-blue-600 shadow-lg"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center">
+                    <ArrowPathIcon className="h-5 w-5 mr-2 animate-spin" />
+                    Đang xác thực...
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center">
+                    <CheckCircleIcon className="h-5 w-5 mr-2" />
+                    Xác thực Email
+                  </div>
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 pt-2 border-t border-blue-gray-100">
+              <div className="text-center">
+                <Typography variant="small" color="blue-gray" className="mb-4">
+                  Không nhận được mã xác thực?
+                </Typography>
+                {resendTimer > 0 ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <ClockIcon className="h-4 w-4 text-orange-500" />
+                    <Typography variant="small" color="orange" className="font-medium">
+                      Gửi lại sau {resendTimer} giây
+                    </Typography>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    size="sm"
+                    disabled={resendLoading}
+                    loading={resendLoading}
+                    onClick={handleResendOtp}
+                    className="border-purple-500 text-purple-500 hover:bg-purple-50"
+                  >
+                    {resendLoading ? 'Đang gửi...' : 'Gửi lại mã OTP'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Column: Warning Alert and Info Card */}
+        <div className="flex-1 max-w-sm space-y-6">
+          {attempts > 0 && (
+            <Alert
+              color="orange"
+              icon={<ExclamationTriangleIcon className="h-6 w-6" />}
+              className="border border-orange-200"
             >
-              {loading ? 'Đang xác thực...' : 'Xác thực'}
-            </button>
-          </form>
-          <div className="mt-6 text-center">
-            <span className="text-gray-500">Không nhận được mã?</span>
-            <button
-              type="button"
-              disabled={resendLoading || resendTimer > 0}
-              onClick={handleResendOtp}
-              className="ml-2 text-purple-600 hover:underline font-medium disabled:text-gray-400 disabled:cursor-not-allowed"
-            >
-              {resendLoading ? 'Đang gửi...' : resendTimer > 0 ? `Gửi lại (${resendTimer}s)` : 'Gửi lại mã'}
-            </button>
-          </div>
+              <Typography variant="small" className="font-medium">
+                Cảnh báo: Bạn đã nhập sai {attempts} lần. 
+                {remainingAttempts > 0 
+                  ? ` Còn ${remainingAttempts} lần thử.` 
+                  : ' Vui lòng gửi lại mã OTP mới.'
+                }
+              </Typography>
+            </Alert>
+          )}
+
+          <Card className="p-4 bg-blue-50 border border-blue-200">
+            <Typography variant="small" color="blue-gray" className="font-medium mb-2">
+              Lưu ý quan trọng:
+            </Typography>
+            <ul className="text-sm text-blue-gray-700 space-y-1">
+              <li>• Mã OTP có hiệu lực trong 10 phút</li>
+              <li>• Kiểm tra cả hộp thư spam/junk</li>
+              <li>• Mỗi mã OTP chỉ sử dụng được 1 lần</li>
+              <li>• Tối đa {maxAttempts} lần nhập sai</li>
+            </ul>
+          </Card>
         </div>
       </div>
+      <Toaster />
     </div>
   );
 };

@@ -109,17 +109,10 @@ public class RedisOtpService {
      */
     private boolean isRateLimited(String email, OtpType otpType) {
         String rateLimitKey = buildRateLimitKey(email, otpType);
-        String countStr = (String) redisTemplate.opsForValue().get(rateLimitKey);
+        Number count = (Number) redisTemplate.opsForValue().get(rateLimitKey); // Lấy dưới dạng Number
         
-        if (countStr != null) {
-            try {
-                int currentCount = Integer.parseInt(countStr);
-                return currentCount >= 5;
-            } catch (NumberFormatException e) {
-                log.warn("Invalid rate limit format: {}, deleting key", countStr);
-                redisTemplate.delete(rateLimitKey); // Xóa key lỗi
-                return false;
-            }
+        if (count != null) {
+            return count.intValue() >= 5; // So sánh trực tiếp
         }
         return false;
     }
@@ -132,7 +125,7 @@ public class RedisOtpService {
         
         // Tăng counter và set expire 1 giờ
         Long currentCount = redisTemplate.opsForValue().increment(rateLimitKey);
-        if (currentCount == 1) {
+        if (currentCount != null && currentCount == 1) {
             // Lần đầu tiên - set expire
             redisTemplate.expire(rateLimitKey, 1, TimeUnit.HOURS);
         }
