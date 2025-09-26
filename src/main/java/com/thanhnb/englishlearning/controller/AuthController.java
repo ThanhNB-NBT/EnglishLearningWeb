@@ -32,6 +32,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Authentication", description = "APIs for user authentication, registration, and account management")
 public class AuthController {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AuthController.class);
+
     private final AuthService authService;
     private final UserRepository userRepository;
 
@@ -46,7 +48,6 @@ public class AuthController {
         if (xRealIp != null && !xRealIp.isEmpty()) {
             return xRealIp;
         }
-        
         return request.getRemoteAddr();
     }
 
@@ -172,6 +173,8 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(CustomApiResponse.badRequest("Gửi lại OTP thất bại: " + e.getMessage()));
+        } finally {
+            logger.info("Received email: {}, type: {}", request.getEmail(), request.getEmail().getClass().getName());
         }
     }
 
