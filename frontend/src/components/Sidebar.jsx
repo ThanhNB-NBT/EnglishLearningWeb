@@ -26,6 +26,7 @@ import {
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import { getUserRole } from '../auth/authService';
+import { USER_ROUTES, ADMIN_ROUTES } from '../constants/routes'; // Điều chỉnh đường dẫn tới file routes
 
 const Sidebar = () => {
   const navigate = useNavigate();
@@ -47,8 +48,8 @@ const Sidebar = () => {
   };
 
   const menuUserItems = [
-    { label: 'Dashboard', path: '/user/dashboard', icon: <HomeIcon className="h-5 w-5" /> },
-    { label: 'Grammar', path: '/user/grammar', icon: <BookOpenIcon className="h-5 w-5" /> },
+    { label: 'Home', path: USER_ROUTES.HOME, icon: <HomeIcon className="h-5 w-5" /> },
+    { label: 'Grammar', path: USER_ROUTES.GRAMMAR, icon: <BookOpenIcon className="h-5 w-5" /> },
     { label: 'Listening', path: '/user/listening', icon: <SpeakerWaveIcon className="h-5 w-5" /> },
     { label: 'Writing', path: '/user/writing', icon: <PencilSquareIcon className="h-5 w-5" /> },
     { label: 'Reading', path: '/user/reading', icon: <ChatBubbleLeftRightIcon className="h-5 w-5" /> },
@@ -57,16 +58,16 @@ const Sidebar = () => {
   ];
 
   const menuAdminItems = [
-    { label: 'Dashboard', path: '/admin/dashboard', icon: <HomeIcon className="h-5 w-5" /> },
+    { label: 'Dashboard', path: ADMIN_ROUTES.DASHBOARD, icon: <HomeIcon className="h-5 w-5" /> },
     { label: 'Quản lý người dùng', path: '/admin/users', icon: <UserIcon className="h-5 w-5" /> },
     {
       label: 'Quản lý ngữ pháp',
       key: 'grammar',
       icon: <BookOpenIcon className="h-5 w-5" />,
       dropdown: [
-        { label: 'Chủ đề', path: '/admin/grammar', icon: <BookOpenIcon className="h-5 w-5" /> },
-        { label: 'Bài học', path: '/admin/grammar/lessons', icon: <BookOpenIcon className="h-5 w-5" /> },
-        { label: 'Câu hỏi', path: '/admin/grammar/questions', icon: <QuestionMarkCircleIcon className="h-5 w-5" /> },
+        { label: 'Chủ đề', path: ADMIN_ROUTES.GRAMMAR_TOPICS, icon: <BookOpenIcon className="h-5 w-5" /> },
+        { label: 'Bài học', path: ADMIN_ROUTES.GRAMMAR_LESSONS(0), icon: <BookOpenIcon className="h-5 w-5" /> }, // Dùng topicId=0 như placeholder
+        { label: 'Câu hỏi', path: ADMIN_ROUTES.GRAMMAR_QUESTIONS(0), icon: <QuestionMarkCircleIcon className="h-5 w-5" /> }, // Dùng lessonId=0 như placeholder
       ],
     },
     { label: 'Quản lý bài đọc', path: '/admin/reading', icon: <ChatBubbleLeftRightIcon className="h-5 w-5" /> },

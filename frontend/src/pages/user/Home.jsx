@@ -1,6 +1,6 @@
 import React from "react";
 
-const Dashboard = () => {
+const Home = () => {
 
   return (
     <div className="mx-4 bg-white dark:bg-[#232b3a] rounded-2xl shadow-xl p-12 w-full max-w-2xl text-center">
@@ -17,4 +17,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Home;

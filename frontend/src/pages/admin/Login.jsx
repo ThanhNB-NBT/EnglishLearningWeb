@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../constants/routes';
 import {
   Card,
   Input,
@@ -33,7 +34,7 @@ const AdminLogin = () => {
       }
       saveAuthData(token, res.data.data);
       toast.success('Đăng nhập thành công!');
-      navigate('/admin/dashboard');
+      navigate(ADMIN_ROUTES.DASHBOARD);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Đăng nhập thất bại');
     } finally {
@@ -42,7 +43,8 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-gray-50 to-blue-gray-600 m-0 p-0">
+    <div className="min-h-screen w-full flex items-center justify-center 
+                    bg-gradient-to-r from-[#dfe2fe] via-[#b1cbfa] to-[#8e98f5] m-0 p-0">
       <Card className="max-w-md w-full mx-4 p-8 shadow-2xl">
         <div className="text-center mb-8">
           <div className="mx-auto h-16 w-16 bg-gradient-to-r from-light-blue-500 to-light-blue-700 rounded-full flex items-center justify-center mb-4">
@@ -96,6 +98,7 @@ const AdminLogin = () => {
                 <IconButton
                   variant="text"
                   size="sm"
+                  className="!absolute"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -124,7 +127,7 @@ const AdminLogin = () => {
             Chưa có tài khoản?{' '}
             <button
               type="button"
-              onClick={() => navigate('/admin/register')}
+              onClick={() => navigate(ADMIN_ROUTES.REGISTER)}
               className="text-blue-gray-700 hover:underline font-medium"
             >
               Đăng ký

@@ -1,7 +1,7 @@
-// src/pages/admin/grammar/GrammarTopicList.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTopics, deleteTopic } from '../../../utils/grammarAdminUtils';
+import { ADMIN_ROUTES } from '../../../constants/routes';
 import {
   Button,
   Card,
@@ -10,135 +10,436 @@ import {
   Typography,
   Spinner,
   Alert,
-  Table,
-  TableHeaderCell,
-  TableCell,
-  TableRow,
-  TableBody,
+  Chip,
+  IconButton,
+  Dialog,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  Input,
+  Select,
+  Option,
+  Menu,
+  MenuHandler,
+  MenuList,
+  MenuItem,
 } from '@material-tailwind/react';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  EyeIcon,
+  FunnelIcon,
+  MagnifyingGlassIcon,
+  EllipsisVerticalIcon,
+  BookOpenIcon,
+  AcademicCapIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ArrowPathIcon,
+} from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const GrammarTopicList = () => {
   const [topics, setTopics] = useState([]);
+  const [filteredTopics, setFilteredTopics] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, topic: null });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterLevel, setFilterLevel] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const navigate = useNavigate();
 
+  const levels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
+
   useEffect(() => {
-    const loadTopics = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchTopics();
-        setTopics(data);
-      } catch {
-        setSnackbarMessage('Lỗi khi lấy danh sách topic');
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadTopics();
   }, []);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc muốn xóa topic này?')) return;
+  useEffect(() => {
+    filterTopics();
+  }, [topics, searchTerm, filterLevel, filterStatus]);
+
+  const loadTopics = async () => {
+    setLoading(true);
     try {
-      await deleteTopic(id);
-      setTopics(topics.filter((topic) => topic.id !== id));
-      setSnackbarMessage('Xóa topic thành công!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-    } catch {
-      setSnackbarMessage('Lỗi khi xóa topic');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      const data = await fetchTopics();
+      setTopics(data);
+    } catch (error) {
+      toast.error('Lỗi khi lấy danh sách chủ đề ngữ pháp');
+      console.error('Load topics error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSnackbarClose = () => setSnackbarOpen(false);
+  const filterTopics = () => {
+    let filtered = topics;
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(topic =>
+        topic.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        topic.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Level filter
+    if (filterLevel) {
+      filtered = filtered.filter(topic => topic.levelRequired === filterLevel);
+    }
+
+    // Status filter
+    if (filterStatus) {
+      const isActive = filterStatus === 'active';
+      filtered = filtered.filter(topic => topic.isActive === isActive);
+    }
+
+    setFilteredTopics(filtered);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.topic) return;
+    
+    try {
+      await deleteTopic(deleteDialog.topic.id);
+      setTopics(topics.filter(topic => topic.id !== deleteDialog.topic.id));
+      toast.success('Xóa chủ đề thành công!');
+    } catch (error) {
+      toast.error('Lỗi khi xóa chủ đề');
+      console.error('Delete topic error:', error);
+    } finally {
+      setDeleteDialog({ open: false, topic: null });
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterLevel('');
+    setFilterStatus('');
+  };
+
+  const getLevelColor = (level) => {
+    switch (level) {
+      case 'BEGINNER': return 'green';
+      case 'INTERMEDIATE': return 'orange';
+      case 'ADVANCED': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  const getStatusColor = (isActive) => isActive ? 'green' : 'gray';
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Spinner className="h-12 w-12 text-blue-500" />
+        <Typography variant="paragraph" color="blue-gray">
+          Đang tải danh sách chủ đề...
+        </Typography>
+      </div>
+    );
+  }
 
   return (
-    <Card className="mx-auto max-w-screen-lg p-4">
-      <CardHeader floated={false} shadow={false} className="mb-4 flex items-center justify-between">
-        <Typography variant="h4" color="blue-gray" className="font-bold">
-          Quản lý chủ đề ngữ pháp
-        </Typography>
-        <Button
-          color="blue"
-          onClick={() => navigate('/admin/grammar/create')}
-          className="rounded-md"
-        >
-          Tạo topic mới
-        </Button>
-      </CardHeader>
-
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Spinner className="h-12 w-12 text-blue-500" />
-        </div>
-      ) : topics.length === 0 ? (
-        <Typography variant="paragraph" className="text-center text-gray-600">
-          Không có chủ đề nào.
-        </Typography>
-      ) : (
-        <CardBody className="overflow-x-auto">
-          <Table className="w-full min-w-max">
-            <TableRow>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Tên</TableHeaderCell>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Mô tả</TableHeaderCell>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Level</TableHeaderCell>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Thứ tự</TableHeaderCell>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Trạng thái</TableHeaderCell>
-              <TableHeaderCell className="bg-blue-gray-50 text-blue-gray-700">Hành động</TableHeaderCell>
-            </TableRow>
-            <TableBody>
-              {topics.map((topic) => (
-                <TableRow key={topic.id} className="even:bg-blue-gray-50/50">
-                  <TableCell>{topic.name}</TableCell>
-                  <TableCell>
-                    {topic.description?.substring(0, 50) || 'Không có mô tả'}
-                    {topic.description?.length > 50 && '...'}
-                  </TableCell>
-                  <TableCell>{topic.levelRequired}</TableCell>
-                  <TableCell>{topic.orderIndex}</TableCell>
-                  <TableCell>{topic.isActive ? 'Hoạt động' : 'Không hoạt động'}</TableCell>
-                  <TableCell>
-                    <Button
-                      color="amber"
-                      onClick={() => navigate(`/admin/grammar/edit/${topic.id}`)}
-                      className="mr-2 rounded-md"
-                    >
-                      Sửa
-                    </Button>
-                    <Button
-                      color="red"
-                      onClick={() => handleDelete(topic.id)}
-                      className="rounded-md"
-                    >
-                      Xóa
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+    <div className="w-full space-y-6">
+      {/* Header Section */}
+      <Card className="border border-blue-gray-100">
+        <CardBody className="p-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <BookOpenIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <Typography variant="h4" color="blue-gray" className="font-bold">
+                  Quản lý Chủ đề Ngữ pháp
+                </Typography>
+                <Typography variant="small" color="blue-gray" className="opacity-70">
+                  Quản lý và tổ chức các chủ đề ngữ pháp tiếng Anh
+                </Typography>
+              </div>
+            </div>
+            
+            <Button
+              size="lg"
+              className="flex bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_CREATE)}
+            >
+              <PlusIcon className="h-6 w-6 mr-2" />
+              <Typography variant="small" className="font-bold">
+                Tạo chủ đề mới
+              </Typography>
+            </Button>
+          </div>
         </CardBody>
+      </Card>
+
+      {/* Filter Section */}
+      <Card className="border border-blue-gray-100">
+        <CardBody className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+              <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
+                Tìm kiếm
+              </Typography>
+              <Input
+                icon={<MagnifyingGlassIcon className="h-5 w-5" />}
+                placeholder="Tìm theo tên hoặc mô tả"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full placeholder:opacity-100 !border-blue-gray-200 focus:!border-blue-500"
+                labelProps={{ className: 'hidden' }}
+              />
+            </div>
+            
+            <div>
+              <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
+                Cấp độ
+              </Typography>
+              <Select
+                value={filterLevel}
+                onChange={val => setFilterLevel(val)}
+                className="!border-blue-gray-200 focus:!border-blue-500"
+              >
+                <Option value="">Tất cả cấp độ</Option>
+                {levels.map(level => (
+                  <Option key={level} value={level}>
+                    {level}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+
+            <div>
+              <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
+                Trạng thái
+              </Typography>
+              <Select
+                value={filterStatus}
+                onChange={val => setFilterStatus(val)}
+                className="!border-blue-gray-200 focus:!border-blue-500"
+              >
+                <Option value="">Tất cả trạng thái</Option>
+                <Option value="active">Hoạt động</Option>
+                <Option value="inactive">Không hoạt động</Option>
+              </Select>
+            </div>
+
+            <div className="flex">
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={resetFilters}
+                className="border-gray-300 text-gray-800"
+              >
+                <Typography variant="small" className="flex items-center hover:text-blue-500">
+                  <ArrowPathIcon className="h-5 w-5 mr-2" />
+                  Reset
+                </Typography>
+              </Button>
+            </div>
+          </div>
+
+          {/* Filter Summary */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Typography variant="small" color="blue-gray" className="opacity-70">
+                Hiển thị {filteredTopics.length} / {topics.length} chủ đề
+              </Typography>
+              {(searchTerm || filterLevel || filterStatus) && (
+                <Chip
+                  size="sm"
+                  value="Đang lọc"
+                  color="blue"
+                  className="text-xs"
+                />
+              )}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Topics Grid */}
+      {filteredTopics.length === 0 ? (
+        <Card className="border border-blue-gray-100">
+          <CardBody className="p-12 text-center">
+            <BookOpenIcon className="h-16 w-16 text-blue-gray-300 mx-auto mb-4" />
+            <Typography variant="h6" color="blue-gray" className="mb-2">
+              {topics.length === 0 ? 'Chưa có chủ đề nào' : 'Không tìm thấy chủ đề'}
+            </Typography>
+            <Typography variant="small" color="blue-gray" className="opacity-70 mb-4">
+              {topics.length === 0 
+                ? 'Hãy tạo chủ đề ngữ pháp đầu tiên để bắt đầu.'
+                : 'Thử thay đổi bộ lọc để tìm thấy chủ đề bạn cần.'
+              }
+            </Typography>
+            {topics.length === 0 && (
+              <Button
+                color="blue"
+                onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_CREATE)}
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Tạo chủ đề đầu tiên
+              </Button>
+            )}
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTopics.map((topic) => (
+            <Card key={topic.id} className="border border-blue-gray-100 hover:shadow-lg transition-shadow duration-300">
+              <CardHeader floated={false} shadow={false} className="m-0 rounded-none border-b border-blue-gray-100">
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <Typography 
+                        variant="h6" 
+                        color="blue-gray" 
+                        className="mb-1 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors duration-200"
+                        onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id))}
+                      >
+                        {topic.name}
+                      </Typography>
+                      <div className="flex items-center space-x-2">
+                        <Chip
+                          size="sm"
+                          value={topic.levelRequired}
+                          color={getLevelColor(topic.levelRequired)}
+                          className="text-xs"
+                        />
+                        <Chip
+                          size="sm"
+                          value={topic.isActive ? 'Hoạt động' : 'Tạm dừng'}
+                          color={getStatusColor(topic.isActive)}
+                          icon={topic.isActive ? 
+                            <CheckCircleIcon className="h-3 w-3" /> : 
+                            <XCircleIcon className="h-3 w-3" />
+                          }
+                          className="text-xs"
+                        />
+                      </div>
+                    </div>
+                    
+                    <Menu>
+                      <MenuHandler>
+                        <IconButton variant="text" size="sm">
+                          <EllipsisVerticalIcon className="h-4 w-4" />
+                        </IconButton>
+                      </MenuHandler>
+                      <MenuList>
+                        <MenuItem 
+                          onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id))}
+                          className="flex items-center"
+                        >
+                          <EyeIcon className="h-4 w-4 mr-2" />
+                          <Typography variant="small" className="font-normal">
+                            Xem bài học
+                          </Typography>
+                        </MenuItem>
+                        <MenuItem 
+                          onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id))}
+                          className="flex items-center"
+                        >
+                          <PencilIcon className="h-4 w-4 mr-2" />
+                          <Typography variant="small" className="font-normal">
+                            Chỉnh sửa
+                          </Typography>
+                        </MenuItem>
+                        <MenuItem 
+                          onClick={() => setDeleteDialog({ open: true, topic })}
+                          className="flex items-center text-red-500"
+                        >
+                          <TrashIcon className="h-4 w-4 mr-2" />
+                          Xóa
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardBody className="p-4">
+                <Typography variant="small" color="blue-gray" className="opacity-70 mb-4 line-clamp-3">
+                  {topic.description || 'Chưa có mô tả'}
+                </Typography>
+
+                <div className="flex items-center justify-between text-sm text-blue-gray-500 mb-4">
+                  <div className="flex items-center space-x-4">
+                    <span>Thứ tự: {topic.orderIndex}</span>
+                    <span className="flex items-center">
+                      <AcademicCapIcon className="h-4 w-4 mr-1" />
+                      {topic.levelRequired}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex space-x-2">
+                  <IconButton
+                    size="sm"
+                    variant="outlined"
+                    className="border-green-500 text-green-500 hover:bg-green-50"
+                    onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id))}
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </IconButton>
+                  <IconButton
+                    size="sm"
+                    variant="outlined"
+                    className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                    onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id))}
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </IconButton>
+                  <IconButton
+                    size="sm"
+                    variant="outlined"
+                    color="red"
+                    onClick={() => setDeleteDialog({ open: true, topic })}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </IconButton>
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       )}
-      <Alert
-        open={snackbarOpen}
-        onClose={handleSnackbarClose}
-        color={snackbarSeverity === 'success' ? 'green' : 'red'}
-        className="fixed top-4 right-4 w-80"
-        animate={{
-          mount: { y: 0 },
-          unmount: { y: -100 },
-        }}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={deleteDialog.open} 
+        handler={() => setDeleteDialog({ open: false, topic: null })}
+        size="sm"
       >
-        {snackbarMessage}
-      </Alert>
-    </Card>
+        <DialogHeader className="flex items-center space-x-2">
+          <TrashIcon className="h-6 w-6 text-red-500" />
+          <span>Xác nhận xóa chủ đề</span>
+        </DialogHeader>
+        <DialogBody>
+          <Typography variant="paragraph" color="blue-gray">
+            Bạn có chắc chắn muốn xóa chủ đề <strong>"{deleteDialog.topic?.name}"</strong> không?
+          </Typography>
+          <Typography variant="small" color="red" className="mt-2">
+            Hành động này không thể hoàn tác và sẽ xóa tất cả dữ liệu liên quan.
+          </Typography>
+        </DialogBody>
+        <DialogFooter className="space-x-2">
+          <Button
+            variant="outlined"
+            onClick={() => setDeleteDialog({ open: false, topic: null })}
+          >
+            Hủy
+          </Button>
+          <Button
+            color="red"
+            onClick={handleDelete}
+          >
+            Xóa chủ đề
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    </div>
   );
 };
 
