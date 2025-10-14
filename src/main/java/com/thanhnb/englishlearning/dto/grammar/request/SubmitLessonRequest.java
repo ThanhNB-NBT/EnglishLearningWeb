@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
+import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
+
 import jakarta.validation.constraints.NotNull;
 
 @Data

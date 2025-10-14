@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.dto.grammar.request;
+package com.thanhnb.englishlearning.dto.question.request;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;

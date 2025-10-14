@@ -1,5 +1,6 @@
 package com.thanhnb.englishlearning.entity.grammar;
 
+import com.thanhnb.englishlearning.entity.question.Question;
 import com.thanhnb.englishlearning.enums.LessonType;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -28,7 +29,7 @@ public class GrammarLesson {
     private String title;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "lesson_type", nullable = false)
+    @Column(name = "lesson_type", nullable = false, length = 50)
     private LessonType lessonType;
 
     @Column(name = "content", columnDefinition = "TEXT")
@@ -37,9 +38,9 @@ public class GrammarLesson {
     @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
 
-    //Điểm cần thiết mở khóa bài học tiếp theo
-    @Column(name = "points_required")
-    private Integer pointsRequired = 0; 
+    //Thời gian ước tính hoàn thành bài học (tính bằng phút)
+    @Column(name = "estimated_duration", nullable = false)
+    private Integer estimatedDuration = 30;
 
     //Điểm thưởng khi hoàn thành bài học
     @Column(name = "points_reward")
@@ -52,10 +53,19 @@ public class GrammarLesson {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     //Relationships
-    @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<GrammarQuestion> questions;
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @org.hibernate.annotations.SQLRestriction("parent_type = 'GRAMMAR'")
+    private List<Question> questions;
 
     @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<UserGrammarProgress> userProgresses;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
     
 }

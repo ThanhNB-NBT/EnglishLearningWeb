@@ -2,72 +2,62 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { grammarAdminAPI } from "../../../api";
 import { ADMIN_ROUTES } from "../../../constants/routes";
-import * as mammoth from "mammoth";
-import {
-  extractTextFromPDF,
-  extractTextFromDOCX,
-  analyzeContent,
-} from "../../../utils/pdfReader";
-import PDFLessonCreatorDialog from "../../../components/PDFLessonCreatorDialog";
-import PDFUploadConfig from "../../../components/PDFUploadConfig";
 import {
   Button,
   Card,
   CardBody,
   Typography,
-  Input,
-  Textarea,
-  Select,
-  Option,
-  Switch,
   Spinner,
   Breadcrumbs,
-  Progress,
 } from "@material-tailwind/react";
 import {
   ArrowLeftIcon,
-  DocumentArrowUpIcon,
   CheckCircleIcon,
-  AdjustmentsHorizontalIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
+// Import child components
+import LessonFormBasicInfo from "../../../components/grammar/LessonFormBasicInfo";
+import LessonFormSettings from "../../../components/grammar/LessonFormSettings";
+import LessonContentEditor from "../../../components/grammar/LessonContentEditor";
+import GeminiParsedResultDialog from "../../../components/grammar/GeminiParsedResultDialog";
+
+/**
+ * Main Form Container - Tạo/Chỉnh sửa Lesson
+ * Chia nhỏ thành các component con để dễ đọc và maintain
+ */
 const GrammarLessonForm = () => {
   const { topicId, lessonId } = useParams();
   const navigate = useNavigate();
   const isEdit = !!lessonId;
 
-  const [showPdfConfig, setShowPdfConfig] = useState(false);
-  const [pdfConfig, setPdfConfig] = useState({
-    skipFirstPages: 2,
-    skipLastPages: 0,
-    removeHeaders: true,
-    removeFooters: true,
-    minSectionLength: 50,
-    minQuestionLength: 20,
-  });
-
+  // Form state
   const [formData, setFormData] = useState({
     topicId: parseInt(topicId),
     title: "",
     lessonType: "THEORY",
     content: "",
     orderIndex: 1,
-    pointsRequired: 0,
     pointsReward: 10,
+    estimatedDuration: 180,
     isActive: true,
   });
 
   const [topicInfo, setTopicInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [pdfProcessing, setPdfProcessing] = useState(false);
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // PDF Dialog state
   const [pdfDialog, setPdfDialog] = useState({
     open: false,
-    analyzedContent: null,
+    parsedData: null,
+    summary: null,
   });
 
-  const [errors, setErrors] = useState({});
+  // ===== LIFECYCLE =====
 
   useEffect(() => {
     loadTopicInfo();
@@ -77,6 +67,8 @@ const GrammarLessonForm = () => {
       getNextOrderIndex();
     }
   }, [topicId, lessonId]);
+
+  // ===== DATA LOADING =====
 
   const loadTopicInfo = async () => {
     try {
@@ -104,10 +96,9 @@ const GrammarLessonForm = () => {
   const loadLessonData = async () => {
     setLoading(true);
     try {
-      const response = await grammarAdminAPI.getLessonsByTopic(topicId);
-      const lesson = response.data.data.find(
-        (l) => l.id === parseInt(lessonId)
-      );
+      const response = await grammarAdminAPI.getLessonDetail(lessonId);
+      const lesson = response.data.data;
+
       if (lesson) {
         setFormData({
           topicId: lesson.topicId,
@@ -115,8 +106,8 @@ const GrammarLessonForm = () => {
           lessonType: lesson.lessonType || "THEORY",
           content: lesson.content || "",
           orderIndex: lesson.orderIndex || 1,
-          pointsRequired: lesson.pointsRequired || 0,
           pointsReward: lesson.pointsReward || 10,
+          estimatedDuration: lesson.estimatedDuration || 180,
           isActive: lesson.isActive !== undefined ? lesson.isActive : true,
         });
       }
@@ -127,6 +118,8 @@ const GrammarLessonForm = () => {
       setLoading(false);
     }
   };
+
+  // ===== FORM HANDLERS =====
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -140,9 +133,7 @@ const GrammarLessonForm = () => {
 
     if (!formData.title.trim()) {
       newErrors.title = "Tiêu đề không được để trống";
-    }
-
-    if (formData.title.length > 200) {
+    } else if (formData.title.length > 200) {
       newErrors.title = "Tiêu đề không được vượt quá 200 ký tự";
     }
 
@@ -150,12 +141,12 @@ const GrammarLessonForm = () => {
       newErrors.orderIndex = "Thứ tự phải lớn hơn 0";
     }
 
-    if (formData.pointsRequired < 0) {
-      newErrors.pointsRequired = "Điểm yêu cầu không được âm";
-    }
-
     if (formData.pointsReward <= 0) {
       newErrors.pointsReward = "Điểm thưởng phải lớn hơn 0";
+    }
+
+    if (formData.estimatedDuration < 10) {
+      newErrors.estimatedDuration = "Thời gian ước tính phải >= 10 giây";
     }
 
     if (formData.lessonType === "THEORY" && !formData.content.trim()) {
@@ -186,13 +177,13 @@ const GrammarLessonForm = () => {
       navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId));
     } catch (error) {
       console.error("Submit lesson error:", error);
-      const errorMessage =
-        error.response?.data?.message || error.message || "Có lỗi xảy ra";
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
     } finally {
       setSubmitting(false);
     }
   };
+
+  // ===== GEMINI PDF PARSING =====
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -206,113 +197,81 @@ const GrammarLessonForm = () => {
       return;
     }
 
-    setPdfProcessing(true);
-
-    try {
-      console.log("Processing file:", file.name, "Size:", file.size);
-
-      const arrayBuffer = await file.arrayBuffer();
-      let extractedText = "";
-
-      if (isPDF) {
-        console.log("Extracting PDF with config:", pdfConfig);
-        extractedText = await extractTextFromPDF(arrayBuffer, {
-          skipFirstPages: pdfConfig.skipFirstPages,
-          skipLastPages: pdfConfig.skipLastPages,
-          removeHeaders: pdfConfig.removeHeaders,
-          removeFooters: pdfConfig.removeFooters,
-        });
-      } else if (isDOCX) {
-        extractedText = await extractTextFromDOCX(arrayBuffer, mammoth);
-      }
-
-      console.log("Extracted text length:", extractedText.length);
-      console.log("First 500 chars:", extractedText.substring(0, 500));
-
-      if (!extractedText || extractedText.trim().length < 50) {
-        toast.error(
-          "Không tìm thấy đủ nội dung trong file. Vui lòng thử điều chỉnh cấu hình."
-        );
-        setShowPdfConfig(true); // SỬA: Dùng setShowPdfConfig thay vì setShowPdfConfig
-        return;
-      }
-
-      const analyzedContent = analyzeContent(extractedText, {
-        minSectionLength: pdfConfig.minSectionLength,
-        minQuestionLength: pdfConfig.minQuestionLength,
-      });
-
-      console.log("Analyzed content:", {
-        sections: analyzedContent.sections.length,
-        exercises: analyzedContent.exercises.length,
-      });
-
-      if (analyzedContent.sections.length === 0) {
-        toast.error(
-          "Không tìm thấy nội dung phù hợp. Thử điều chỉnh cấu hình hoặc kiểm tra định dạng file."
-        );
-        setShowPdfConfig(true);
-        return;
-      }
-
-      setPdfDialog({
-        open: true,
-        analyzedContent: analyzedContent,
-      });
-
-      console.log("Dialog state after set:", {
-        open: true,
-        sectionsCount: analyzedContent.sections.length,
-        exercisesCount: analyzedContent.exercises.length,
-      });
-
-      toast.success(
-        `Phân tích thành công: ${analyzedContent.sections.length} phần lý thuyết, ${analyzedContent.exercises.length} câu hỏi`
-      );
-    } catch (error) {
-      console.error("File processing error:", error);
-      toast.error(error.message || "Lỗi khi xử lý file. Vui lòng thử lại.");
-    } finally {
-      setPdfProcessing(false);
-      event.target.value = "";
-    }
-  };
-
-  const handleCreateLessonsFromPDF = (selectedLessons) => {
-    if (selectedLessons.length === 0) {
-      toast.error("Vui lòng chọn ít nhất một phần để tạo bài học");
+    // 🔧 FIX: Kiểm tra kích thước file (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      toast.error("File không được vượt quá 10MB");
       return;
     }
 
-    // Get the first selected lesson's content
-    const firstLesson = selectedLessons[0];
-    const section = firstLesson.section;
+    setPdfParsing(true);
+    const toastId = toast.loading("🤖 Gemini AI đang phân tích file...");
 
-    // Format content from section
-    let content = "";
-    section.content.forEach((item) => {
-      if (typeof item === "string") {
-        content += item + "\n\n";
-      } else if (item.subsection) {
-        content += `${item.subsection}\n`;
-        item.details.forEach((detail) => {
-          content += `  ${detail}\n`;
-        });
-        content += "\n";
-      }
-    });
+    try {
+      const response = await grammarAdminAPI.parsePDF(topicId, file);
+      const result = response.data.data;
 
-    // Update form with extracted content
-    setFormData((prev) => ({
-      ...prev,
-      title: section.title,
-      content: content.trim(),
-    }));
+      setPdfDialog({
+        open: true,
+        parsedData: result.parsedData,
+        summary: result.summary,
+      });
 
-    setPdfDialog({ open: false, analyzedContent: null });
-
-    toast.success(`Đã thêm nội dung từ file vào bài học`);
+      toast.success("Phân tích thành công với Gemini AI!", { id: toastId });
+    } catch (error) {
+      console.error("Gemini parsing error:", error);
+      const errorMsg = error.response?.data?.message || "Lỗi khi phân tích file";
+      toast.error(errorMsg, { id: toastId });
+    } finally {
+      setPdfParsing(false);
+      event.target.value = ""; // Reset input
+    }
   };
+
+  const handleUseParsedContent = async (finalData) => {
+    if (!finalData || !finalData.lessons || finalData.lessons.length === 0) {
+      toast.error("Không có dữ liệu để sử dụng");
+      return;
+    }
+
+    try {
+      // Single lesson: use directly in form
+      if (finalData.lessons.length === 1) {
+        const lesson = finalData.lessons[0];
+        setFormData((prev) => ({
+          ...prev,
+          title: lesson.title,
+          content: lesson.content, // 🔧 Đây là HTML từ TipTap
+          lessonType: lesson.lessonType || "THEORY",
+          orderIndex: lesson.orderIndex || prev.orderIndex,
+          pointsReward: lesson.pointsReward || prev.pointsReward,
+          estimatedDuration: lesson.estimatedDuration || prev.estimatedDuration,
+        }));
+        setPdfDialog({ open: false, parsedData: null, summary: null });
+        toast.success("Đã áp dụng nội dung từ Gemini AI!");
+      }
+      // Multiple lessons: save all to database
+      else {
+        const toastId = toast.loading(`Đang lưu ${finalData.lessons.length} bài học...`);
+
+        await grammarAdminAPI.saveParsedLessons(topicId, finalData);
+
+        toast.success(
+          `Đã tạo ${finalData.lessons.length} bài học thành công!`,
+          { id: toastId }
+        );
+
+        setPdfDialog({ open: false, parsedData: null, summary: null });
+        navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId));
+      }
+    } catch (error) {
+      console.error("Save parsed lessons error:", error);
+      const errorMsg = error.response?.data?.message || error.message || "Có lỗi xảy ra";
+      toast.error("Lỗi khi lưu: " + errorMsg);
+    }
+  };
+
+  // ===== RENDER =====
 
   if (loading) {
     return (
@@ -330,31 +289,31 @@ const GrammarLessonForm = () => {
       {/* Breadcrumbs */}
       <Breadcrumbs className="bg-transparent p-0">
         <Typography
-          className="opacity-60 cursor-pointer hover:opacity-100"
+          className="opacity-60 cursor-pointer hover:opacity-100 transition-opacity"
           onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
         >
           Chủ đề ngữ pháp
         </Typography>
         <Typography
-          className="opacity-60 cursor-pointer hover:opacity-100"
+          className="opacity-60 cursor-pointer hover:opacity-100 transition-opacity"
           onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId))}
         >
           {topicInfo?.name || "Bài học"}
         </Typography>
         <Typography color="blue-gray">
-          {isEdit ? "Chỉnh sửa bài học" : "Tạo bài học mới"}
+          {isEdit ? "Chỉnh sửa" : "Tạo mới"}
         </Typography>
       </Breadcrumbs>
 
       {/* Header */}
-      <Card className="border border-blue-gray-100">
+      <Card className="border border-blue-gray-100 shadow-sm">
         <CardBody className="p-6">
           <div className="flex items-center space-x-3">
             <Button
               variant="outlined"
               size="sm"
               onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId))}
-              className="border-gray-300"
+              className="border-gray-300 hover:bg-gray-50"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
               Quay lại
@@ -366,7 +325,7 @@ const GrammarLessonForm = () => {
               <Typography
                 variant="small"
                 color="blue-gray"
-                className="opacity-70"
+                className="opacity-70 mt-1"
               >
                 Chủ đề: {topicInfo?.name}
               </Typography>
@@ -376,218 +335,46 @@ const GrammarLessonForm = () => {
       </Card>
 
       {/* Form */}
-      <Card className="border border-blue-gray-100">
+      <Card className="border border-blue-gray-100 shadow-sm">
         <CardBody className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Typography
-                  variant="small"
-                  color="blue-gray"
-                  className="mb-2 font-medium"
-                >
-                  Tiêu đề bài học *
-                </Typography>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  placeholder="Nhập tiêu đề bài học"
-                  error={!!errors.title}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
-                />
-                {errors.title && (
-                  <Typography variant="small" color="red" className="mt-1">
-                    {errors.title}
-                  </Typography>
-                )}
-              </div>
+            {/* Basic Info Component */}
+            <LessonFormBasicInfo
+              formData={formData}
+              errors={errors}
+              onChange={handleInputChange}
+            />
 
-              <div>
-                <Typography
-                  variant="small"
-                  color="blue-gray"
-                  className="mb-2 font-medium"
-                >
-                  Loại bài học *
-                </Typography>
-                <Select
-                  value={formData.lessonType}
-                  onChange={(val) => handleInputChange("lessonType", val)}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
-                >
-                  <Option value="THEORY">Lý thuyết</Option>
-                  <Option value="PRACTICE">Thực hành</Option>
-                </Select>
-              </div>
-            </div>
-
-            {/* Content Section - Only show for THEORY */}
+            {/* Content Editor Component (Only for THEORY) */}
             {formData.lessonType === "THEORY" && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <Typography
-                    variant="small"
-                    color="blue-gray"
-                    className="font-medium"
-                  >
-                    Nội dung bài học *
-                  </Typography>
-                  <div className="flex space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outlined"
-                      onClick={() => setShowPdfConfig(true)}
-                      className="border-gray-500 text-gray-500"
-                    >
-                      <AdjustmentsHorizontalIcon className="h-4 w-4 mr-2" />
-                      Cấu hình
-                    </Button>
-                    <input
-                      type="file"
-                      id="pdf-upload"
-                      accept=".pdf,.docx"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outlined"
-                      onClick={() =>
-                        document.getElementById("pdf-upload").click()
-                      }
-                      disabled={pdfProcessing}
-                      className="border-blue-500 text-blue-500"
-                    >
-                      <DocumentArrowUpIcon className="h-4 w-4 mr-2" />
-                      {pdfProcessing ? "Đang xử lý..." : "Tải file PDF/DOCX"}
-                    </Button>
-                  </div>
-                </div>
-                <Textarea
-                  value={formData.content}
-                  onChange={(e) => handleInputChange("content", e.target.value)}
-                  placeholder="Nhập nội dung lý thuyết của bài học..."
-                  rows={10}
-                  error={!!errors.content}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
+              <LessonContentEditor
+                content={formData.content}
+                error={errors.content}
+                onChange={(value) => handleInputChange("content", value)}
+                onFileUpload={handleFileUpload}
+                isParsing={pdfParsing}
+              />
+            )}
+
+            {/* 🆕 Preview nội dung (Optional) */}
+            {formData.content && formData.lessonType === "THEORY" && (
+              <div className="border-t pt-4">
+                <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
+                  📄 Preview nội dung
+                </Typography>
+                <div 
+                  className="prose max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  dangerouslySetInnerHTML={{ __html: formData.content }}
                 />
-                {errors.content && (
-                  <Typography variant="small" color="red" className="mt-1">
-                    {errors.content}
-                  </Typography>
-                )}
-                {pdfProcessing && (
-                  <div className="mt-2">
-                    <Progress value={50} color="blue" className="h-2" />
-                    <Typography variant="small" color="blue" className="mt-1">
-                      Đang xử lý file, vui lòng đợi...
-                    </Typography>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <Typography
-                  variant="small"
-                  color="blue-gray"
-                  className="mb-2 font-medium"
-                >
-                  Thứ tự *
-                </Typography>
-                <Input
-                  type="number"
-                  value={formData.orderIndex}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "orderIndex",
-                      parseInt(e.target.value) || 1
-                    )
-                  }
-                  min="1"
-                  error={!!errors.orderIndex}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
-                />
-                {errors.orderIndex && (
-                  <Typography variant="small" color="red" className="mt-1">
-                    {errors.orderIndex}
-                  </Typography>
-                )}
-              </div>
-
-              <div>
-                <Typography
-                  variant="small"
-                  color="blue-gray"
-                  className="mb-2 font-medium"
-                >
-                  Điểm yêu cầu *
-                </Typography>
-                <Input
-                  type="number"
-                  value={formData.pointsRequired}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "pointsRequired",
-                      parseInt(e.target.value) || 0
-                    )
-                  }
-                  min="0"
-                  error={!!errors.pointsRequired}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
-                />
-                {errors.pointsRequired && (
-                  <Typography variant="small" color="red" className="mt-1">
-                    {errors.pointsRequired}
-                  </Typography>
-                )}
-              </div>
-
-              <div>
-                <Typography
-                  variant="small"
-                  color="blue-gray"
-                  className="mb-2 font-medium"
-                >
-                  Điểm thưởng *
-                </Typography>
-                <Input
-                  type="number"
-                  value={formData.pointsReward}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "pointsReward",
-                      parseInt(e.target.value) || 10
-                    )
-                  }
-                  min="1"
-                  error={!!errors.pointsReward}
-                  className="!border-blue-gray-200 focus:!border-blue-500"
-                />
-                {errors.pointsReward && (
-                  <Typography variant="small" color="red" className="mt-1">
-                    {errors.pointsReward}
-                  </Typography>
-                )}
-              </div>
-            </div>
-
-            {/* Active Status */}
-            <div className="flex items-center space-x-3">
-              <Switch
-                checked={formData.isActive}
-                onChange={(e) =>
-                  handleInputChange("isActive", e.target.checked)
-                }
-                color="green"
-              />
-              <Typography variant="small" color="blue-gray">
-                Bài học hoạt động
-              </Typography>
-            </div>
+            {/* Settings Component */}
+            <LessonFormSettings
+              formData={formData}
+              errors={errors}
+              onChange={handleInputChange}
+            />
 
             {/* Form Actions */}
             <div className="flex justify-end space-x-4 pt-6 border-t border-blue-gray-100">
@@ -595,14 +382,16 @@ const GrammarLessonForm = () => {
                 variant="outlined"
                 onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId))}
                 disabled={submitting}
+                className="flex items-center hover:bg-gray-50"
               >
+                <XMarkIcon className="h-4 w-4 mr-2" />
                 Hủy
               </Button>
               <Button
                 type="submit"
                 color="green"
                 disabled={submitting}
-                className="flex items-center"
+                className="flex items-center shadow-lg hover:shadow-xl transition-shadow"
               >
                 {submitting ? (
                   <Spinner className="h-4 w-4 mr-2" />
@@ -616,22 +405,15 @@ const GrammarLessonForm = () => {
         </CardBody>
       </Card>
 
-      {/* PDF Upload Config Dialog */}
-      <PDFUploadConfig
-        open={showPdfConfig}
-        onClose={() => setShowPdfConfig(false)}
-        onConfirm={(config) => {
-          setPdfConfig(config);
-          setShowPdfConfig(false); // Đóng dialog
-        }}
-      />
-
-      {/* PDF Lesson Creator Dialog */}
-      <PDFLessonCreatorDialog
+      {/* Gemini Parsed Result Dialog Component */}
+      <GeminiParsedResultDialog
         open={pdfDialog.open}
-        analyzedContent={pdfDialog.analyzedContent}
-        onClose={() => setPdfDialog({ open: false, analyzedContent: null })}
-        onCreateLessons={handleCreateLessonsFromPDF}
+        parsedData={pdfDialog.parsedData}
+        summary={pdfDialog.summary}
+        onClose={() =>
+          setPdfDialog({ open: false, parsedData: null, summary: null })
+        }
+        onConfirm={handleUseParsedContent}
       />
     </div>
   );

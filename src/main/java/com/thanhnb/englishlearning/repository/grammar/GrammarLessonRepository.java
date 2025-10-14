@@ -20,8 +20,11 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
     // Tìm lesson theo topic và trạng thái active
     List<GrammarLesson> findByTopicIdAndIsActiveOrderByOrderIndexAsc(Long topicId, Boolean isActive);
 
-    // Tìm lesson với câu hỏi
-    @Query("SELECT gl FROM GrammarLesson gl LEFT JOIN FETCH gl.questions WHERE gl.id = :lessonId")
+    // Tìm lesson với câu hỏi (sử dụng bảng question)
+    @Query("SELECT gl FROM GrammarLesson gl " +
+           "LEFT JOIN FETCH Question q ON q.parentId = gl.id AND q.parentType = 'GRAMMAR' " +
+           "WHERE gl.id = :lessonId" +
+           " ORDER BY q.orderIndex ASC")
     Optional<GrammarLesson> findByIdWithQuestions(@Param("lessonId") Long lessonId);
 
     // Kiểm tra tiêu đề trong topic (admin validation)
@@ -40,25 +43,34 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
 
 
     // ===== USER ============
-    //Tìm lesson theo topic, vị trí theo order_index
+    // Tìm lesson theo topic, vị trí theo order_index
     List<GrammarLesson> findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(Long topicId);
 
-    //Tìm lesson theo kiểu(type) của topic
+    // Tìm lesson theo kiểu(type) của topic
     List<GrammarLesson> findByTopicIdAndLessonTypeAndIsActiveTrueOrderByOrderIndexAsc(Long topicId, LessonType lessonType);
 
-    //Tìm lessons với questions
-    @Query("SELECT gl FROM GrammarLesson gl LEFT JOIN FETCH gl.questions gq WHERE gl.id = :lessonId AND gl.isActive = true")
+    // Tìm lessons với questions (sử dụng bảng unified)
+    @Query("SELECT gl FROM GrammarLesson gl " +
+           "LEFT JOIN FETCH Question q ON q.parentId = gl.id AND q.parentType = 'GRAMMAR' " +
+           "WHERE gl.id = :lessonId AND gl.isActive = true " +
+           "ORDER BY q.orderIndex ASC")
     Optional<GrammarLesson> findByIdWithLessons(@Param("lessonId") Long lessonId);
 
-    //Kiểm tra người dùng(user) có thể truy cập lesson(based on points)
-    @Query("SELECT CASE WHEN gl.pointsRequired <= :userPoints THEN true ELSE false  END "+
-            "FROM GrammarLesson gl WHERE gl.id = :lessonId")
-    Boolean canUserAccessLesson(@Param("lessonId") Long lessonId, @Param("userPoints") Integer userPoints);
-
-    //Tìm lesson tiếp theo trong topic
+    // Tìm lesson tiếp theo trong topic
     @Query("SELECT gl FROM GrammarLesson gl WHERE gl.topic.id = :topicId " +
            "AND gl.orderIndex > :currentOrderIndex AND gl.isActive = true " +
            "ORDER BY gl.orderIndex ASC LIMIT 1")
     Optional<GrammarLesson> findNextLessonInTopic(@Param("topicId") Long topicId, @Param("currentOrderIndex") Integer currentOrderIndex);
+
+    // Đếm số lesson theo lesson type trong topic
+    long countByTopicIdAndLessonTypeAndIsActiveTrue(Long topicId, LessonType lessonType);
+
+    // Tìm lesson theo estimated duration (ví dụ: cho quick practice)
+    @Query("SELECT gl FROM GrammarLesson gl " +
+           "WHERE gl.topic.id = :topicId " +
+           "AND gl.estimatedDuration <= :maxDuration " +
+           "AND gl.isActive = true " +
+           "ORDER BY gl.orderIndex ASC")
+    List<GrammarLesson> findShortLessonsInTopic(@Param("topicId") Long topicId, @Param("maxDuration") Integer maxDuration);
 
 }

@@ -137,6 +137,19 @@ const GrammarLessonList = () => {
     setFilterStatus('');
   };
 
+  // 🆕 Helper function: Lấy preview text từ HTML content
+  const getContentPreview = (htmlContent, maxLength = 120) => {
+    if (!htmlContent) return 'Chưa có nội dung';
+    
+    // Strip HTML tags
+    const text = htmlContent.replace(/<[^>]+>/g, '');
+    // Remove extra whitespace
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    
+    if (cleanText.length <= maxLength) return cleanText;
+    return cleanText.substring(0, maxLength) + '...';
+  };
+
   const getTypeColor = (type) => {
     switch (type) {
       case 'THEORY': return 'blue';
@@ -171,7 +184,7 @@ const GrammarLessonList = () => {
       {/* Breadcrumbs */}
       <Breadcrumbs className="bg-transparent p-0">
         <Typography 
-          className="opacity-60 cursor-pointer hover:opacity-100"
+          className="opacity-60 cursor-pointer hover:opacity-100 transition-opacity"
           onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
         >
           Chủ đề ngữ pháp
@@ -180,7 +193,7 @@ const GrammarLessonList = () => {
       </Breadcrumbs>
 
       {/* Header Section */}
-      <Card className="border border-blue-gray-100">
+      <Card className="border border-blue-gray-100 shadow-sm">
         <CardBody className="p-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
             <div className="flex items-center space-x-3">
@@ -188,7 +201,7 @@ const GrammarLessonList = () => {
                 variant="outlined"
                 size="sm"
                 onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
-                className="border-gray-300"
+                className="border-gray-300 hover:bg-gray-50"
               >
                 <ArrowLeftIcon className="h-4 w-4" />
               </IconButton>
@@ -220,7 +233,7 @@ const GrammarLessonList = () => {
       </Card>
 
       {/* Filter Section */}
-      <Card className="border border-blue-gray-100">
+      <Card className="border border-blue-gray-100 shadow-sm">
         <CardBody className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
@@ -272,9 +285,9 @@ const GrammarLessonList = () => {
                 variant="outlined"
                 size="sm"
                 onClick={resetFilters}
-                className="border-gray-300 text-gray-800"
+                className="border-gray-300 text-gray-800 hover:bg-gray-50"
               >
-                <Typography variant="small" className="flex items-center hover:text-blue-500">
+                <Typography variant="small" className="flex items-center">
                   <ArrowPathIcon className="h-5 w-5 mr-2" />
                   Reset
                 </Typography>
@@ -303,7 +316,7 @@ const GrammarLessonList = () => {
 
       {/* Lessons Grid */}
       {filteredLessons.length === 0 ? (
-        <Card className="border border-blue-gray-100">
+        <Card className="border border-blue-gray-100 shadow-sm">
           <CardBody className="p-12 text-center">
             <BookOpenIcon className="h-16 w-16 text-blue-gray-300 mx-auto mb-4" />
             <Typography variant="h6" color="blue-gray" className="mb-2">
@@ -346,7 +359,13 @@ const GrammarLessonList = () => {
                           variant="h6" 
                           color="blue-gray" 
                           className="mb-2 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors duration-200"
-                          onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id))}
+                          onClick={() => {
+                            if (lesson.lessonType === 'PRACTICE') {
+                              navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id));
+                            } else {
+                              navigate(ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id));
+                            }
+                          }}
                         >
                           {lesson.title}
                         </Typography>
@@ -399,7 +418,7 @@ const GrammarLessonList = () => {
                           </MenuItem>
                           <MenuItem 
                             onClick={() => setDeleteDialog({ open: true, lesson })}
-                            className="flex items-center text-red-500"
+                            className="flex items-center text-red-500 hover:bg-red-50"
                           >
                             <TrashIcon className="h-4 w-4 mr-2" />
                             Xóa
@@ -411,43 +430,51 @@ const GrammarLessonList = () => {
                 </CardHeader>
 
                 <CardBody className="p-4">
-                  <Typography variant="small" color="blue-gray" className="opacity-70 mb-4 line-clamp-3">
+                  {/* 🔧 FIX: Hiển thị preview text thay vì raw HTML */}
+                  <Typography 
+                    variant="small" 
+                    color="blue-gray" 
+                    className="opacity-70 mb-4 line-clamp-2"
+                  >
                     {lesson.lessonType === 'THEORY' 
-                      ? (lesson.content || 'Chưa có nội dung lý thuyết')
+                      ? getContentPreview(lesson.content, 100)
                       : `Bài thực hành với ${lesson.questionCount || 0} câu hỏi`
                     }
                   </Typography>
 
                   <div className="flex items-center justify-between text-sm text-blue-gray-500 mb-4">
                     <div className="flex items-center space-x-4">
-                      <span>Điểm yêu cầu: {lesson.pointsRequired}</span>
-                      <span>Điểm thưởng: {lesson.pointsReward}</span>
+                      <span className="text-xs">⏱️ {lesson.estimatedDuration}s</span>
+                      <span className="text-xs">🎁 {lesson.pointsReward} điểm</span>
                     </div>
                   </div>
 
                   <div className="flex space-x-2">
                     {lesson.lessonType === 'PRACTICE' && (
-                      <IconButton
+                      <Button
                         size="sm"
                         variant="outlined"
-                        className="border-green-500 text-green-500 hover:bg-green-50"
+                        className="flex-1 border-green-500 text-green-500 hover:bg-green-50"
                         onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id))}
                       >
-                        <EyeIcon className="h-4 w-4" />
-                      </IconButton>
+                        <EyeIcon className="h-4 w-4 mr-1" />
+                        Câu hỏi
+                      </Button>
                     )}
-                    <IconButton
+                    <Button
                       size="sm"
                       variant="outlined"
-                      className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                      className="flex-1 border-blue-500 text-blue-500 hover:bg-blue-50"
                       onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id))}
                     >
-                      <PencilIcon className="h-4 w-4" />
-                    </IconButton>
+                      <PencilIcon className="h-4 w-4 mr-1" />
+                      Sửa
+                    </Button>
                     <IconButton
                       size="sm"
                       variant="outlined"
                       color="red"
+                      className="hover:bg-red-50"
                       onClick={() => setDeleteDialog({ open: true, lesson })}
                     >
                       <TrashIcon className="h-4 w-4" />
@@ -475,20 +502,23 @@ const GrammarLessonList = () => {
             Bạn có chắc chắn muốn xóa bài học <strong>"{deleteDialog.lesson?.title}"</strong> không?
           </Typography>
           <Typography variant="small" color="red" className="mt-2">
-            Hành động này không thể hoàn tác và sẽ xóa tất cả dữ liệu liên quan bao gồm các câu hỏi.
+            ⚠️ Hành động này không thể hoàn tác và sẽ xóa tất cả dữ liệu liên quan bao gồm các câu hỏi.
           </Typography>
         </DialogBody>
         <DialogFooter className="space-x-2">
           <Button
             variant="outlined"
             onClick={() => setDeleteDialog({ open: false, lesson: null })}
+            className="hover:bg-gray-50"
           >
             Hủy
           </Button>
           <Button
             color="red"
             onClick={handleDelete}
+            className="hover:shadow-lg transition-shadow"
           >
+            <TrashIcon className="h-4 w-4 mr-2" />
             Xóa bài học
           </Button>
         </DialogFooter>

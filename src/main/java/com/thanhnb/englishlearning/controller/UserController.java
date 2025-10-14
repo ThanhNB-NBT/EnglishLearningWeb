@@ -17,10 +17,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -30,31 +27,6 @@ import java.util.Map;
 public class UserController {
     
     private final UserService userService;
-
-    @GetMapping("/endpoints")
-    public ResponseEntity<CustomApiResponse<Object>> getEndpoints() {
-        List<Map<String, String>> endpoints = Arrays.asList(
-            Map.of("method", "GET", "url", "/api/users", "description", "Lấy tất cả người dùng"),
-            Map.of("method", "GET", "url", "/api/users/{id}", "description", "Lấy người dùng theo ID"),
-            Map.of("method", "GET", "url", "/api/users/username/{username}", "description", "Lấy người dùng theo username"),
-            Map.of("method", "GET", "url", "/api/users/email/{email}", "description", "Lấy người dùng theo email"),
-            Map.of("method", "POST", "url", "/api/users", "description", "Tạo người dùng mới"),
-            Map.of("method", "PUT", "url", "/api/users/{id}", "description", "Cập nhật người dùng"),
-            Map.of("method", "DELETE", "url", "/api/users/{id}", "description", "Xóa người dùng"),
-            Map.of("method", "GET", "url", "/api/users/role/{role}", "description", "Lấy người dùng theo vai trò"),
-            Map.of("method", "PUT", "url", "/api/users/{id}/points?points=50", "description", "Thêm điểm cho người dùng"),
-            Map.of("method", "GET", "url", "/api/users/active", "description", "Lấy người dùng đang hoạt động"),
-            Map.of("method", "GET", "url", "/api/users/top-points?minPoints=0", "description", "Top người dùng theo điểm"),
-            Map.of("method", "GET", "url", "/api/users/top-streak?minStreakDays=0", "description", "Top người dùng theo streak"),
-            Map.of("method", "PUT", "url", "/api/users/{id}/block", "description", "Khóa người dùng"),
-            Map.of("method", "PUT", "url", "/api/users/{id}/unblock", "description", "Mở khóa người dùng"),
-            Map.of("method", "PUT", "url", "/api/users/{username}/last-login", "description", "Cập nhật lần đăng nhập cuối"),
-            Map.of("method", "PUT", "url", "/api/users/{id}/streak?streakDays=7", "description", "Cập nhật streak days"),
-            Map.of("method", "GET", "url", "/api/users/endpoints", "description", "Xem danh sách endpoints")
-        );
-        
-        return ResponseEntity.ok(CustomApiResponse.success(Map.of("endpoints", endpoints), "Danh sách User API endpoints"));
-    }
 
     @GetMapping
     @Operation(summary = "Lấy tất cả người dùng", description = "Lấy danh sách tất cả người dùng")
