@@ -102,7 +102,8 @@ public class GrammarController {
             @Parameter(description = "Số lượng câu hỏi cần lấy", example = "10") @RequestParam(defaultValue = "10") int numberOfQuestions,
             @Parameter(description = "Thông tin xác thực người dùng") Authentication authentication) {
         try {
-            List<GrammarQuestionDTO> questions = grammarService.getRandomQuestions(lessonId, numberOfQuestions);
+            Long userId = getCurrentUserId(authentication);
+            List<GrammarQuestionDTO> questions = grammarService.getRandomQuestions(lessonId, numberOfQuestions, userId);
             questions.forEach(q -> q.setShowCorrectAnswer(false));
             return ResponseEntity.ok(CustomApiResponse.success(questions,
                     "Lấy câu hỏi trắc nghiệm thành công"));
@@ -124,9 +125,9 @@ public class GrammarController {
         try {
             Long userId = getCurrentUserId(authentication);
             LessonResultResponse result = grammarService.submitLesson(userId, request);
-            
-            String message = result.getIsCompleted()
-                ? "Hoàn thành bài học thành công! Điểm: " + result.getScore()
+
+            String message = result.isPassed()
+                ? "Hoàn thành bài học thành công! Điểm: " + result.score()
                 : "Submit bài học thành công. Xem gợi ý trong kết quả để cải thiện!";
 
             return ResponseEntity.ok(CustomApiResponse.success(result, message));

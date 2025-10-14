@@ -1,36 +1,34 @@
 package com.thanhnb.englishlearning.dto.grammar;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class QuestionResultDTO {
-
+/**
+ * ✨ RECORD - Immutable, compact
+ * Tự động generate constructor, getters, equals, hashCode, toString
+ */
+@Schema(description = "Kết quả kiểm tra câu trả lời")
+public record QuestionResultDTO(
     @Schema(description = "ID câu hỏi", example = "101")
-    private Long questionId;
+    Long questionId,
 
-    @Schema(description = "Nội dung câu hỏi", example = "Translate: Tôi hạnh phúc")
-    private String questionText;
+    @Schema(description = "Nội dung câu hỏi")
+    String questionText,
 
-    @Schema(description = "Câu trả lời của người dùng", example = "I am happy")
-    private String userAnswer;
+    @Schema(description = "Câu trả lời của user")
+    String userAnswer,
 
-    @Schema(description = "Câu trả lời đúng cho câu hỏi", example = "I am happy")
-    private String correctAnswer;
+    @Schema(description = "Đáp án đúng")
+    String correctAnswer,
 
-    @Schema(description = "Trạng thái câu trả lời", example = "true")
-    private Boolean isCorrect;
+    @Schema(description = "Đúng hay sai", example = "true")
+    Boolean isCorrect,
 
-    @Schema(description = "Giải thích cho câu trả lời đúng", example = "Correct translation.")
-    private String explanation;
+    @Schema(description = "Giải thích")
+    String explanation,
 
-    @Schema(description = "Điểm số cho câu hỏi", example = "10")
-    private Integer points;
+    @Schema(description = "Điểm đạt được", example = "5")
+    Integer points,
 
-    @Schema(description = "Gợi ý cho các câu trả lời sai", example = "Kiểm tra lại ngữ pháp và từ vựng.")
-    private String hint;
-}
+    @Schema(description = "Gợi ý khi sai")
+    String hint
+) {}

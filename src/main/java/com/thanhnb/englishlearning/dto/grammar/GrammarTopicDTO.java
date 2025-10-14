@@ -1,5 +1,6 @@
 package com.thanhnb.englishlearning.dto.grammar;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.thanhnb.englishlearning.enums.EnglishLevel;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -13,6 +14,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Chi tiết chủ đề ngữ pháp")
 public class GrammarTopicDTO {
 
@@ -20,12 +22,12 @@ public class GrammarTopicDTO {
     private Long id;
 
     @NotBlank(message = "Tên chủ đề không được để trống")
-    @Size(max = 100, message = "Tên chủ đề không được vượt quá 100 ký tự")
-    @Schema(description = "Tên của chủ đề", example = "Thì hiện tại đơn")
+    @Size(max = 200, message = "Tên chủ đề không được vượt quá 200 ký tự")
+    @Schema(description = "Tên của chủ đề", example = "Present Simple Tense")
     private String name;
 
-    @Size(max = 1000, message = "Mô tả không được vượt quá 1000 từ")
-    @Schema(description = "Mô tả của chủ đề", example = "Học các kiến thức cơ bản về thì hiện tại đơn")
+    @Size(max = 1000, message = "Mô tả không được vượt quá 1000 ký tự")
+    @Schema(description = "Mô tả của chủ đề")
     private String description;
 
     @NotNull(message = "Level yêu cầu không được để trống")
@@ -37,22 +39,22 @@ public class GrammarTopicDTO {
     @Schema(description = "Thứ tự của chủ đề", example = "1")
     private Integer orderIndex;
 
-    @Schema(description = "Trạng thái của chủ đề", example = "true")
+    @Schema(description = "Trạng thái hoạt động", example = "true")
     private Boolean isActive = true;
 
-    @Schema(description = "Thời gian tạo", example = "2025-09-24T10:00:00")
+    @Schema(description = "Thời gian tạo")
     private LocalDateTime createdAt;
 
-    @Schema(description = "Danh sách các bài học trong chủ đề")
-    private List<GrammarLessonSummaryDTO> lessons;
+    // === User progress fields (chỉ dùng khi cần) ===
+    @Schema(description = "Danh sách bài học (chỉ load khi cần)")
+    private List<GrammarLessonDTO> lessons;
 
-    @Schema(description = "Số bài học đã hoàn thành của người dùng", example = "2")
+    @Schema(description = "Số bài học đã hoàn thành", example = "2")
     private Integer completedLessons;
 
-    @Schema(description = "Tổng số bài học trong chủ đề", example = "5")
+    @Schema(description = "Tổng số bài học", example = "5")
     private Integer totalLessons;
 
-    @Schema(description = "Người dùng có thể truy cập chủ đề này không", example = "true")
+    @Schema(description = "Có thể truy cập không", example = "true")
     private Boolean isAccessible;
-    
 }

@@ -3,8 +3,10 @@ package com.thanhnb.englishlearning.enums;
 public enum QuestionType {
     MULTIPLE_CHOICE("Trắc nghiệm"),
     FILL_BLANK("Điền vào chỗ trống"),
-    TRANSLATION_VI_EN("Dịch Vi-En"),
-    TRANSLATION_EN_VI("Dịch En-Vi"),
+    TRANSLATE("Dịch Vi-En hoặc En-Vi"),
+    TRUE_FALSE("Đúng/Sai"),
+    VERB_FORM("Chia động từ"),
+    SHORT_ANSWER("Trả lời ngắn"),
     SENTENCE_BUILDING("Xây dựng câu");
 
     private final String description;

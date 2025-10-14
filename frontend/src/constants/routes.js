@@ -19,6 +19,7 @@ export const ADMIN_ROUTES = {
   DASHBOARD: '/admin/dashboard',
   
   // Auth
+  REGISTER: '/admin/register',
   LOGIN: '/admin/login',
   LOGOUT: '/admin/logout',
 };

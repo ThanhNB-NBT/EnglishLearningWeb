@@ -1,5 +1,6 @@
 package com.thanhnb.englishlearning.dto.grammar;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.thanhnb.englishlearning.enums.LessonType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -10,72 +11,122 @@ import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * ✨ UNIFIED DTO - Dùng cho cả Summary và Full Details
+ * - Summary: Chỉ set basic fields
+ * - Full: Set thêm content, questions
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Chi tiết của bài học ngữ pháp")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Thông tin bài học ngữ pháp")
 public class GrammarLessonDTO {
 
+    // === BASIC INFO (Dùng cho cả Summary và Full) ===
     @Schema(description = "ID của bài học", example = "1")
     private Long id;
 
-    @NotNull(message = "Topic Id không được để trống")
+    @NotNull(message = "Topic ID không được để trống")
     @Schema(description = "ID của chủ đề", example = "1")
     private Long topicId;
 
-    @NotBlank(message = "Tiêu đề bài học không được để trống")
-    @Size(max = 200, message = "Tiêu đề không được vượt quá 200 từ")
-    @Schema(description = "Tiêu đề của bài học", example = "Cách sử dụng thì hiện tại đơn")
+    @NotBlank(message = "Tiêu đề không được để trống")
+    @Size(max = 200, message = "Tiêu đề tối đa 200 ký tự")
+    @Schema(description = "Tiêu đề bài học", example = "How to use Present Simple")
     private String title;
 
-    @NotNull(message = "Loại bài không được để trống")
-    @Schema(description = "Loại của bài học (LÝ THUYẾT hoặc THỰC HÀNH)", example = "LÝ THUYẾT")
+    @NotNull(message = "Loại bài học không được để trống")
+    @Schema(description = "Loại bài học", example = "THEORY")
     private LessonType lessonType;
 
-    @Schema(description = "Nội dung của bài học (đối với bài lý thuyết)", example = "Giải thích về thì hiện tại đơn...")
-    private String content;
-
     @NotNull(message = "Thứ tự không được để trống")
-    @Min(value = 1, message = "Thứ tự phải lớn hơn 0")
-    @Schema(description = "Thứ tự của bài học", example = "1")
+    @Min(value = 1, message = "Thứ tự phải >= 1")
+    @Schema(description = "Thứ tự bài học", example = "1")
     private Integer orderIndex;
 
-    @Min(value = 0, message = "Điểm yêu cầu không được âm")
-    @Schema(description = "Điểm yêu cầu để truy cập bài học", example = "0")
-    private Integer pointsRequired = 0;
-
-    @Min(value = 1, message = "Điểm thưởng phải lớn hơn 0")
-    @Schema(description = "Điểm thưởng cho việc hoàn thành bài học", example = "10")
+    @Min(value = 1, message = "Điểm thưởng phải >= 1")
+    @Schema(description = "Điểm thưởng khi hoàn thành", example = "10")
     private Integer pointsReward = 10;
 
-    @Schema(description = "Trạng thái của bài học", example = "true")
+    @Min(value = 10, message = "Thời gian ước tính phải >= 10 giây")
+    @Schema(description = "Thời gian ước tính (giây)", example = "30")
+    private Integer estimatedDuration = 30;
+
+    @Schema(description = "Trạng thái hoạt động", example = "true")
     private Boolean isActive = true;
 
-    @Schema(description = "Thời gian tạo", example = "2025-09-24T10:00:00")
+    @Schema(description = "Thời gian tạo")
     private LocalDateTime createdAt;
 
-    @Schema(description = "Tên của chủ đề", example = "Thì hiện tại đơn")
+    @Schema(description = "Tên chủ đề")
     private String topicName;
 
-    @Schema(description = "Danh sách các câu hỏi trong bài học (đối với bài thực hành)")
-    private List<GrammarQuestionDTO> questions;
-
-    @Schema(description = "Số lượng câu hỏi trong bài học", example = "10")
+    @Schema(description = "Số lượng câu hỏi", example = "10")
     private Integer questionCount;
 
-    @Schema(description = "Trạng thái hoàn thành của bài học", example = "false")
+    // === FULL DETAILS (Chỉ dùng khi load full) ===
+    @Schema(description = "Nội dung bài học (HTML/Markdown)")
+    private String content;
+
+    @Schema(description = "Danh sách câu hỏi")
+    private List<GrammarQuestionDTO> questions;
+
+    // === USER PROGRESS (Chỉ có khi user logged in) ===
+    @Schema(description = "Đã hoàn thành chưa", example = "false")
     private Boolean isCompleted;
 
-    @Schema(description = "Trạng thái truy cập của bài học", example = "true")
+    @Schema(description = "Có thể truy cập không", example = "true")
     private Boolean isAccessible;
 
-    @Schema(description = "Trạng thái mở khóa của bài học", example = "true")
+    @Schema(description = "Đã mở khóa chưa", example = "true")
     private Boolean isUnlocked;
 
-    @Schema(description = "Điểm của người dùng cho bài học", example = "80")
+    @Schema(description = "Điểm của user", example = "85")
     private Integer userScore;
 
-    @Schema(description = "Số lần thử nghiệm của người dùng", example = "2")
+    @Schema(description = "Số lần thử", example = "2")
     private Integer userAttempts;
 
+    // ===== STATIC FACTORY METHODS - TẠO DTO DỄ DÀNG =====
+
+    /**
+     * Tạo Summary DTO (cho danh sách)
+     */
+    public static GrammarLessonDTO summary(Long id, Long topicId, String title, 
+            LessonType lessonType, Integer orderIndex, Integer pointsReward, 
+            Boolean isActive, Integer questionCount) {
+        GrammarLessonDTO dto = new GrammarLessonDTO();
+        dto.setId(id);
+        dto.setTopicId(topicId);
+        dto.setTitle(title);
+        dto.setLessonType(lessonType);
+        dto.setOrderIndex(orderIndex);
+        dto.setPointsReward(pointsReward);
+        dto.setIsActive(isActive);
+        dto.setQuestionCount(questionCount);
+        return dto;
+    }
+
+    /**
+     * Tạo Full DTO (cho chi tiết)
+     */
+    public static GrammarLessonDTO full(Long id, Long topicId, String title, 
+            LessonType lessonType, String content, Integer orderIndex, 
+            Integer pointsReward, Integer estimatedDuration, Boolean isActive, 
+            LocalDateTime createdAt, String topicName) {
+        GrammarLessonDTO dto = new GrammarLessonDTO();
+        dto.setId(id);
+        dto.setTopicId(topicId);
+        dto.setTitle(title);
+        dto.setLessonType(lessonType);
+        dto.setContent(content);
+        dto.setOrderIndex(orderIndex);
+        dto.setPointsReward(pointsReward);
+        dto.setEstimatedDuration(estimatedDuration);
+        dto.setIsActive(isActive);
+        dto.setCreatedAt(createdAt);
+        dto.setTopicName(topicName);
+        return dto;
+    }
 }

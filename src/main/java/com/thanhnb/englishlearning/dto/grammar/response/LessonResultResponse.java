@@ -1,46 +1,39 @@
 package com.thanhnb.englishlearning.dto.grammar.response;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import com.thanhnb.englishlearning.dto.grammar.QuestionResultDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-import com.thanhnb.englishlearning.dto.grammar.QuestionResultDTO;
+@Schema(description = "Kết quả sau khi nộp bài học")
+public record LessonResultResponse(
+    @Schema(description = "ID bài học", example = "1")
+    Long lessonId,
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class LessonResultResponse {
+    @Schema(description = "Tiêu đề bài học")
+    String lessonTitle,
 
-    @Schema(description = "ID của bài học", example = "1")
-    private Long lessonId;
+    @Schema(description = "Tổng số câu hỏi", example = "10")
+    Integer totalQuestions,
 
-    @Schema(description = "Tiêu đề của bài học", example = "Thì hiện tại đơn")
-    private String lessonTitle;
+    @Schema(description = "Số câu đúng", example = "7")
+    Integer correctAnswers,
 
-    @Schema(description = "Tổng số câu hỏi trong bài học", example = "10")
-    private Integer totalQuestions;
+    @Schema(description = "Tổng điểm", example = "35")
+    Integer score,
 
-    @Schema(description = "Số câu trả lời đúng", example = "7")
-    private Integer correctAnswers;
+    @Schema(description = "Điểm thưởng nhận được", example = "10")
+    Integer pointsEarned,
 
-    @Schema(description = "Tổng điểm đạt được", example = "70")
-    private Integer score;
+    @Schema(description = "Đã hoàn thành chưa", example = "true")
+    Boolean isPassed,
 
-    @Schema(description = "Điểm thưởng cho việc hoàn thành bài học", example = "100")
-    private Integer pointsEarned;
+    @Schema(description = "Đã mở khóa bài tiếp theo chưa", example = "true")
+    Boolean hasUnlockedNext,
 
-    @Schema(description = "Trạng thái hoàn thành bài học", example = "true")
-    private Boolean isCompleted;
+    @Schema(description = "ID bài học tiếp theo", example = "2")
+    Long nextLessonId,
 
-    @Schema(description = "Trạng thái mở khóa bài học tiếp theo", example = "true")
-    private Boolean hasUnlockedNext;
-
-    @Schema(description = "ID của bài học tiếp theo, nếu đã mở khóa", example = "2")
-    private Long nextLessonId;
-
-    @Schema(description = "Kết quả chi tiết cho từng câu hỏi")
-    private List<QuestionResultDTO> questionResults;
-}
+    @Schema(description = "Chi tiết kết quả từng câu")
+    List<QuestionResultDTO> questionResults
+) {}
