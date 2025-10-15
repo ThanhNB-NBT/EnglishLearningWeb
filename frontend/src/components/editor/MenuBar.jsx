@@ -24,6 +24,7 @@ import {
   MinusIcon,
   PaletteIcon,
   HighlighterIcon,
+  XIcon,
 } from 'lucide-react';
 
 const MenuBar = ({ editor }) => {
@@ -43,31 +44,43 @@ const MenuBar = ({ editor }) => {
 
   const addImage = () => {
     const url = window.prompt('Nhập URL hình ảnh:');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+    if (url && url.trim() !== '') {
+      editor.chain().focus().setImage({ src: url.trim() }).run();
     }
   };
 
   const addLink = () => {
-    const url = window.prompt('Nhập URL:');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
+    const previousUrl = editor.getAttributes('link').href;
+    const url = window.prompt('Nhập URL:', previousUrl || '');
+    
+    if (url === null) return;
+    
+    if (url === '') {
+      editor.chain().focus().unsetLink().run();
+      return;
     }
+    
+    editor.chain().focus().setLink({ href: url.trim() }).run();
   };
 
   const addYoutube = () => {
     const url = window.prompt('Nhập URL YouTube:');
-    if (url) {
-      editor.commands.setYoutubeVideo({ src: url });
+    if (url && url.trim() !== '') {
+      editor.commands.setYoutubeVideo({ src: url.trim() });
     }
   };
 
   const addTable = () => {
-    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    editor.chain().focus().insertTable({ 
+      rows: 3, 
+      cols: 3, 
+      withHeaderRow: true 
+    }).run();
   };
 
   const ToolbarButton = ({ onClick, isActive, disabled, title, children }) => (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -152,31 +165,49 @@ const MenuBar = ({ editor }) => {
           <PaletteIcon size={16} />
         </ToolbarButton>
         {showColorPicker && (
-          <div className="color-picker-dropdown">
-            <div className="color-grid">
-              {colors.map((color) => (
+          <>
+            <div 
+              className="color-picker-overlay" 
+              onClick={() => setShowColorPicker(false)}
+            />
+            <div className="color-picker-dropdown">
+              <div className="color-picker-header">
+                <span>Màu chữ</span>
                 <button
-                  key={color}
-                  className="color-swatch"
-                  style={{ backgroundColor: color }}
-                  onClick={() => {
-                    editor.chain().focus().setColor(color).run();
-                    setShowColorPicker(false);
-                  }}
-                  title={color}
-                />
-              ))}
+                  type="button"
+                  className="color-picker-close"
+                  onClick={() => setShowColorPicker(false)}
+                >
+                  <XIcon size={14} />
+                </button>
+              </div>
+              <div className="color-grid">
+                {colors.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    className="color-swatch"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      editor.chain().focus().setColor(color).run();
+                      setShowColorPicker(false);
+                    }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="color-remove"
+                onClick={() => {
+                  editor.chain().focus().unsetColor().run();
+                  setShowColorPicker(false);
+                }}
+              >
+                Xóa màu
+              </button>
             </div>
-            <button
-              className="color-remove"
-              onClick={() => {
-                editor.chain().focus().unsetColor().run();
-                setShowColorPicker(false);
-              }}
-            >
-              Xóa màu
-            </button>
-          </div>
+          </>
         )}
       </div>
 
@@ -188,31 +219,49 @@ const MenuBar = ({ editor }) => {
           <HighlighterIcon size={16} />
         </ToolbarButton>
         {showHighlightPicker && (
-          <div className="color-picker-dropdown">
-            <div className="color-grid">
-              {colors.map((color) => (
+          <>
+            <div 
+              className="color-picker-overlay" 
+              onClick={() => setShowHighlightPicker(false)}
+            />
+            <div className="color-picker-dropdown">
+              <div className="color-picker-header">
+                <span>Màu nền</span>
                 <button
-                  key={color}
-                  className="color-swatch"
-                  style={{ backgroundColor: color }}
-                  onClick={() => {
-                    editor.chain().focus().toggleHighlight({ color }).run();
-                    setShowHighlightPicker(false);
-                  }}
-                  title={color}
-                />
-              ))}
+                  type="button"
+                  className="color-picker-close"
+                  onClick={() => setShowHighlightPicker(false)}
+                >
+                  <XIcon size={14} />
+                </button>
+              </div>
+              <div className="color-grid">
+                {colors.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    className="color-swatch"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      editor.chain().focus().toggleHighlight({ color }).run();
+                      setShowHighlightPicker(false);
+                    }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="color-remove"
+                onClick={() => {
+                  editor.chain().focus().unsetHighlight().run();
+                  setShowHighlightPicker(false);
+                }}
+              >
+                Xóa highlight
+              </button>
             </div>
-            <button
-              className="color-remove"
-              onClick={() => {
-                editor.chain().focus().unsetHighlight().run();
-                setShowHighlightPicker(false);
-              }}
-            >
-              Xóa highlight
-            </button>
-          </div>
+          </>
         )}
       </div>
 
@@ -281,7 +330,7 @@ const MenuBar = ({ editor }) => {
         <ImageIcon size={16} />
       </ToolbarButton>
 
-      <ToolbarButton onClick={addLink} title="Insert Link">
+      <ToolbarButton onClick={addLink} title="Insert/Edit Link">
         <LinkIcon size={16} />
       </ToolbarButton>
 
@@ -340,6 +389,7 @@ const MenuBar = ({ editor }) => {
           <Divider />
           <div className="table-controls">
             <button
+              type="button"
               onClick={() => editor.chain().focus().addRowBefore().run()}
               className="table-button"
               title="Add Row Before"
@@ -347,6 +397,7 @@ const MenuBar = ({ editor }) => {
               +Row↑
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addRowAfter().run()}
               className="table-button"
               title="Add Row After"
@@ -354,6 +405,7 @@ const MenuBar = ({ editor }) => {
               +Row↓
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().deleteRow().run()}
               className="table-button"
               title="Delete Row"
@@ -361,6 +413,7 @@ const MenuBar = ({ editor }) => {
               -Row
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addColumnBefore().run()}
               className="table-button"
               title="Add Column Before"
@@ -368,6 +421,7 @@ const MenuBar = ({ editor }) => {
               +Col←
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addColumnAfter().run()}
               className="table-button"
               title="Add Column After"
@@ -375,6 +429,7 @@ const MenuBar = ({ editor }) => {
               +Col→
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().deleteColumn().run()}
               className="table-button"
               title="Delete Column"
@@ -382,11 +437,12 @@ const MenuBar = ({ editor }) => {
               -Col
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().deleteTable().run()}
               className="table-button delete"
               title="Delete Table"
             >
-              Delete Table
+              Xóa bảng
             </button>
           </div>
         </>
@@ -396,3 +452,4 @@ const MenuBar = ({ editor }) => {
 };
 
 export default MenuBar;
+

@@ -35,27 +35,52 @@ const RichTextEditor = ({
       }),
       Table.configure({
         resizable: true,
+        cellMinWidth: 50,
+        allowTableNodeSelection: true,
         HTMLAttributes: {
           class: "tiptap-table",
         },
       }),
       TableRow,
       TableHeader,
-      TableCell,
+      TableCell.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            placeholder: {
+              default: null,
+              parseHTML: (element) => element.getAttribute("data-placeholder"),
+              renderHTML: (attributes) => {
+                if (!attributes.placeholder) {
+                  return {};
+                }
+                return {
+                  "data-placeholder": attributes.placeholder,
+                };
+              },
+            },
+          };
+        },
+      }),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
           class: "tiptap-link",
+          target: "_blank",
+          rel: "noopener noreferrer",
         },
       }),
       Image.configure({
         HTMLAttributes: {
           class: "tiptap-image",
+          inline: false,
+          allowBase64: true,
         },
       }),
       Youtube.configure({
         width: 640,
         height: 480,
+        nocookie: true,
       }),
       TextAlign.configure({
         types: ["heading", "paragraph"],
@@ -75,16 +100,29 @@ const RichTextEditor = ({
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      const html = editor.getHTML();
+      onChange(html);
     },
   });
 
   // Sync external value changes with editor
   React.useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value);
+      try {
+        editor.commands.setContent(value || "", false);
+      } catch (error) {
+        console.error("Error setting content:", error);
+      }
     }
   }, [value, editor]);
+
+  React.useEffect(() => {
+    return () => {
+      if (editor) {
+        editor.destroy();
+      }
+    };
+  }, [editor]);
 
   return (
     <div className="rich-text-editor-wrapper">

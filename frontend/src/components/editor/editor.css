@@ -61,9 +61,18 @@
   margin: 0 0.25rem;
 }
 
-/* Color Picker */
+/* ✅ Color Picker với Overlay */
 .color-picker-wrapper {
   position: relative;
+}
+
+.color-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
 }
 
 .color-picker-dropdown {
@@ -77,6 +86,34 @@
   padding: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 10;
+  min-width: 220px;
+}
+
+.color-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.color-picker-close {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+}
+
+.color-picker-close:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .color-grid {
@@ -238,48 +275,47 @@
   list-style-type: decimal;
 }
 
-.tiptap-editor ul ul,
-.tiptap-editor ol ul {
-  list-style-type: circle;
-}
-
-.tiptap-editor ul ul ul,
-.tiptap-editor ol ul ul,
-.tiptap-editor ol ol ul {
-  list-style-type: square;
-}
-
-/* Table Styles */
-.tiptap-table {
+/* ✅ FIX: Table hiển thị content rõ ràng */
+.tiptap-editor table {
   border-collapse: collapse;
   margin: 1rem 0;
-  overflow: hidden;
+  overflow: visible;
   table-layout: fixed;
   width: 100%;
 }
 
-.tiptap-table td,
-.tiptap-table th {
+.tiptap-editor table td,
+.tiptap-editor table th {
   border: 2px solid #cbd5e0;
-  padding: 0.5rem;
+  padding: 0.75rem;
   position: relative;
   vertical-align: top;
   min-width: 100px;
   box-sizing: border-box;
+  background: white;
 }
 
-.tiptap-table th {
+.tiptap-editor table th {
   background-color: #f3f4f6;
   font-weight: 600;
   text-align: left;
 }
 
-.tiptap-table .selectedCell {
+.tiptap-editor table .selectedCell {
   background-color: #dbeafe;
 }
 
-.tiptap-table p {
+/* ✅ Đảm bảo <p> trong table hiển thị */
+.tiptap-editor table p {
   margin: 0;
+  min-height: 1em;
+}
+
+/* ✅ Placeholder cho ô table rỗng */
+.tiptap-editor table td:empty::before,
+.tiptap-editor table th:empty::before {
+  content: '\200B'; /* Zero-width space */
+  display: inline-block;
 }
 
 /* Blockquote */
@@ -302,7 +338,7 @@
   border-radius: 0.5rem;
   overflow-x: auto;
   margin: 1rem 0;
-  font-family: "Courier New", Courier, monospace;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -313,7 +349,7 @@
   padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.875rem;
-  font-family: "Courier New", Courier, monospace;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 .tiptap-editor pre code {
@@ -330,18 +366,18 @@
 }
 
 /* Link */
-.tiptap-link {
+.tiptap-editor a {
   color: #2563eb;
   text-decoration: underline;
   cursor: pointer;
 }
 
-.tiptap-link:hover {
+.tiptap-editor a:hover {
   color: #1d4ed8;
 }
 
 /* Image */
-.tiptap-image {
+.tiptap-editor img {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
@@ -385,5 +421,10 @@
   .table-button {
     flex: 1;
     min-width: 0;
+  }
+
+  .color-picker-dropdown {
+    left: auto;
+    right: 0;
   }
 }

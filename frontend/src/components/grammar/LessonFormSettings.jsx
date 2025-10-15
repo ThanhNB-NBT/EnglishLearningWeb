@@ -7,10 +7,11 @@ import {
 
 /**
  * Component: Cài đặt lesson (Order, Points, Duration, Status)
+ * 🔧 Fixed: Responsive layout với breakpoints tốt hơn
  */
 const LessonFormSettings = ({ formData, errors, onChange }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-6">
       {/* Order Index */}
       <div>
         <Typography

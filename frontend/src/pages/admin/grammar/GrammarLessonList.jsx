@@ -124,7 +124,7 @@ const GrammarLessonList = () => {
       setLessons(lessons.filter(lesson => lesson.id !== deleteDialog.lesson.id));
       toast.success('Xóa bài học thành công!');
     } catch (error) {
-      toast.error('Lỗi khi xóa bài học: ' + (error.response?.data?.message || error.message));
+      toast.error((error.response?.data?.message || error.message));
       console.error('Delete lesson error:', error);
     } finally {
       setDeleteDialog({ open: false, lesson: null });
@@ -235,7 +235,7 @@ const GrammarLessonList = () => {
       {/* Filter Section */}
       <Card className="border border-blue-gray-100 shadow-sm">
         <CardBody className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div>
               <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
                 Tìm kiếm

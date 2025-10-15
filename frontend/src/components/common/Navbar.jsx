@@ -1,36 +1,37 @@
 import React, { useState } from "react";
-import { getUserDisplayName, logout, getUserEmail } from "../auth/authService";
+import { getUserDisplayName, logout, getUserEmail } from "../../auth/authService";
 import { MoonIcon, SunIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { useTheme } from '../../contexts/ThemeContext'; 
 
-const Navbar = ({ darkMode, onThemeToggle }) => {
+const Navbar = () => { 
     const [showMenu, setShowMenu] = useState(false);
+    const { toggleTheme, isDark } = useTheme(); 
     const userName = getUserDisplayName();
     const userEmail = getUserEmail();
 
     const handleLogout = () => {
         console.log('Navbar: Initiating logout');
         toast.success('Đăng xuất thành công!', {
-            duration: 1000, // Hiển thị toast trong 1 giây
+            duration: 1000,
         });
-        // Trì hoãn chuyển hướng để toast hiển thị đầy đủ
-        setTimeout(logout, 1100); // Chờ 1.1 giây (hơn duration một chút)
+        setTimeout(logout, 1100);
     };
 
     return (
-        <header className="flex items-center justify-between px-8 py-4 bg-white dark:bg-gray-900 dark:text-gray-100 border-b border-gray-900 dark:border-white">
+        <header className="navbar-base flex items-center justify-between px-8 py-4">
             <div />
             <div className="flex items-center space-x-4">
                 {/* Theme Icons and Toggle */}
-                {!darkMode && <MoonIcon className="h-6 w-6 text-gray-800" />}
-                {darkMode && <SunIcon className="h-6 w-6 text-white" />}
+                {!isDark && <MoonIcon className="h-6 w-6 text-gray-800 dark:text-white" />}
+                {isDark && <SunIcon className="h-6 w-6 text-gray-800 dark:text-white" />}
                 <button
-                    onClick={onThemeToggle}
+                    onClick={toggleTheme} 
                     className="relative w-12 h-6 rounded-full bg-gray-300 dark:bg-blue-600 transition-colors duration-300 focus:outline-none"
                     title="Chuyển theme"
                 >
                     <span
-                        className={`absolute left-1 top-1 h-4 w-4 bg-white rounded-full transition-transform duration-300 ${darkMode ? 'translate-x-6' : 'translate-x-0'}`}
+                        className={`absolute left-1 top-1 h-4 w-4 bg-white rounded-full transition-transform duration-300 ${isDark ? 'translate-x-6' : 'translate-x-0'}`}
                     />
                 </button>
                 

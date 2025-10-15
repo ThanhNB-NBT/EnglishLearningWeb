@@ -21,6 +21,7 @@ import toast from "react-hot-toast";
 import LessonFormBasicInfo from "../../../components/grammar/LessonFormBasicInfo";
 import LessonFormSettings from "../../../components/grammar/LessonFormSettings";
 import LessonContentEditor from "../../../components/grammar/LessonContentEditor";
+import LessonContentPreview from "../../../components/grammar/LessonContentPreview";
 import GeminiParsedResultDialog from "../../../components/grammar/GeminiParsedResultDialog";
 
 /**
@@ -358,15 +359,7 @@ const GrammarLessonForm = () => {
 
             {/* 🆕 Preview nội dung (Optional) */}
             {formData.content && formData.lessonType === "THEORY" && (
-              <div className="border-t pt-4">
-                <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
-                  📄 Preview nội dung
-                </Typography>
-                <div 
-                  className="prose max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200"
-                  dangerouslySetInnerHTML={{ __html: formData.content }}
-                />
-              </div>
+              <LessonContentPreview content={formData.content} />
             )}
 
             {/* Settings Component */}
