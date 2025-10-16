@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTopics, deleteTopic } from '../../../utils/grammarAdminUtils';
-import { ADMIN_ROUTES } from '../../../constants/routes';
+import { useTopicList } from '../../../../hook/grammar/useGrammarTopics';
+import { ADMIN_ROUTES } from '../../../../constants/routes';
 import {
   Button,
   Card,
@@ -9,7 +9,6 @@ import {
   CardHeader,
   Typography,
   Spinner,
-  Alert,
   Chip,
   IconButton,
   Dialog,
@@ -29,7 +28,6 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  FunnelIcon,
   MagnifyingGlassIcon,
   EllipsisVerticalIcon,
   BookOpenIcon,
@@ -38,85 +36,31 @@ import {
   XCircleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
 
 const GrammarTopicList = () => {
-  const [topics, setTopics] = useState([]);
-  const [filteredTopics, setFilteredTopics] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, topic: null });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterLevel, setFilterLevel] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const navigate = useNavigate();
+  const {
+    filteredTopics,
+    topics,
+    loading,
+    searchTerm,
+    setSearchTerm,
+    filterLevel,
+    setFilterLevel,
+    filterStatus,
+    setFilterStatus,
+    deleteTopic,
+    resetFilters
+  } = useTopicList();
+
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, topic: null });
 
   const levels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
 
-  useEffect(() => {
-    loadTopics();
-  }, []);
-
-  useEffect(() => {
-    filterTopics();
-  }, [topics, searchTerm, filterLevel, filterStatus]);
-
-  const loadTopics = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchTopics();
-      setTopics(data);
-    } catch (error) {
-      toast.error('Lỗi khi lấy danh sách chủ đề ngữ pháp');
-      console.error('Load topics error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterTopics = () => {
-    let filtered = topics;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(topic =>
-        topic.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        topic.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Level filter
-    if (filterLevel) {
-      filtered = filtered.filter(topic => topic.levelRequired === filterLevel);
-    }
-
-    // Status filter
-    if (filterStatus) {
-      const isActive = filterStatus === 'active';
-      filtered = filtered.filter(topic => topic.isActive === isActive);
-    }
-
-    setFilteredTopics(filtered);
-  };
-
   const handleDelete = async () => {
     if (!deleteDialog.topic) return;
-    
-    try {
-      await deleteTopic(deleteDialog.topic.id);
-      setTopics(topics.filter(topic => topic.id !== deleteDialog.topic.id));
-      toast.success('Xóa chủ đề thành công!');
-    } catch (error) {
-      toast.error('Lỗi khi xóa chủ đề');
-      console.error('Delete topic error:', error);
-    } finally {
-      setDeleteDialog({ open: false, topic: null });
-    }
-  };
-
-  const resetFilters = () => {
-    setSearchTerm('');
-    setFilterLevel('');
-    setFilterStatus('');
+    await deleteTopic(deleteDialog.topic.id);
+    setDeleteDialog({ open: false, topic: null });
   };
 
   const getLevelColor = (level) => {

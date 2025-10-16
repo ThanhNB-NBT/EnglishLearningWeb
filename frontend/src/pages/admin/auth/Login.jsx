@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ADMIN_ROUTES } from '../../constants/routes';
+import { ADMIN_ROUTES } from '../../../constants/routes';
 import {
   Card,
   Input,
@@ -9,8 +9,8 @@ import {
   IconButton,
 } from '@material-tailwind/react';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import { authAPI } from '../../api';
-import { saveAuthData } from '../../auth/authService';
+import { authAPI } from '../../../api/modules/auth.api';
+import { saveAuthData } from '../../../services/authService';
 import toast from 'react-hot-toast';
 
 const AdminLogin = () => {

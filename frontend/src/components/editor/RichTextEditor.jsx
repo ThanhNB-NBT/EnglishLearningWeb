@@ -15,7 +15,7 @@ import { Highlight } from "@tiptap/extension-highlight";
 import { Youtube } from "@tiptap/extension-youtube";
 import { Typography } from "@material-tailwind/react";
 import MenuBar from "./MenuBar";
-import "./editor.css";
+import "../../styles/components/editor.css";
 
 const RichTextEditor = ({
   value = "",

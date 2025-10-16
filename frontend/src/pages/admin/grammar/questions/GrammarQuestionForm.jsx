@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { grammarAdminAPI } from "../../../api";
-import { ADMIN_ROUTES } from "../../../constants/routes";
+import { grammarAdminAPI } from "../../../../api/modules/grammar.api";
+import { ADMIN_ROUTES } from "../../../../constants/routes";
 import {
   Button,
   Card,
@@ -20,9 +20,9 @@ import {
 import toast from "react-hot-toast";
 
 // Import child components
-import QuestionFormBasicInfo from "../../../components/grammar/QuestionFormBasicInfo";
-import QuestionAnswerSection from "../../../components/grammar/QuestionAnswerSection";
-import QuestionFormSettings from "../../../components/grammar/QuestionFormSettings";
+import QuestionFormBasicInfo from "../../../../components/grammar/forms/QuestionFormBasicInfo";
+import QuestionAnswerSection from "../../../../components/grammar/sections/QuestionAnswerSection";
+import QuestionFormSettings from "../../../../components/grammar/forms/QuestionFormSettings";
 
 /**
  * Main Form Container - Tạo/Chỉnh sửa Question

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography } from '@material-tailwind/react';
-import '../../styles/lessonPreview.css';
+import '../../../styles/lessonPreview.css';
 
 /**
  * Component: Preview nội dung bài học với styling đầy đủ cho table

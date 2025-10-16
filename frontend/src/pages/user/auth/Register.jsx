@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ADMIN_ROUTES } from "../../constants/routes";
+import { USER_ROUTES } from "../../../constants/routes";
 import {
   Card,
   Input,
@@ -16,7 +16,7 @@ import {
   UserIcon,
   KeyIcon,
 } from "@heroicons/react/24/outline";
-import { authAPI } from "../../api";
+import { authAPI } from "../../../api";
 import toast from "react-hot-toast";
 
 // Hàm kiểm tra định dạng email
@@ -25,7 +25,7 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-const AdminRegister = () => {
+const UserRegister = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState({
     fullName: "",
@@ -75,11 +75,11 @@ const AdminRegister = () => {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        role: "ADMIN",
+        role: "USER",
       });
       toast.success("Đăng ký thành công! Kiểm tra email để xác thực.");
       navigate("/verify-email", {
-        state: { email: formData.email, role: "ADMIN" },
+        state: { email: formData.email, role: "USER" },
       });
     } catch (err) {
       const errorMessage =
@@ -93,7 +93,7 @@ const AdminRegister = () => {
   return (
     <div
       className="min-h-screen flex w-full items-center justify-center bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))]
-              from-[#faf7f0] via-[#cdfcf6] to-[#bccef8] m-0 p-0"
+                  from-[#faf7f0] via-[#cdfcf6] to-[#bccef8] m-0 p-0"
     >
       <Card className="w-full max-w-md p-8 shadow-2xl">
         <div className="text-center mb-8">
@@ -113,14 +113,7 @@ const AdminRegister = () => {
             </svg>
           </div>
           <Typography variant="h3" color="blue-gray" className="mb-2">
-            Đăng Ký Quản Trị Viên
-          </Typography>
-          <Typography
-            variant="paragraph"
-            color="blue-gray"
-            className="opacity-70"
-          >
-            Tạo tài khoản quản trị để quản lý hệ thống
+            Chào mừng bạn đến với English Learning
           </Typography>
         </div>
 
@@ -322,7 +315,7 @@ const AdminRegister = () => {
           <Typography variant="small" color="blue-gray">
             Đã có tài khoản?{" "}
             <button
-              onClick={() => navigate(ADMIN_ROUTES.LOGIN)}
+              onClick={() => navigate(USER_ROUTES.LOGIN)}
               className="text-red-600 hover:underline font-medium"
             >
               Đăng nhập ngay
@@ -334,4 +327,4 @@ const AdminRegister = () => {
   );
 };
 
-export default AdminRegister;
+export default UserRegister;

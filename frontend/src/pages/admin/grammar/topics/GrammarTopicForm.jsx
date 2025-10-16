@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ADMIN_ROUTES } from "../../../constants/routes";
+import React from "react";
+import { useParams } from "react-router-dom";
+import { useTopicForm } from "../../../../hook/grammar/useGrammarTopics";
+import { ADMIN_ROUTES } from "../../../../constants/routes";
 import {
   Card,
   CardBody,
@@ -12,8 +13,9 @@ import {
   Select,
   Option,
   Switch,
-  Alert,
   Progress,
+  Spinner,
+  Alert,
 } from "@material-tailwind/react";
 import {
   ArrowLeftIcon,
@@ -21,21 +23,23 @@ import {
   CheckCircleIcon,
   XMarkIcon,
   InformationCircleIcon,
+  PencilIcon,
 } from "@heroicons/react/24/outline";
-import { grammarAdminAPI } from "../../../api";
-import toast from "react-hot-toast";
 
-const AdminGrammarTopicCreate = () => {
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    levelRequired: "BEGINNER",
-    orderIndex: 1,
-    isActive: true,
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const navigate = useNavigate();
+const GrammarTopicForm = () => {
+  const { id } = useParams();
+  const {
+    formData,
+    loading,
+    saving,
+    errors,
+    hasChanges,
+    isEdit,
+    handleInputChange,
+    handleSubmit,
+    handleCancel,
+    getCompletionPercentage
+  } = useTopicForm(id);
 
   const levels = [
     { value: "BEGINNER", label: "Cơ bản", color: "green" },
@@ -43,84 +47,16 @@ const AdminGrammarTopicCreate = () => {
     { value: "ADVANCED", label: "Nâng cao", color: "red" },
   ];
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Tên chủ đề là bắt buộc";
-    } else if (formData.name.length < 3) {
-      newErrors.name = "Tên chủ đề phải có ít nhất 3 ký tự";
-    } else if (formData.name.length > 100) {
-      newErrors.name = "Tên chủ đề không được vượt quá 100 ký tự";
-    }
-
-    if (formData.description && formData.description.length > 500) {
-      newErrors.description = "Mô tả không được vượt quá 500 ký tự";
-    }
-
-    if (!formData.levelRequired) {
-      newErrors.levelRequired = "Cấp độ là bắt buộc";
-    }
-
-    if (!formData.orderIndex || formData.orderIndex < 1) {
-      newErrors.orderIndex = "Thứ tự phải là số nguyên dương";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleInputChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error("Vui lòng kiểm tra lại thông tin");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const submitData = {
-        ...formData,
-        orderIndex: parseInt(formData.orderIndex),
-      };
-
-      await grammarAdminAPI.createTopic(submitData);
-      toast.success("Tạo chủ đề thành công!");
-      navigate(ADMIN_ROUTES.GRAMMAR_TOPICS);
-    } catch (error) {
-      console.error("Create topic error:", error);
-      toast.error(error.response?.data?.message || "Tạo chủ đề thất bại");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getCompletionPercentage = () => {
-    const requiredFields = ["name", "levelRequired"];
-    const optionalFields = ["description", "orderIndex"];
-
-    let completed = 0;
-    let total = requiredFields.length + optionalFields.length;
-
-    requiredFields.forEach((field) => {
-      if (formData[field] && formData[field].toString().trim()) completed++;
-    });
-
-    optionalFields.forEach((field) => {
-      if (formData[field] && formData[field].toString().trim()) completed++;
-    });
-
-    return Math.round((completed / total) * 100);
-  };
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Spinner className="h-12 w-12 text-blue-500" />
+        <Typography variant="paragraph" color="blue-gray">
+          Đang tải thông tin chủ đề...
+        </Typography>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -132,15 +68,19 @@ const AdminGrammarTopicCreate = () => {
               <Button
                 variant="outlined"
                 size="sm"
-                onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
+                onClick={handleCancel}
                 className="flex items-center border-gray-300"
               >
                 <ArrowLeftIcon className="h-4 w-4 mr-2" />
                 Quay lại
               </Button>
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <BookOpenIcon className="h-6 w-6 text-blue-600" />
+                <div className={`p-2 ${isEdit ? 'bg-orange-50' : 'bg-blue-50'} rounded-lg`}>
+                  {isEdit ? (
+                    <PencilIcon className="h-6 w-6 text-orange-600" />
+                  ) : (
+                    <BookOpenIcon className="h-6 w-6 text-blue-600" />
+                  )}
                 </div>
                 <div>
                   <Typography
@@ -148,18 +88,25 @@ const AdminGrammarTopicCreate = () => {
                     color="blue-gray"
                     className="font-bold"
                   >
-                    Tạo Chủ đề Ngữ pháp Mới
+                    {isEdit ? "Chỉnh sửa Chủ đề Ngữ pháp" : "Tạo Chủ đề Ngữ pháp Mới"}
                   </Typography>
                   <Typography
                     variant="small"
                     color="blue-gray"
                     className="opacity-70"
                   >
-                    Thêm chủ đề ngữ pháp mới vào hệ thống
+                    {isEdit ? "Cập nhật thông tin chủ đề ngữ pháp" : "Thêm chủ đề ngữ pháp mới vào hệ thống"}
                   </Typography>
                 </div>
               </div>
             </div>
+            {isEdit && hasChanges && (
+              <Alert color="orange" className="py-2 px-3">
+                <Typography variant="small" className="font-medium">
+                  Có thay đổi chưa lưu
+                </Typography>
+              </Alert>
+            )}
           </div>
         </CardBody>
       </Card>
@@ -179,7 +126,11 @@ const AdminGrammarTopicCreate = () => {
               {getCompletionPercentage()}%
             </Typography>
           </div>
-          <Progress value={getCompletionPercentage()} color="blue" size="sm" />
+          <Progress 
+            value={getCompletionPercentage()} 
+            color={isEdit ? "orange" : "blue"} 
+            size="sm" 
+          />
         </CardBody>
       </Card>
 
@@ -217,7 +168,7 @@ const AdminGrammarTopicCreate = () => {
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     placeholder="Ví dụ: Present Simple Tense"
                     error={!!errors.name}
-                    className="!border-blue-gray-200 focus:!border-blue-500"
+                    className={`!border-blue-gray-200 focus:!border-${isEdit ? 'orange' : 'blue'}-500`}
                     labelProps={{
                       className: "before:content-none after:content-none",
                     }}
@@ -253,7 +204,7 @@ const AdminGrammarTopicCreate = () => {
                     placeholder="Mô tả về chủ đề ngữ pháp này, bao gồm mục tiêu học tập và nội dung chính..."
                     rows={4}
                     error={!!errors.description}
-                    className="!border-blue-gray-200 focus:!border-blue-500"
+                    className={`!border-blue-gray-200 focus:!border-${isEdit ? 'orange' : 'blue'}-500`}
                     labelProps={{
                       className: "before:content-none after:content-none",
                     }}
@@ -305,7 +256,7 @@ const AdminGrammarTopicCreate = () => {
                     size="lg"
                     value={formData.levelRequired}
                     onChange={(val) => handleInputChange("levelRequired", val)}
-                    className="!border-blue-gray-200 focus:!border-blue-500"
+                    className={`!border-blue-gray-200 focus:!border-${isEdit ? 'orange' : 'blue'}-500`}
                   >
                     {levels.map((level) => (
                       <Option key={level.value} value={level.value}>
@@ -342,7 +293,7 @@ const AdminGrammarTopicCreate = () => {
                     }
                     min="1"
                     error={!!errors.orderIndex}
-                    className="!border-blue-gray-200 focus:!border-blue-500"
+                    className={`!border-blue-gray-200 focus:!border-${isEdit ? 'orange' : 'blue'}-500`}
                     labelProps={{
                       className: "before:content-none after:content-none",
                     }}
@@ -360,38 +311,46 @@ const AdminGrammarTopicCreate = () => {
                     color="blue-gray"
                     className="font-medium"
                   >
-                    Kích hoạt ngay
+                    {isEdit ? "Trạng thái hoạt động" : "Kích hoạt ngay"}
                   </Typography>
                   <Switch
                     checked={formData.isActive}
                     onChange={(e) =>
                       handleInputChange("isActive", e.target.checked)
                     }
-                    color="blue"
+                    color={isEdit ? "orange" : "blue"}
                   />
                 </div>
               </CardBody>
             </Card>
 
             {/* Help Card */}
-            <Card className="border border-blue-200 bg-blue-50">
-              <CardBody className="p-2">
+            <Card className={`border ${isEdit ? 'border-orange-200 bg-orange-50' : 'border-blue-200 bg-blue-50'}`}>
+              <CardBody className="p-4">
                 <div className="flex items-start space-x-2">
-                  <InformationCircleIcon className="h-5 w-5 text-blue-600 mt-0 flex-shrink-0" />
+                  <InformationCircleIcon className={`h-5 w-5 ${isEdit ? 'text-orange-600' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
                   <div>
                     <Typography
                       variant="small"
                       color="blue-gray"
-                      className="font-medium mb-1"
+                      className="font-medium mb-2"
                     >
-                      Gợi ý
+                      {isEdit ? "Lưu ý khi chỉnh sửa" : "Gợi ý"}
                     </Typography>
                     <ul className="text-sm text-blue-gray-700 space-y-1 opacity-80">
-                      <li>• Tên chủ đề nên ngắn gọn và dễ hiểu</li>
-                      <li>• Mô tả chi tiết giúp học viên hiểu rõ nội dung</li>
-                      <li>
-                        • Thứ tự hiển thị quyết định vị trí trong danh sách
-                      </li>
+                      {isEdit ? (
+                        <>
+                          <li>• Thay đổi cấp độ có thể ảnh hưởng đến học viên</li>
+                          <li>• Tắt trạng thái sẽ ẩn chủ đề khỏi danh sách</li>
+                          <li>• Thứ tự quyết định vị trí hiển thị</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>• Tên chủ đề nên ngắn gọn và dễ hiểu</li>
+                          <li>• Mô tả chi tiết giúp học viên hiểu rõ nội dung</li>
+                          <li>• Thứ tự hiển thị quyết định vị trí trong danh sách</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -407,7 +366,7 @@ const AdminGrammarTopicCreate = () => {
               <Button
                 variant="outlined"
                 size="lg"
-                onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
+                onClick={handleCancel}
                 className="border-gray-300 flex items-center"
               >
                 <XMarkIcon className="h-5 w-5 mr-2" />
@@ -417,20 +376,25 @@ const AdminGrammarTopicCreate = () => {
               <Button
                 type="submit"
                 size="lg"
-                disabled={loading || Object.keys(errors).length > 0}
-                loading={loading}
-                className="flex items-center bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg min-w-[140px]"
+                disabled={saving || Object.keys(errors).length > 0 || (isEdit && !hasChanges)}
+                loading={saving}
+                className={`flex items-center bg-gradient-to-r ${isEdit ? 'from-orange-500 to-orange-600' : 'from-blue-500 to-blue-600'} shadow-lg min-w-[140px]`}
               >
-                {loading ? (
-                  "Đang tạo..."
+                {saving ? (
+                  isEdit ? "Đang lưu..." : "Đang tạo..."
                 ) : (
                   <>
                     <CheckCircleIcon className="h-5 w-5 mr-2" />
-                    Tạo chủ đề
+                    {isEdit ? "Cập nhật" : "Tạo chủ đề"}
                   </>
                 )}
               </Button>
             </div>
+            {isEdit && !hasChanges && (
+              <Typography variant="small" color="blue-gray" className="text-center mt-2 opacity-60">
+                Không có thay đổi để lưu
+              </Typography>
+            )}
           </CardBody>
         </Card>
       </form>
@@ -438,4 +402,4 @@ const AdminGrammarTopicCreate = () => {
   );
 };
 
-export default AdminGrammarTopicCreate;
+export default GrammarTopicForm;

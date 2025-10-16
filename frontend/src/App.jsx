@@ -7,25 +7,24 @@ import ProtectedRoute from './auth/ProtectedRoute';
 import { USER_ROUTES, ADMIN_ROUTE_PATTERNS } from './constants/routes';
 
 // ===== USER PAGES =====
-import UserLogin from './pages/user/Login';
-import UserRegister from './pages/user/Register';
+import UserLogin from './pages/user/auth/Login';
+import UserRegister from './pages/user/auth/Register';
 import UserHome from './pages/user/Home';
 import UserLayout from './layout/UserLayout';
 
 // ===== ADMIN PAGES =====
-import AdminLogin from './pages/admin/Login';
-import AdminRegister from './pages/admin/Register';
+import AdminLogin from './pages/admin/auth/Login';
+import AdminRegister from './pages/admin/auth/Register';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminLayout from './layout/AdminLayout';
 
 // ===== ADMIN GRAMMAR PAGES =====
-import AdminGrammarTopicList from './pages/admin/grammar/GrammarTopicList';
-import AdminGrammarTopicCreate from './pages/admin/grammar/GrammarTopicCreate';
-import AdminGrammarTopicEdit from './pages/admin/grammar/GrammarTopicEdit';
-import AdminGrammarLessonList from './pages/admin/grammar/GrammarLessonList';
-import AdminGrammarLessonForm from './pages/admin/grammar/GrammarLessonForm';
-import AdminGrammarQuestionList from './pages/admin/grammar/GrammarQuestionList';
-import AdminGrammarQuestionForm from './pages/admin/grammar/GrammarQuestionForm';
+import AdminGrammarTopicList from './pages/admin/grammar/topics/GrammarTopicList';
+import AdminGrammarTopicForm from './pages/admin/grammar/topics/GrammarTopicForm';
+import AdminGrammarLessonList from './pages/admin/grammar/lessons/GrammarLessonList';
+import AdminGrammarLessonForm from './pages/admin/grammar/lessons/GrammarLessonForm';
+import AdminGrammarQuestionList from './pages/admin/grammar/questions/GrammarQuestionList';
+import AdminGrammarQuestionForm from './pages/admin/grammar/questions/GrammarQuestionForm';
 
 // ===== COMMON PAGES =====
 import VerifyEmail from './auth/VerifyEmail';
@@ -102,8 +101,8 @@ const App = () => {
 
           {/* Grammar Topics */}
           <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_TOPICS} element={<AdminGrammarTopicList />} />
-          <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_TOPIC_CREATE} element={<AdminGrammarTopicCreate />} />
-          <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_TOPIC_EDIT} element={<AdminGrammarTopicEdit />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_TOPIC_CREATE} element={<AdminGrammarTopicForm />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_TOPIC_EDIT} element={<AdminGrammarTopicForm />} />
 
           {/* Grammar Lessons */}
           <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_LESSONS} element={<AdminGrammarLessonList />} />
