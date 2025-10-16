@@ -1,8 +1,7 @@
 import axios from 'axios';
-import { authAPI } from './authAPI';
-import { userAPI } from './userAPI';
-import { grammarAPI } from './grammarAPI';
-import { grammarAdminAPI } from './grammarAdminAPI';
+import { authAPI } from './modules/auth.api';
+import { userAPI } from './modules/user.api';
+import { grammarUserAPI, grammarAdminAPI } from './modules/grammar.api';
 
 const API_BASE_URL = '/api';
 
@@ -44,4 +43,4 @@ api.interceptors.response.use(
   }
 );
 
-export { api, authAPI, userAPI, grammarAPI, grammarAdminAPI };
+export { api, authAPI, userAPI, grammarUserAPI, grammarAdminAPI };

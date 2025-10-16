@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { grammarAdminAPI } from '../../../api';
-import { ADMIN_ROUTES } from '../../../constants/routes';
+import { grammarAdminAPI } from '../../../../api';
+import { ADMIN_ROUTES } from '../../../../constants/routes';
 import {
   Button,
   Card,
@@ -28,7 +28,7 @@ import {
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import QuestionTable from '../../../components/grammar/QuestionTable';
+import QuestionTable from '../../../../components/grammar/tables/QuestionTable';
 
 const GrammarQuestionList = () => {
   const { lessonId } = useParams();

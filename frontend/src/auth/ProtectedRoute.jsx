@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { isAuthenticated, getUserRole } from "./authService";
+import { isAuthenticated, getUserRole } from "../services/authService";
 
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const location = useLocation();

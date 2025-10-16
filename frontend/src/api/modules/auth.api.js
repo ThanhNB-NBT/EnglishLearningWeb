@@ -1,4 +1,4 @@
-import { api } from './index';
+import { api } from '../index';
 
 export const authAPI = {
   getEndpoints: () => api.get('/auth/endpoints'),

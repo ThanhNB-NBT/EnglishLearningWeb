@@ -13,8 +13,10 @@ const AdminLayout = () => {
         <Navbar />
 
         {/* Content */}
-        <main className="p-4">
-          <Outlet />
+        <main className="flex-1 p-4 overflow-y-auto">
+          <div className="max-w-7xl mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

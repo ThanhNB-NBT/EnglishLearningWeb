@@ -1,61 +1,7 @@
-import { grammarAdminAPI } from '../../../services/api';
+// utils/grammarLessonUtils.js
+// ⚠️ Chỉ giữ lại HELPER FUNCTIONS, các API calls đã chuyển sang grammarService
 
-// Fetch all lessons by topic
-export const fetchLessonsByTopic = async (topicId) => {
-  try {
-    const response = await grammarAdminAPI.getLessonsByTopic(topicId);
-    return response.data.data || [];
-  } catch (error) {
-    console.error('Fetch lessons by topic error:', error);
-    throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách bài học');
-  }
-};
-
-// Create new lesson
-export const createLesson = async (lessonData) => {
-  try {
-    const response = await grammarAdminAPI.createLesson(lessonData);
-    return response.data.data;
-  } catch (error) {
-    console.error('Create lesson error:', error);
-    throw new Error(error.response?.data?.message || 'Lỗi khi tạo bài học');
-  }
-};
-
-// Update lesson
-export const updateLesson = async (lessonId, lessonData) => {
-  try {
-    const response = await grammarAdminAPI.updateLesson(lessonId, lessonData);
-    return response.data.data;
-  } catch (error) {
-    console.error('Update lesson error:', error);
-    throw new Error(error.response?.data?.message || 'Lỗi khi cập nhật bài học');
-  }
-};
-
-// Delete lesson
-export const deleteLesson = async (lessonId) => {
-  try {
-    await grammarAdminAPI.deleteLesson(lessonId);
-    return true;
-  } catch (error) {
-    console.error('Delete lesson error:', error);
-    throw new Error(error.response?.data?.message || 'Lỗi khi xóa bài học');
-  }
-};
-
-// Get lesson by ID
-export const fetchLessonById = async (topicId, lessonId) => {
-  try {
-    const lessons = await fetchLessonsByTopic(topicId);
-    return lessons.find(lesson => lesson.id === parseInt(lessonId));
-  } catch (error) {
-    console.error('Fetch lesson by ID error:', error);
-    throw new Error('Lỗi khi lấy thông tin bài học');
-  }
-};
-
-// Validate lesson data
+// ==================== VALIDATION ====================
 export const validateLessonData = (lessonData) => {
   const errors = {};
 
@@ -93,7 +39,7 @@ export const validateLessonData = (lessonData) => {
   };
 };
 
-// Format lesson type for display
+// ==================== FORMATTERS ====================
 export const formatLessonType = (lessonType) => {
   switch (lessonType) {
     case 'THEORY':
@@ -105,7 +51,6 @@ export const formatLessonType = (lessonType) => {
   }
 };
 
-// Get lesson type color
 export const getLessonTypeColor = (lessonType) => {
   switch (lessonType) {
     case 'THEORY':
@@ -117,12 +62,11 @@ export const getLessonTypeColor = (lessonType) => {
   }
 };
 
-// Sort lessons by order index
+// ==================== DATA PROCESSING ====================
 export const sortLessonsByOrder = (lessons) => {
   return [...lessons].sort((a, b) => a.orderIndex - b.orderIndex);
 };
 
-// Filter lessons by search term
 export const filterLessonsBySearch = (lessons, searchTerm) => {
   if (!searchTerm) return lessons;
   
@@ -133,26 +77,22 @@ export const filterLessonsBySearch = (lessons, searchTerm) => {
   );
 };
 
-// Filter lessons by type
 export const filterLessonsByType = (lessons, lessonType) => {
   if (!lessonType) return lessons;
   return lessons.filter(lesson => lesson.lessonType === lessonType);
 };
 
-// Filter lessons by status
 export const filterLessonsByStatus = (lessons, isActive) => {
   if (isActive === undefined || isActive === null) return lessons;
   return lessons.filter(lesson => lesson.isActive === isActive);
 };
 
-// Get next order index for new lesson
 export const getNextOrderIndex = (lessons) => {
   if (!lessons || lessons.length === 0) return 1;
   const maxOrder = Math.max(...lessons.map(lesson => lesson.orderIndex || 0));
   return maxOrder + 1;
 };
 
-// Calculate lesson statistics
 export const calculateLessonStats = (lessons) => {
   const total = lessons.length;
   const active = lessons.filter(lesson => lesson.isActive).length;
@@ -168,7 +108,6 @@ export const calculateLessonStats = (lessons) => {
   };
 };
 
-// Export lesson data to JSON
 export const exportLessonsToJSON = (lessons) => {
   const exportData = {
     exportDate: new Date().toISOString(),

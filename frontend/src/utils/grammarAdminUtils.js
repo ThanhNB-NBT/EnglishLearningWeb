@@ -1,23 +1,17 @@
-// src/utils/grammarAdminUtils.js
-import { grammarAdminAPI } from '../api/grammarAdminAPI';
-import toast from 'react-hot-toast';
+// utils/grammarAdminUtils.js
+// ⚠️ FILE NÀY SẼ BỊ XÓA SAU KHI REFACTOR XONG
+// Tạm thời giữ lại để backward compatibility
 
+import { topicService } from '../services/grammarService';
+
+// Deprecated: Dùng topicService.fetchAll() thay thế
 export const fetchTopics = async () => {
-  try {
-    const response = await grammarAdminAPI.getAllTopics();
-    return response.data.data || [];
-  } catch (error) {
-    toast.error('Lỗi khi lấy danh sách topic: ' + (error.response?.data?.message || 'Vui lòng thử lại.'));
-    throw error;
-  }
+  console.warn('⚠️ fetchTopics() is deprecated. Use topicService.fetchAll() instead.');
+  return topicService.fetchAll();
 };
 
+// Deprecated: Dùng topicService.delete() thay thế
 export const deleteTopic = async (id) => {
-  try {
-    await grammarAdminAPI.deleteTopic(id);
-    toast.success('Xóa topic thành công!');
-  } catch (error) {
-    toast.error('Lỗi khi xóa topic: ' + (error.response?.data?.message || 'Vui lòng thử lại.'));
-    throw error;
-  }
+  console.warn('⚠️ deleteTopic() is deprecated. Use topicService.delete() instead.');
+  return topicService.delete(id);
 };

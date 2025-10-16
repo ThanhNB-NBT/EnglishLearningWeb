@@ -10,7 +10,7 @@ import {
   DocumentArrowUpIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
-import RichTextEditor from '../editor/RichTextEditor';
+import RichTextEditor from '../../editor/RichTextEditor';
 
 /**
  * Component: Content editor với Gemini AI PDF parsing
