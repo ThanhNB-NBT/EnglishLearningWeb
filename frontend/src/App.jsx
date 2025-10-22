@@ -11,6 +11,7 @@ import UserLogin from './pages/user/auth/Login';
 import UserRegister from './pages/user/auth/Register';
 import UserHome from './pages/user/Home';
 import UserLayout from './layout/UserLayout';
+import GrammarLearning from './pages/user/grammar/GrammarLearning';
 
 // ===== ADMIN PAGES =====
 import AdminLogin from './pages/admin/auth/Login';
@@ -82,6 +83,7 @@ const App = () => {
         >
           <Route path={USER_ROUTES.HOME} element={<UserHome />} />
           {/* Add more user routes here */}
+          <Route path={USER_ROUTES.GRAMMAR} element={<GrammarLearning />} />
         </Route>
 
         {/* ===== ADMIN ROUTES ===== */}

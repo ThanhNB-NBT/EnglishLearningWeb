@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import {
   Card,
-  CardBody,
   Typography,
   IconButton,
   Chip,
-  Menu,
-  MenuHandler,
-  MenuList,
-  MenuItem,
+  Checkbox,
   Dialog,
   DialogHeader,
   DialogBody,
@@ -19,19 +15,22 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  EllipsisVerticalIcon,
   CheckCircleIcon,
   ChatBubbleLeftRightIcon,
-  DocumentTextIcon,
   LanguageIcon,
   PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 
-/**
- * Component: Table view cho Questions (thay vì Card)
- * Dễ quản lý và xem nhiều thông tin cùng lúc
- */
-const QuestionTable = ({ questions, onEdit, onDelete }) => {
+const QuestionTable = ({ 
+  questions, 
+  selectedQuestions = [],
+  onSelectAll,
+  onSelectOne,
+  isAllSelected = false,
+  isSomeSelected = false,
+  onEdit, 
+  onDelete 
+}) => {
   const [previewDialog, setPreviewDialog] = useState({ open: false, question: null });
 
   const getTypeIcon = (type) => {
@@ -39,8 +38,7 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
       case 'MULTIPLE_CHOICE': return ChatBubbleLeftRightIcon;
       case 'FILL_BLANK': return PencilSquareIcon;
       case 'TRANSLATE': return LanguageIcon;
-      case 'VERB_FORM': return DocumentTextIcon;
-      default: return DocumentTextIcon;
+      default: return ChatBubbleLeftRightIcon;
     }
   };
 
@@ -49,7 +47,6 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
       case 'MULTIPLE_CHOICE': return 'blue';
       case 'FILL_BLANK': return 'green';
       case 'TRANSLATE': return 'orange';
-      case 'VERB_FORM': return 'purple';
       default: return 'gray';
     }
   };
@@ -59,7 +56,6 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
       'MULTIPLE_CHOICE': 'Trắc nghiệm',
       'FILL_BLANK': 'Điền từ',
       'TRANSLATE': 'Dịch câu',
-      'VERB_FORM': 'Chia động từ',
     };
     return types[type] || type;
   };
@@ -73,41 +69,51 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
     setPreviewDialog({ open: true, question });
   };
 
+  const isSelected = (questionId) => selectedQuestions.includes(questionId);
+
   return (
     <>
-      <Card className="border border-blue-gray-100 overflow-hidden">
+      <Card className="card-base border-primary overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-max table-auto text-left">
             {/* Table Header */}
             <thead>
-              <tr className="bg-blue-gray-50 border-b border-blue-gray-200">
+              <tr className="bg-tertiary border-b border-primary">
+                <th className="p-4 w-12">
+                  <Checkbox
+                    checked={isAllSelected}
+                    indeterminate={isSomeSelected}
+                    onChange={(e) => onSelectAll(e.target.checked)}
+                    color="purple"
+                  />
+                </th>
                 <th className="p-4 w-16">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     #
                   </Typography>
                 </th>
                 <th className="p-4">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     Nội dung câu hỏi
                   </Typography>
                 </th>
                 <th className="p-4 w-40">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     Loại
                   </Typography>
                 </th>
                 <th className="p-4 w-32 text-center">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     Điểm
                   </Typography>
                 </th>
                 <th className="p-4 w-32 text-center">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     Options
                   </Typography>
                 </th>
                 <th className="p-4 w-32 text-center">
-                  <Typography variant="small" className="font-bold text-blue-gray-700">
+                  <Typography variant="small" className="font-bold text-primary">
                     Thao tác
                   </Typography>
                 </th>
@@ -118,8 +124,8 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
             <tbody>
               {questions.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center">
-                    <Typography variant="small" color="blue-gray" className="opacity-60">
+                  <td colSpan="7" className="p-8 text-center">
+                    <Typography variant="small" className="text-tertiary">
                       Chưa có câu hỏi nào
                     </Typography>
                   </td>
@@ -127,13 +133,24 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
               ) : (
                 questions.map((question, index) => {
                   const TypeIcon = getTypeIcon(question.questionType);
+                  const selected = isSelected(question.id);
                   const isLast = index === questions.length - 1;
-                  const classes = isLast ? "p-4" : "p-4 border-b border-blue-gray-100";
+                  const classes = isLast ? "p-4" : "p-4 border-b border-primary";
 
                   return (
-                    <tr key={question.id} className="hover:bg-blue-gray-50 transition-colors">
+                    <tr 
+                      key={question.id} 
+                      className={`hover:bg-tertiary transition-colors ${selected ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}
+                    >
                       <td className={classes}>
-                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 text-purple-600 rounded-full font-bold text-sm">
+                        <Checkbox
+                          checked={selected}
+                          onChange={(e) => onSelectOne(question.id, e.target.checked)}
+                          color="purple"
+                        />
+                      </td>
+                      <td className={classes}>
+                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full font-bold text-sm">
                           {index + 1}
                         </div>
                       </td>
@@ -141,14 +158,13 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
                         <div>
                           <Typography 
                             variant="small" 
-                            color="blue-gray" 
-                            className="font-medium cursor-pointer hover:text-purple-600"
+                            className="font-medium cursor-pointer hover:text-purple-600 text-primary"
                             onClick={() => handlePreview(question)}
                           >
                             {truncateText(question.questionText, 100)}
                           </Typography>
                           {question.explanation && (
-                            <Typography variant="small" className="text-gray-500 text-xs mt-1">
+                            <Typography variant="small" className="text-tertiary text-xs mt-1">
                               💡 {truncateText(question.explanation, 60)}
                             </Typography>
                           )}
@@ -178,7 +194,7 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
                               className="text-xs"
                             />
                           ) : (
-                            <Typography variant="small" className="text-gray-500">
+                            <Typography variant="small" className="text-tertiary">
                               -
                             </Typography>
                           )}
@@ -226,17 +242,18 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
         open={previewDialog.open}
         handler={() => setPreviewDialog({ open: false, question: null })}
         size="lg"
+        className="bg-secondary border border-primary"
       >
-        <DialogHeader className="flex items-center space-x-2">
+        <DialogHeader className="flex items-center gap-3 border-b border-primary">
           <EyeIcon className="h-6 w-6 text-purple-500" />
-          <span>Chi tiết câu hỏi</span>
+          <span className="text-primary font-bold">Chi tiết câu hỏi</span>
         </DialogHeader>
-        <DialogBody className="space-y-4 max-h-[60vh] overflow-y-auto">
+        <DialogBody className="space-y-4 max-h-[60vh] overflow-y-auto border-b border-primary">
           {previewDialog.question && (
             <div className="space-y-4">
               {/* Type */}
               <div>
-                <Typography variant="h6" color="blue-gray" className="mb-2">
+                <Typography variant="h6" className="mb-2 text-primary">
                   Loại câu hỏi:
                 </Typography>
                 <Chip
@@ -248,11 +265,11 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
 
               {/* Question Text */}
               <div>
-                <Typography variant="h6" color="blue-gray" className="mb-2">
+                <Typography variant="h6" className="mb-2 text-primary">
                   Nội dung câu hỏi:
                 </Typography>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <Typography variant="paragraph">
+                <div className="bg-tertiary p-4 rounded-lg border border-primary">
+                  <Typography variant="paragraph" className="text-primary">
                     {previewDialog.question.questionText}
                   </Typography>
                 </div>
@@ -262,7 +279,7 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
               {previewDialog.question.questionType === 'MULTIPLE_CHOICE' && 
                previewDialog.question.options && (
                 <div>
-                  <Typography variant="h6" color="blue-gray" className="mb-2">
+                  <Typography variant="h6" className="mb-2 text-primary">
                     Các lựa chọn:
                   </Typography>
                   <div className="space-y-2">
@@ -271,15 +288,15 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
                         key={idx}
                         className={`p-3 rounded-lg border-2 ${
                           option.isCorrect
-                            ? 'bg-green-50 border-green-200'
-                            : 'bg-gray-50 border-gray-200'
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                            : 'bg-tertiary border-primary'
                         }`}
                       >
                         <div className="flex items-center space-x-3">
-                          <Typography variant="small" className="font-bold">
+                          <Typography variant="small" className="font-bold text-primary">
                             {String.fromCharCode(65 + idx)}.
                           </Typography>
-                          <Typography variant="paragraph" className="flex-1">
+                          <Typography variant="paragraph" className="flex-1 text-primary">
                             {option.optionText}
                           </Typography>
                           {option.isCorrect && (
@@ -296,11 +313,11 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
               {previewDialog.question.questionType !== 'MULTIPLE_CHOICE' &&
                previewDialog.question.correctAnswer && (
                 <div>
-                  <Typography variant="h6" color="blue-gray" className="mb-2">
+                  <Typography variant="h6" className="mb-2 text-primary">
                     Đáp án đúng:
                   </Typography>
-                  <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-                    <Typography variant="paragraph" color="green" className="font-medium">
+                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border-2 border-green-500">
+                    <Typography variant="paragraph" className="text-green-700 dark:text-green-400 font-medium">
                       {previewDialog.question.correctAnswer}
                     </Typography>
                   </div>
@@ -310,11 +327,11 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
               {/* Explanation */}
               {previewDialog.question.explanation && (
                 <div>
-                  <Typography variant="h6" color="blue-gray" className="mb-2">
+                  <Typography variant="h6" className="mb-2 text-primary">
                     Giải thích:
                   </Typography>
-                  <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-                    <Typography variant="paragraph">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-2 border-blue-500">
+                    <Typography variant="paragraph" className="text-primary">
                       {previewDialog.question.explanation}
                     </Typography>
                   </div>
@@ -322,20 +339,20 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
               )}
 
               {/* Metadata */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary">
                 <div>
-                  <Typography variant="small" color="blue-gray" className="font-medium">
+                  <Typography variant="small" className="font-medium text-primary">
                     Điểm số:
                   </Typography>
-                  <Typography variant="paragraph" color="purple">
+                  <Typography variant="paragraph" className="text-purple-600 dark:text-purple-400">
                     {previewDialog.question.points || 5} điểm
                   </Typography>
                 </div>
                 <div>
-                  <Typography variant="small" color="blue-gray" className="font-medium">
+                  <Typography variant="small" className="font-medium text-primary">
                     Thứ tự:
                   </Typography>
-                  <Typography variant="paragraph">
+                  <Typography variant="paragraph" className="text-primary">
                     #{previewDialog.question.orderIndex}
                   </Typography>
                 </div>
@@ -347,6 +364,7 @@ const QuestionTable = ({ questions, onEdit, onDelete }) => {
           <Button
             variant="outlined"
             onClick={() => setPreviewDialog({ open: false, question: null })}
+            className="btn-secondary"
           >
             Đóng
           </Button>

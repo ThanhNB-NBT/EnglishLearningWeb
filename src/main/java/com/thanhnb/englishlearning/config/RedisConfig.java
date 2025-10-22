@@ -8,10 +8,14 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
 
+/**
+ * Redis Configuration cho JWT Blacklist
+ * ⚠️ BỎ @EnableRedisHttpSession vì đang dùng JWT (stateless)
+ */
 @Configuration
-@EnableRedisHttpSession(maxInactiveIntervalInSeconds = 1800) // 30 phút
+// ⚠️ BỎ annotation này - không cần session cho JWT
+// @EnableRedisHttpSession(maxInactiveIntervalInSeconds = 1800)
 public class RedisConfig {
 
     /**
@@ -26,6 +30,10 @@ public class RedisConfig {
     /**
      * RedisTemplate để thao tác với Redis
      * Cấu hình serializer để lưu trữ object dưới dạng JSON
+     * 
+     * Dùng cho:
+     * - JWT Blacklist (logout tokens)
+     * - Cache nếu cần
      */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {

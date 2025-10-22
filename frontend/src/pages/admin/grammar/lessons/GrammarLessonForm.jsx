@@ -8,7 +8,7 @@ import {
   CardBody,
   Typography,
   Spinner,
-  Breadcrumbs,
+  IconButton,
   Progress,
   Alert,
 } from "@material-tailwind/react";
@@ -18,9 +18,9 @@ import {
   XMarkIcon,
   BookOpenIcon,
   PencilIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
-// Import child components
 import LessonFormBasicInfo from "../../../../components/grammar/forms/LessonFormBasicInfo";
 import LessonFormSettings from "../../../../components/grammar/forms/LessonFormSettings";
 import LessonContentEditor from "../../../../components/grammar/editors/LessonContentEditor";
@@ -45,7 +45,7 @@ const GrammarLessonForm = () => {
     handleCancel,
     handleFileUpload,
     handleUseParsedContent,
-    getCompletionPercentage
+    getCompletionPercentage,
   } = useLessonForm(topicId, lessonId);
 
   if (loading) {
@@ -59,60 +59,55 @@ const GrammarLessonForm = () => {
     );
   }
 
+  const completionPercentage = getCompletionPercentage();
+  const hasErrors = Object.keys(errors).length > 0;
+
   return (
-    <div className="w-full space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs className="bg-transparent p-0">
-        <Typography
-          className="text-tertiary hover:text-primary cursor-pointer transition-colors"
-          onClick={() => window.history.back()}
-        >
-          Chủ đề ngữ pháp
-        </Typography>
-        <Typography
-          className="text-tertiary hover:text-primary cursor-pointer transition-colors"
-          onClick={handleCancel}
-        >
-          {topicInfo?.name || "Bài học"}
-        </Typography>
-        <Typography className="text-primary">
-          {isEdit ? "Chỉnh sửa" : "Tạo mới"}
-        </Typography>
-      </Breadcrumbs>
+    <div className="w-full space-y-6 p-4 md:p-6">
 
       {/* Header */}
-      <Card className="card-base border-primary">
-        <CardBody className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Button
+      <Card className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black border border-slate-700 shadow-xl">
+        <CardBody className="p-4 md:p-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <IconButton
                 variant="outlined"
-                size="sm"
+                size="lg"
                 onClick={handleCancel}
-                className="border-primary hover:bg-tertiary"
+                className="text-slate-300 hover:bg-slate-700 border-slate-500 hidden md:flex"
               >
-                <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                Quay lại
-              </Button>
-              <div className={`p-2 ${isEdit ? 'bg-orange-50 dark:bg-orange-900/30' : 'bg-blue-50 dark:bg-blue-900/30'} rounded-lg`}>
+                <ArrowLeftIcon className="h-4 w-4" />
+              </IconButton>
+              
+              <div className={`p-3 rounded-xl border ${
+                isEdit 
+                  ? 'bg-orange-500/20 border-orange-500/30' 
+                  : 'bg-blue-500/20 border-blue-500/30'
+              }`}>
                 {isEdit ? (
-                  <PencilIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  <PencilIcon className="h-6 w-6 text-orange-400" />
                 ) : (
-                  <BookOpenIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <BookOpenIcon className="h-6 w-6 text-blue-400" />
                 )}
               </div>
+              
               <div>
-                <Typography variant="h4" className="text-primary font-bold">
+                <Typography variant="h4" className="text-slate-100 font-bold mb-1">
                   {isEdit ? "Chỉnh sửa bài học" : "Tạo bài học mới"}
                 </Typography>
-                <Typography variant="small" className="text-secondary mt-1">
+                <Typography variant="small" className="text-slate-400">
                   Chủ đề: {topicInfo?.name}
                 </Typography>
               </div>
             </div>
+
             {isEdit && hasChanges && (
-              <Alert color="orange" className="py-2 px-3 w-auto">
-                <Typography variant="small" className="font-medium">
+              <Alert 
+                color="orange" 
+                className="py-2 px-4 bg-orange-500/20 border border-orange-500/30"
+                icon={<ExclamationTriangleIcon className="h-5 w-5" />}
+              >
+                <Typography variant="small" className="font-medium text-orange-400">
                   Có thay đổi chưa lưu
                 </Typography>
               </Alert>
@@ -123,99 +118,147 @@ const GrammarLessonForm = () => {
 
       {/* Progress */}
       <Card className="card-base border-primary">
-        <CardBody className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <Typography variant="small" className="text-primary font-medium">
-              Hoàn thành form
-            </Typography>
-            <Typography variant="small" className="text-secondary">
-              {getCompletionPercentage()}%
+        <CardBody className="p-4 md:p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Typography variant="small" className="text-primary font-semibold">
+                Hoàn thành form
+              </Typography>
+              {completionPercentage === 100 && (
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+              )}
+            </div>
+            <Typography 
+              variant="small" 
+              className={`font-bold ${
+                completionPercentage === 100 ? 'text-green-500' : 'text-secondary'
+              }`}
+            >
+              {completionPercentage}%
             </Typography>
           </div>
           <Progress 
-            value={getCompletionPercentage()} 
+            value={completionPercentage} 
             color={isEdit ? "orange" : "blue"} 
-            size="sm" 
+            size="lg"
+            className="bg-tertiary"
           />
+          <Typography variant="small" className="text-tertiary mt-2">
+            {completionPercentage < 100 
+              ? "Vui lòng điền đầy đủ thông tin bắt buộc"
+              : "✅ Form đã hoàn thiện, sẵn sàng lưu"}
+          </Typography>
         </CardBody>
       </Card>
 
       {/* Form */}
       <Card className="card-base border-primary">
-        <CardBody className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Info Component */}
-            <LessonFormBasicInfo
-              formData={formData}
-              errors={errors}
-              onChange={handleInputChange}
-              isEdit={isEdit}
-            />
-
-            {/* Content Editor Component (Only for THEORY) */}
-            {formData.lessonType === "THEORY" && (
-              <LessonContentEditor
-                content={formData.content}
-                error={errors.content}
-                onChange={(value) => handleInputChange("content", value)}
-                onFileUpload={handleFileUpload}
-                isParsing={pdfParsing}
+        <CardBody className="p-4 md:p-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Basic Info */}
+            <div>
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-primary">
+                <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                <Typography variant="h6" className="text-primary font-bold">
+                  Thông tin cơ bản
+                </Typography>
+              </div>
+              <LessonFormBasicInfo
+                formData={formData}
+                errors={errors}
+                onChange={handleInputChange}
                 isEdit={isEdit}
               />
+            </div>
+
+            {/* Content Editor (Only for THEORY) */}
+            {formData.lessonType === "THEORY" && (
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-primary">
+                  <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
+                  <Typography variant="h6" className="text-primary font-bold">
+                    Nội dung bài học
+                  </Typography>
+                </div>
+                <LessonContentEditor
+                  content={formData.content}
+                  error={errors.content}
+                  onChange={(value) => handleInputChange("content", value)}
+                  onFileUpload={handleFileUpload}
+                  isParsing={pdfParsing}
+                  isEdit={isEdit}
+                />
+              </div>
             )}
 
-            {/* Preview nội dung (Optional) */}
+            {/* Preview */}
             {formData.content && formData.lessonType === "THEORY" && (
               <LessonContentPreview content={formData.content} />
             )}
 
-            {/* Settings Component */}
-            <LessonFormSettings
-              formData={formData}
-              errors={errors}
-              onChange={handleInputChange}
-              isEdit={isEdit}
-            />
+            {/* Settings */}
+            <div>
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-primary">
+                <div className="w-1 h-6 bg-green-500 rounded-full"></div>
+                <Typography variant="h6" className="text-primary font-bold">
+                  Cài đặt bài học
+                </Typography>
+              </div>
+              <LessonFormSettings
+                formData={formData}
+                errors={errors}
+                onChange={handleInputChange}
+                isEdit={isEdit}
+              />
+            </div>
 
             {/* Form Actions */}
-            <div className="flex justify-end space-x-4 pt-6 border-t border-primary">
-              <Button
-                variant="outlined"
-                onClick={handleCancel}
-                disabled={submitting}
-                className="btn-secondary flex items-center"
-              >
-                <XMarkIcon className="h-4 w-4 mr-2" />
-                Hủy
-              </Button>
-              <Button
-                type="submit"
-                color="green"
-                disabled={submitting || Object.keys(errors).length > 0 || (isEdit && !hasChanges)}
-                loading={submitting}
-                className="flex items-center shadow-lg hover:shadow-xl transition-shadow"
-              >
-                {submitting ? (
-                  isEdit ? "Đang lưu..." : "Đang tạo..."
-                ) : (
-                  <>
-                    <CheckCircleIcon className="h-5 w-5 mr-2" />
-                    {isEdit ? "Cập nhật" : "Tạo bài học"}
-                  </>
-                )}
-              </Button>
+            <div className="pt-6 border-t border-primary">
+              <div className="flex flex-col sm:flex-row justify-end gap-3">
+                <Button
+                  variant="outlined"
+                  onClick={handleCancel}
+                  disabled={submitting}
+                  className="btn-secondary flex items-center justify-center"
+                >
+                  <XMarkIcon className="h-4 w-4 mr-2" />
+                  Hủy bỏ
+                </Button>
+                <Button
+                  type="submit"
+                  color="green"
+                  disabled={submitting || hasErrors || (isEdit && !hasChanges)}
+                  loading={submitting}
+                  className="flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                >
+                  {submitting ? (
+                    isEdit ? "Đang lưu..." : "Đang tạo..."
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="h-5 w-5 mr-2" />
+                      {isEdit ? "Cập nhật bài học" : "Tạo bài học"}
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Status Messages */}
+              {isEdit && !hasChanges && (
+                <Typography variant="small" className="text-secondary text-center mt-3">
+                  ℹ️ Không có thay đổi để lưu
+                </Typography>
+              )}
+              {hasErrors && (
+                <Typography variant="small" className="text-red-500 text-center mt-3">
+                  ⚠️ Vui lòng sửa các lỗi trước khi lưu
+                </Typography>
+              )}
             </div>
-            
-            {isEdit && !hasChanges && (
-              <Typography variant="small" className="text-secondary text-center mt-2">
-                Không có thay đổi để lưu
-              </Typography>
-            )}
           </form>
         </CardBody>
       </Card>
 
-      {/* Gemini Parsed Result Dialog Component */}
+      {/* Gemini Dialog */}
       <GeminiParsedResultDialog
         open={pdfDialog.open}
         parsedData={pdfDialog.parsedData}

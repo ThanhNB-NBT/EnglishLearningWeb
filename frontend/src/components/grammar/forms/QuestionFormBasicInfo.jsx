@@ -2,20 +2,17 @@ import React from 'react';
 import {
   Typography,
   Input,
+  Textarea,
   Select,
   Option,
   Chip,
 } from '@material-tailwind/react';
 import {
   ChatBubbleLeftRightIcon,
-  DocumentTextIcon,
   LanguageIcon,
   PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 
-/**
- * Component: Thông tin cơ bản của Question (Text, Type)
- */
 const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
   const questionTypes = [
     { 
@@ -23,7 +20,7 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
       label: 'Trắc nghiệm', 
       icon: ChatBubbleLeftRightIcon,
       color: 'blue',
-      description: 'Chọn 1 đáp án đúng từ nhiều lựa chọn'
+      description: 'Chọn 1 đáp án đúng từ 4 lựa chọn'
     },
     { 
       value: 'FILL_BLANK', 
@@ -39,13 +36,6 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
       color: 'orange',
       description: 'Dịch câu tiếng Anh/Việt'
     },
-    { 
-      value: 'VERB_FORM', 
-      label: 'Chia động từ', 
-      icon: DocumentTextIcon,
-      color: 'purple',
-      description: 'Chia động từ đúng thì'
-    },
   ];
 
   const selectedType = questionTypes.find(t => t.value === formData.questionType);
@@ -56,15 +46,17 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary"
         >
           Loại câu hỏi <span className="text-red-500">*</span>
         </Typography>
         <Select
           value={formData.questionType}
           onChange={(val) => onChange("questionType", val)}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary"
+          color="purple"
+          containerProps={{ className: "!min-w-full" }}
+          menuProps={{ className: "bg-secondary border-primary" }}
         >
           {questionTypes.map((type) => {
             const Icon = type.icon;
@@ -73,10 +65,10 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
                 <div className="flex items-start space-x-3 py-1">
                   <Icon className={`h-5 w-5 text-${type.color}-500 mt-0.5`} />
                   <div>
-                    <Typography variant="small" className="font-medium">
+                    <Typography variant="small" className="font-medium text-primary">
                       {type.label}
                     </Typography>
-                    <Typography variant="small" className="opacity-60 text-xs">
+                    <Typography variant="small" className="text-tertiary text-xs">
                       {type.description}
                     </Typography>
                   </div>
@@ -93,7 +85,7 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
               color={selectedType.color}
               icon={<selectedType.icon className="h-3 w-3" />}
             />
-            <Typography variant="small" className="opacity-60">
+            <Typography variant="small" className="text-tertiary">
               {selectedType.description}
             </Typography>
           </div>
@@ -104,24 +96,25 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary"
         >
           Nội dung câu hỏi <span className="text-red-500">*</span>
         </Typography>
-        <Input
+        <Textarea
           value={formData.questionText}
           onChange={(e) => onChange("questionText", e.target.value)}
           placeholder="Ví dụ: She _____ to school every day. (go)"
           error={!!errors.questionText}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary dark:text-slate-200"
+          color="purple"
+          rows={3}
         />
         {errors.questionText && (
-          <Typography variant="small" color="red" className="mt-1">
-            {errors.questionText}
+          <Typography variant="small" color="red" className="mt-1 flex items-center gap-1">
+            <span>⚠️</span> {errors.questionText}
           </Typography>
         )}
-        <Typography variant="small" color="blue-gray" className="mt-1 opacity-60">
+        <Typography variant="small" className="text-tertiary mt-1">
           {formData.questionText.length}/500 ký tự
         </Typography>
       </div>
@@ -130,18 +123,19 @@ const QuestionFormBasicInfo = ({ formData, errors, onChange }) => {
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary"
         >
           Giải thích đáp án
         </Typography>
-        <Input
+        <Textarea
           value={formData.explanation}
           onChange={(e) => onChange("explanation", e.target.value)}
           placeholder="Giải thích tại sao đáp án này đúng..."
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary dark:text-slate-200"
+          color="purple"
+          rows={2}
         />
-        <Typography variant="small" color="blue-gray" className="mt-1 opacity-60">
+        <Typography variant="small" className="text-tertiary mt-1">
           💡 Gợi ý: Giải thích giúp học viên hiểu rõ hơn
         </Typography>
       </div>

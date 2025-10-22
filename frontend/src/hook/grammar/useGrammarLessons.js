@@ -46,7 +46,6 @@ export const useLessonList = (topicId) => {
   const applyFilters = useCallback(() => {
     let filtered = lessons;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(lesson =>
         lesson.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,18 +53,15 @@ export const useLessonList = (topicId) => {
       );
     }
 
-    // Type filter
     if (filterType) {
       filtered = filtered.filter(lesson => lesson.lessonType === filterType);
     }
 
-    // Status filter
     if (filterStatus) {
       const isActive = filterStatus === 'active';
       filtered = filtered.filter(lesson => lesson.isActive === isActive);
     }
 
-    // Sort by orderIndex
     filtered = filtered.sort((a, b) => a.orderIndex - b.orderIndex);
 
     setFilteredLessons(filtered);
@@ -138,14 +134,49 @@ export const useLessonForm = (topicId, lessonId = null) => {
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  // PDF Dialog state
   const [pdfDialog, setPdfDialog] = useState({
     open: false,
     parsedData: null,
     summary: null,
   });
 
-  // Load topic info
+  // ✅ FIXED: Wrap validateForm trong useCallback
+  const validateForm = useCallback(() => {
+    const newErrors = {};
+
+    if (!formData.title.trim()) {
+      newErrors.title = "Tiêu đề không được để trống";
+    } else if (formData.title.length > 200) {
+      newErrors.title = "Tiêu đề không được vượt quá 200 ký tự";
+    }
+
+    if (formData.orderIndex < 1) {
+      newErrors.orderIndex = "Thứ tự phải lớn hơn 0";
+    }
+
+    if (formData.pointsReward <= 0) {
+      newErrors.pointsReward = "Điểm thưởng phải lớn hơn 0";
+    }
+
+    if (formData.estimatedDuration < 10) {
+      newErrors.estimatedDuration = "Thời gian ước tính phải >= 10 giây";
+    }
+
+    if (formData.lessonType === "THEORY" && !formData.content.trim()) {
+      newErrors.content = "Nội dung lý thuyết không được để trống";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData]);
+
+  // ✅ FIXED: Validate realtime với đầy đủ dependencies
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      validateForm();
+    }
+  }, [formData, errors, validateForm]);
+
   const loadTopicInfo = useCallback(async () => {
     try {
       const response = await grammarAdminAPI.getAllTopics();
@@ -157,7 +188,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   }, [topicId]);
 
-  // Get next order index for new lesson
   const getNextOrderIndex = useCallback(async () => {
     try {
       const response = await grammarAdminAPI.getLessonsByTopic(topicId);
@@ -171,7 +201,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   }, [topicId]);
 
-  // Load lesson data for edit mode
   const loadLessonData = useCallback(async () => {
     setLoading(true);
     try {
@@ -218,40 +247,16 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   }, [formData, originalData]);
 
-  // Validation
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.title.trim()) {
-      newErrors.title = "Tiêu đề không được để trống";
-    } else if (formData.title.length > 200) {
-      newErrors.title = "Tiêu đề không được vượt quá 200 ký tự";
-    }
-
-    if (formData.orderIndex < 1) {
-      newErrors.orderIndex = "Thứ tự phải lớn hơn 0";
-    }
-
-    if (formData.pointsReward <= 0) {
-      newErrors.pointsReward = "Điểm thưởng phải lớn hơn 0";
-    }
-
-    if (formData.estimatedDuration < 10) {
-      newErrors.estimatedDuration = "Thời gian ước tính phải >= 10 giây";
-    }
-
-    if (formData.lessonType === "THEORY" && !formData.content.trim()) {
-      newErrors.content = "Nội dung lý thuyết không được để trống";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
+  // ✅ FIXED: Clear error properly
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: null }));
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
     }
   };
 
@@ -291,7 +296,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   };
 
-  // PDF Parsing with Gemini AI
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -304,7 +308,7 @@ export const useLessonForm = (topicId, lessonId = null) => {
       return;
     }
 
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error('File không được vượt quá 10MB');
       return;
@@ -341,7 +345,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
 
     try {
-      // Single lesson: use directly in form
       if (finalData.lessons.length === 1) {
         const lesson = finalData.lessons[0];
         setFormData((prev) => ({
@@ -355,9 +358,7 @@ export const useLessonForm = (topicId, lessonId = null) => {
         }));
         setPdfDialog({ open: false, parsedData: null, summary: null });
         toast.success('Đã áp dụng nội dung từ Gemini AI!');
-      }
-      // Multiple lessons: save all to database
-      else {
+      } else {
         const toastId = toast.loading(`Đang lưu ${finalData.lessons.length} bài học...`);
 
         await grammarAdminAPI.saveParsedLessons(topicId, finalData);

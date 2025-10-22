@@ -3,22 +3,26 @@ import {
   Typography,
   Input,
   Switch,
+  Chip,
 } from '@material-tailwind/react';
+import {
+  HashtagIcon,
+  TrophyIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline';
 
-/**
- * Component: Cài đặt lesson (Order, Points, Duration, Status)
- * 🔧 Fixed: Responsive layout với breakpoints tốt hơn
- */
-const LessonFormSettings = ({ formData, errors, onChange }) => {
+const LessonFormSettings = ({ formData, errors, onChange, isEdit }) => {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       {/* Order Index */}
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          <HashtagIcon className="h-4 w-4 text-blue-500" />
           Thứ tự <span className="text-red-500">*</span>
         </Typography>
         <Input
@@ -29,7 +33,10 @@ const LessonFormSettings = ({ formData, errors, onChange }) => {
           }
           min="1"
           error={!!errors.orderIndex}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary"
+          color="blue"
+          size="lg"
+          disabled={!isEdit}
         />
         {errors.orderIndex && (
           <Typography variant="small" color="red" className="mt-1">
@@ -42,9 +49,9 @@ const LessonFormSettings = ({ formData, errors, onChange }) => {
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          <TrophyIcon className="h-4 w-4 text-amber-500" />
           Điểm thưởng <span className="text-red-500">*</span>
         </Typography>
         <Input
@@ -55,22 +62,27 @@ const LessonFormSettings = ({ formData, errors, onChange }) => {
           }
           min="1"
           error={!!errors.pointsReward}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary"
+          color="blue"
+          size="lg"
         />
         {errors.pointsReward && (
           <Typography variant="small" color="red" className="mt-1">
             {errors.pointsReward}
           </Typography>
         )}
+        <Typography variant="small" className="text-tertiary mt-1">
+          Khuyến nghị: 10-50 điểm
+        </Typography>
       </div>
 
       {/* Estimated Duration */}
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          <ClockIcon className="h-4 w-4 text-blue-500" />
           Thời gian (giây) <span className="text-red-500">*</span>
         </Typography>
         <Input
@@ -81,36 +93,52 @@ const LessonFormSettings = ({ formData, errors, onChange }) => {
           }
           min="10"
           error={!!errors.estimatedDuration}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary"
+          color="blue"
+          size="lg"
         />
         {errors.estimatedDuration && (
           <Typography variant="small" color="red" className="mt-1">
             {errors.estimatedDuration}
           </Typography>
         )}
+        <Typography variant="small" className="text-tertiary mt-1">
+          {Math.floor(formData.estimatedDuration / 60)} phút {formData.estimatedDuration % 60} giây
+        </Typography>
       </div>
 
       {/* Active Status */}
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          {formData.isActive ? (
+            <CheckCircleIcon className="h-4 w-4 text-green-500" />
+          ) : (
+            <XCircleIcon className="h-4 w-4 text-gray-500" />
+          )}
           Trạng thái
         </Typography>
-        <div className="flex items-center h-10">
+        <div className="flex items-center justify-between h-[42px] px-3 bg-secondary border border-primary rounded-lg">
           <Switch
             checked={formData.isActive}
             onChange={(e) => onChange("isActive", e.target.checked)}
             color="green"
-            label={
-              <Typography variant="small" color="blue-gray">
-                {formData.isActive ? "Hoạt động" : "Tạm dừng"}
-              </Typography>
-            }
+            className="checked:bg-green-500"
+          />
+          <Chip
+            size="sm"
+            value={formData.isActive ? "Hoạt động" : "Tạm dừng"}
+            color={formData.isActive ? "green" : "gray"}
+            className="font-semibold"
           />
         </div>
+        <Typography variant="small" className="text-tertiary mt-1">
+          {formData.isActive 
+            ? "Bài học sẽ hiển thị cho học viên"
+            : "Bài học sẽ bị ẩn"}
+        </Typography>
       </div>
     </div>
   );
