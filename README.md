@@ -9,12 +9,12 @@ EnglishLearningWeb là một ứng dụng web hỗ trợ học tiếng Anh, phá
 - **Luyện nghe:** Tích hợp các bài nghe, có thể chấm điểm hoặc hiển thị phụ đề.
 - **Luyện đọc hiểu:** Các đoạn văn, bài đọc với câu hỏi kiểm tra mức độ hiểu bài.
 - **Kiểm tra và thống kê kết quả học tập:** Theo dõi tiến trình, thành tích học tập.
-- **Giao diện thân thiện:** Thiết kế hiện đại, dễ sử dụng trên cả desktop và mobile.
+- **Giao diện thân thiện:** Thiết kế hiện đại, dễ sử dụng trên desktop.
 
 ## Công nghệ sử dụng
 
 - **Backend:** Java (Spring Boot)
-- **Frontend:** JavaScript, HTML, CSS, React Native
+- **Frontend:** JavaScript, HTML, CSS
 - **Cơ sở dữ liệu:** PostgreSQL
 - **Cache/Message Broker:** Redis (chạy trên Docker)
 
