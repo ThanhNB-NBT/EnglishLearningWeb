@@ -26,6 +26,7 @@ public class GrammarQuestionDTO {
     private Long lessonId;
 
     @NotBlank(message = "Nội dung câu hỏi không được để trống")
+    @Size(max = 500, message = "Nội dung câu hỏi không được vượt quá 500 ký tự")
     @Schema(description = "Nội dung câu hỏi", example = "She ___ to school every day.")
     private String questionText;
 
@@ -33,24 +34,27 @@ public class GrammarQuestionDTO {
     @Schema(description = "Loại câu hỏi", example = "FILL_BLANK")
     private QuestionType questionType;
 
-    @NotBlank(message = "Đáp án không được để trống")
-    @Schema(description = "Đáp án đúng", example = "goes")
+    @Schema(description = "Đáp án đúng (Bắt buộc cho FILL_BLANK, TRANSLATE. Không cần cho MULTIPLE_CHOICE)", 
+            example = "goes")
     private String correctAnswer;
 
+    @Size(max = 1000, message = "Giải thích không được vượt quá 1000 ký tự")
     @Schema(description = "Giải thích đáp án")
     private String explanation;
 
     @Min(value = 1, message = "Điểm phải >= 1")
+    @Max(value = 100, message = "Điểm phải <= 100")
     @Schema(description = "Điểm số", example = "5")
     private Integer points = 5;
 
+    @Min(value = 1, message = "Thứ tự phải >= 1")
     @Schema(description = "Thứ tự câu hỏi", example = "1")
     private Integer orderIndex;
 
     @Schema(description = "Thời gian tạo")
     private LocalDateTime createdAt;
 
-    @Schema(description = "Các lựa chọn (cho MULTIPLE_CHOICE)")
+    @Schema(description = "Các lựa chọn (Bắt buộc cho MULTIPLE_CHOICE, tối thiểu 2 lựa chọn)")
     private List<GrammarQuestionOptionDTO> options;
 
     @Schema(description = "Hiển thị đáp án đúng không", example = "false")

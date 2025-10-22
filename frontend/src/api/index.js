@@ -13,32 +13,59 @@ const api = axios.create({
   },
 });
 
-// Interceptor cho request để thêm token
+// ===== HELPER: Detect role từ URL =====
+const detectRoleFromUrl = (url) => {
+  // Nếu URL có /admin → lấy admin token
+  if (url.includes('/admin')) return 'ADMIN';
+  
+  // Nếu URL có /user hoặc path hiện tại là admin → lấy admin token
+  if (window.location.pathname.startsWith('/admin')) return 'ADMIN';
+  
+  return 'USER';
+};
+
+// ===== REQUEST INTERCEPTOR: Thêm token =====
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    // Detect role dựa vào URL của request
+    const role = detectRoleFromUrl(config.url);
+    const tokenKey = role === 'ADMIN' ? 'admin_authToken' : 'user_authToken';
+    const token = localStorage.getItem(tokenKey);
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor cho response để xử lý token hết hạn
+// ===== RESPONSE INTERCEPTOR: Xử lý 401 =====
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const user = localStorage.getItem('user');
-      const role = user ? JSON.parse(user).role : null;
-      console.log('Interceptor: Vai trò người dùng trước khi chuyển hướng:', role);
-      console.log('Interceptor: Dữ liệu user trong localStorage:', user);
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      window.location.href = role === 'ADMIN' ? '/admin/login' : '/user/login';
-      console.log('Interceptor: Chuyển hướng đến:', role === 'ADMIN' ? '/admin/login' : '/user/login');
+      // Detect role từ path hiện tại thay vì từ storage
+      const isAdminPath = window.location.pathname.startsWith('/admin');
+      const role = isAdminPath ? 'ADMIN' : 'USER';
+      
+      console.log('Interceptor: 401 Unauthorized - Role:', role);
+      
+      // Xóa storage của role hiện tại
+      const tokenKey = role === 'ADMIN' ? 'admin_authToken' : 'user_authToken';
+      const userKey = role === 'ADMIN' ? 'admin_user' : 'user_user';
+      
+      localStorage.removeItem(tokenKey);
+      localStorage.removeItem(userKey);
+      
+      // Redirect đến trang login tương ứng
+      const loginUrl = role === 'ADMIN' ? '/admin/login' : '/user/login';
+      window.location.href = `${loginUrl}?expired=true`;
+      
+      console.log('Interceptor: Redirecting to:', loginUrl);
     }
+    
     return Promise.reject(error);
   }
 );

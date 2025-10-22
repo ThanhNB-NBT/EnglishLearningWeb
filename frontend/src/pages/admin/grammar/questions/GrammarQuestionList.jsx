@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { grammarAdminAPI } from '../../../../api';
 import { ADMIN_ROUTES } from '../../../../constants/routes';
 import {
   Button,
@@ -8,15 +7,9 @@ import {
   CardBody,
   Typography,
   Spinner,
-  IconButton,
-  Dialog,
-  DialogHeader,
-  DialogBody,
-  DialogFooter,
   Input,
   Select,
   Option,
-  Breadcrumbs,
   Chip,
 } from '@material-tailwind/react';
 import {
@@ -25,83 +18,67 @@ import {
   MagnifyingGlassIcon,
   QuestionMarkCircleIcon,
   ArrowPathIcon,
-  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
+
+// ✨ Import Reusable Components & Hook
+import PageAdminHeader from '../../../../components/common/PageAdminHeader';
+import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import QuestionTable from '../../../../components/grammar/tables/QuestionTable';
+import { useQuestionList } from '../../../../hook/grammar/useGrammarQuestions';
 
 const GrammarQuestionList = () => {
   const { lessonId } = useParams();
   const navigate = useNavigate();
 
-  const [questions, setQuestions] = useState([]);
-  const [filteredQuestions, setFilteredQuestions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // ✨ USE HOOK
+  const {
+    filteredQuestions,
+    questions,
+    loading,
+    searchTerm,
+    setSearchTerm,
+    filterType,
+    setFilterType,
+    selectedQuestions,
+    setSelectedQuestions,
+    deleteQuestion,
+    bulkDeleteQuestions,
+    resetFilters,
+  } = useQuestionList(lessonId);
+
   const [deleteDialog, setDeleteDialog] = useState({ open: false, question: null });
-  
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('');
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const questionTypes = [
     { value: 'MULTIPLE_CHOICE', label: 'Trắc nghiệm' },
     { value: 'FILL_BLANK', label: 'Điền từ' },
     { value: 'TRANSLATE', label: 'Dịch câu' },
-    { value: 'VERB_FORM', label: 'Chia động từ' },
   ];
 
-  useEffect(() => {
-    if (lessonId) {
-      loadQuestions();
-    }
-  }, [lessonId]);
+  // ===== SELECTION HANDLERS =====
 
-  useEffect(() => {
-    filterQuestions();
-  }, [questions, searchTerm, filterType]);
-
-  // ===== DATA LOADING =====
-
-  const loadQuestions = async () => {
-    setLoading(true);
-    try {
-      // ✅ API này đã filter theo ParentType.GRAMMAR trong backend
-      const response = await grammarAdminAPI.getQuestionsByLesson(lessonId);
-      setQuestions(response.data.data || []);
-    } catch (error) {
-      toast.error('Lỗi khi lấy danh sách câu hỏi');
-      console.error('Load questions error:', error);
-    } finally {
-      setLoading(false);
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedQuestions(filteredQuestions.map(q => q.id));
+    } else {
+      setSelectedQuestions([]);
     }
   };
 
-  const filterQuestions = () => {
-    let filtered = questions;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(question =>
-        question.questionText?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        question.explanation?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const handleSelectOne = (questionId, checked) => {
+    if (checked) {
+      setSelectedQuestions([...selectedQuestions, questionId]);
+    } else {
+      setSelectedQuestions(selectedQuestions.filter(id => id !== questionId));
     }
-
-    // Type filter
-    if (filterType) {
-      filtered = filtered.filter(question => question.questionType === filterType);
-    }
-
-    // Sort by orderIndex
-    filtered = filtered.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-
-    setFilteredQuestions(filtered);
   };
 
-  const resetFilters = () => {
-    setSearchTerm('');
-    setFilterType('');
-  };
+  const isAllSelected = filteredQuestions.length > 0 && 
+    selectedQuestions.length === filteredQuestions.length;
+
+  const isSomeSelected = selectedQuestions.length > 0 && 
+    selectedQuestions.length < filteredQuestions.length;
 
   // ===== CRUD OPERATIONS =====
 
@@ -112,27 +89,34 @@ const GrammarQuestionList = () => {
   const handleDelete = async () => {
     if (!deleteDialog.question) return;
 
+    setDeleting(true);
     try {
-      await grammarAdminAPI.deleteQuestion(deleteDialog.question.id);
-      setQuestions(questions.filter(q => q.id !== deleteDialog.question.id));
-      toast.success('Xóa câu hỏi thành công!');
-    } catch (error) {
-      toast.error('Lỗi khi xóa câu hỏi: ' + (error.response?.data?.message || error.message));
-      console.error('Delete question error:', error);
-    } finally {
+      await deleteQuestion(deleteDialog.question.id);
       setDeleteDialog({ open: false, question: null });
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // ✅ FIX: Loại bỏ unused handlePreview - preview được handle trong QuestionTable
+  const handleBulkDelete = async () => {
+    if (selectedQuestions.length === 0) return;
 
-  // ===== RENDER =====
+    setDeleting(true);
+    try {
+      await bulkDeleteQuestions(selectedQuestions);
+      setBulkDeleteDialog(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const hasActiveFilter = searchTerm || filterType;
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 space-y-4">
         <Spinner className="h-12 w-12 text-purple-500" />
-        <Typography variant="paragraph" color="blue-gray">
+        <Typography variant="paragraph" className="text-secondary">
           Đang tải danh sách câu hỏi...
         </Typography>
       </div>
@@ -140,88 +124,53 @@ const GrammarQuestionList = () => {
   }
 
   return (
-    <div className="w-full space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs className="bg-transparent p-0">
-        <Typography
-          className="opacity-60 cursor-pointer hover:opacity-100"
-          onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
-        >
-          Chủ đề ngữ pháp
-        </Typography>
-        <Typography
-          className="opacity-60 cursor-pointer hover:opacity-100"
-          onClick={() => navigate(-1)}
-        >
-          Bài học
-        </Typography>
-        <Typography color="blue-gray">Câu hỏi</Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Card className="border border-blue-gray-100">
-        <CardBody className="p-6">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-            <div className="flex items-center space-x-3">
-              <IconButton
-                variant="outlined"
-                size="sm"
-                onClick={() => navigate(-1)}
-                className="border-gray-300"
-              >
-                <ArrowLeftIcon className="h-4 w-4" />
-              </IconButton>
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <QuestionMarkCircleIcon className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <Typography variant="h4" color="blue-gray" className="font-bold">
-                  Quản lý Câu hỏi
-                </Typography>
-                <Typography variant="small" color="blue-gray" className="opacity-70">
-                  Bài học thực hành
-                </Typography>
-              </div>
-            </div>
-
-            <Button
-              size="lg"
-              className="flex bg-gradient-to-r from-purple-500 to-purple-600 shadow-lg hover:shadow-xl transition-all duration-300"
-              onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTION_CREATE(lessonId))}
-            >
-              <PlusIcon className="h-6 w-6 mr-2" />
-              <span className="font-bold">Tạo câu hỏi mới</span>
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
+    <div className="w-full space-y-6 p-4 md:p-6">
+      {/* ✨ REUSABLE PAGE HEADER */}
+      <PageAdminHeader
+        title="Quản lý Câu hỏi"
+        subtitle="Bài học thực hành"
+        icon={QuestionMarkCircleIcon}
+        iconBgColor="purple-500"
+        iconColor="purple-400"
+        showBackButton={true}
+        onBack={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
+        actions={
+          <Button
+            size="lg"
+            className="bg-purple-500 hover:bg-purple-600 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 w-full lg:w-auto"
+            onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTION_CREATE(lessonId))}
+          >
+            <PlusIcon className="h-5 w-5" />
+            <span className="font-semibold">Tạo mới</span>
+          </Button>
+        }
+      />
 
       {/* Filter Section */}
-      <Card className="border border-blue-gray-100">
-        <CardBody className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div>
-              <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
-                Tìm kiếm
-              </Typography>
+      <Card className="card-base border-primary">
+        <CardBody className="p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
               <Input
+                label="Tìm kiếm câu hỏi"
                 icon={<MagnifyingGlassIcon className="h-5 w-5" />}
-                placeholder="Tìm theo nội dung câu hỏi"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full placeholder:opacity-100 !border-blue-gray-200 focus:!border-purple-500"
-                labelProps={{ className: 'hidden' }}
+                color="purple"
+                className="bg-secondary"
+                containerProps={{ className: "!min-w-full" }}
               />
             </div>
 
-            <div>
-              <Typography variant="small" color="blue-gray" className="mb-2 font-medium">
-                Loại câu hỏi
-              </Typography>
+            <div className="w-full">
               <Select
+                label="Loại câu hỏi"
                 value={filterType}
                 onChange={val => setFilterType(val)}
-                className="!border-blue-gray-200 focus:!border-purple-500"
+                color="purple"
+                className="bg-secondary"
+                containerProps={{ className: "!min-w-full" }}
+                menuProps={{ className: "bg-secondary border-primary" }}
               >
                 <Option value="">Tất cả loại</Option>
                 {questionTypes.map(type => (
@@ -231,35 +180,55 @@ const GrammarQuestionList = () => {
                 ))}
               </Select>
             </div>
-
-            <div className="flex">
-              <Button
-                variant="outlined"
-                size="sm"
-                onClick={resetFilters}
-                className="border-gray-300 text-gray-800"
-              >
-                <span className="flex items-center hover:text-purple-500">
-                  <ArrowPathIcon className="h-5 w-5 mr-2" />
-                  Reset
-                </span>
-              </Button>
-            </div>
           </div>
 
-          {/* Filter Summary */}
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Typography variant="small" color="blue-gray" className="opacity-70">
-                Hiển thị {filteredQuestions.length} / {questions.length} câu hỏi
+          <div className="mt-6 pt-4 border-t border-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Typography variant="small" className="text-primary font-semibold">
+                Hiển thị <span className="text-purple-500">{filteredQuestions.length}</span> / {questions.length} câu hỏi
               </Typography>
-              {(searchTerm || filterType) && (
+              {hasActiveFilter && (
                 <Chip
                   size="sm"
                   value="Đang lọc"
                   color="purple"
                   className="text-xs"
+                  icon={<MagnifyingGlassIcon className="h-3 w-3" />}
                 />
+              )}
+              {selectedQuestions.length > 0 && (
+                <Chip
+                  size="sm"
+                  value={`${selectedQuestions.length} đã chọn`}
+                  color="orange"
+                  className="text-xs font-semibold"
+                />
+              )}
+            </div>
+
+            <div className="flex gap-2 w-full sm:w-auto">
+              {selectedQuestions.length > 0 && (
+                <Button
+                  size="sm"
+                  color="red"
+                  variant="gradient"
+                  onClick={() => setBulkDeleteDialog(true)}
+                  className="flex items-center gap-2"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Xóa {selectedQuestions.length} câu
+                </Button>
+              )}
+              {hasActiveFilter && (
+                <Button
+                  variant="outlined"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="border-primary hover:bg-tertiary flex items-center gap-2"
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  Reset
+                </Button>
               )}
             </div>
           </div>
@@ -268,72 +237,73 @@ const GrammarQuestionList = () => {
 
       {/* Questions Table */}
       {filteredQuestions.length === 0 ? (
-        <Card className="border border-blue-gray-100">
+        <Card className="card-base border-primary">
           <CardBody className="p-12 text-center">
-            <QuestionMarkCircleIcon className="h-16 w-16 text-blue-gray-300 mx-auto mb-4" />
-            <Typography variant="h6" color="blue-gray" className="mb-2">
-              {questions.length === 0 ? 'Chưa có câu hỏi nào' : 'Không tìm thấy câu hỏi'}
-            </Typography>
-            <Typography variant="small" color="blue-gray" className="opacity-70 mb-4">
-              {questions.length === 0
-                ? 'Hãy tạo câu hỏi đầu tiên cho bài học này.'
-                : 'Thử thay đổi bộ lọc để tìm thấy câu hỏi bạn cần.'
-              }
-            </Typography>
-            {questions.length === 0 && (
-              <Button
-                color="purple"
-                onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTION_CREATE(lessonId))}
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Tạo câu hỏi đầu tiên
-              </Button>
-            )}
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 bg-purple-50 dark:bg-purple-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <QuestionMarkCircleIcon className="h-10 w-10 text-purple-500" />
+              </div>
+              <Typography variant="h5" className="text-primary mb-2 font-bold">
+                {questions.length === 0 ? 'Chưa có câu hỏi nào' : 'Không tìm thấy câu hỏi'}
+              </Typography>
+              <Typography variant="small" className="text-secondary mb-6">
+                {questions.length === 0
+                  ? 'Hãy tạo câu hỏi đầu tiên cho bài học này.'
+                  : 'Thử thay đổi bộ lọc để tìm thấy câu hỏi bạn cần.'
+                }
+              </Typography>
+              {questions.length === 0 && (
+                <Button
+                  size="lg"
+                  color="purple"
+                  onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTION_CREATE(lessonId))}
+                  className="flex items-center gap-2 mx-auto shadow-lg"
+                >
+                  <PlusIcon className="h-5 w-5" />
+                  Tạo câu hỏi đầu tiên
+                </Button>
+              )}
+            </div>
           </CardBody>
         </Card>
       ) : (
         <QuestionTable
           questions={filteredQuestions}
+          selectedQuestions={selectedQuestions}
+          onSelectAll={handleSelectAll}
+          onSelectOne={handleSelectOne}
+          isAllSelected={isAllSelected}
+          isSomeSelected={isSomeSelected}
           onEdit={handleEdit}
           onDelete={(question) => setDeleteDialog({ open: true, question })}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
+      {/* Single Delete Dialog */}
+      <ConfirmDialog
         open={deleteDialog.open}
-        handler={() => setDeleteDialog({ open: false, question: null })}
-        size="sm"
-      >
-        <DialogHeader className="flex items-center space-x-2">
-          <TrashIcon className="h-6 w-6 text-red-500" />
-          <span>Xác nhận xóa câu hỏi</span>
-        </DialogHeader>
-        <DialogBody>
-          <Typography variant="paragraph" color="blue-gray">
-            Bạn có chắc chắn muốn xóa câu hỏi này không?
-          </Typography>
-          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-            <Typography variant="small" color="blue-gray" className="line-clamp-2">
-              {deleteDialog.question?.questionText}
-            </Typography>
-          </div>
-          <Typography variant="small" color="red" className="mt-3">
-            ⚠️ Hành động này không thể hoàn tác.
-          </Typography>
-        </DialogBody>
-        <DialogFooter className="space-x-2">
-          <Button
-            variant="outlined"
-            onClick={() => setDeleteDialog({ open: false, question: null })}
-          >
-            Hủy
-          </Button>
-          <Button color="red" onClick={handleDelete}>
-            Xóa câu hỏi
-          </Button>
-        </DialogFooter>
-      </Dialog>
+        onClose={() => setDeleteDialog({ open: false, question: null })}
+        onConfirm={handleDelete}
+        title="Xác nhận xóa câu hỏi"
+        message="Bạn có chắc chắn muốn xóa câu hỏi này không?"
+        warningMessage="⚠️ Hành động này không thể hoàn tác."
+        confirmText="Xóa câu hỏi"
+        type="delete"
+        loading={deleting}
+      />
+
+      {/* Bulk Delete Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteDialog}
+        onClose={() => setBulkDeleteDialog(false)}
+        onConfirm={handleBulkDelete}
+        title="Xác nhận xóa nhiều câu hỏi"
+        message={`Bạn có chắc chắn muốn xóa ${selectedQuestions.length} câu hỏi đã chọn không?`}
+        warningMessage="⚠️ Hành động này không thể hoàn tác và sẽ xóa tất cả câu hỏi đã chọn."
+        confirmText={`Xóa ${selectedQuestions.length} câu hỏi`}
+        type="delete"
+        loading={deleting}
+      />
     </div>
   );
 };

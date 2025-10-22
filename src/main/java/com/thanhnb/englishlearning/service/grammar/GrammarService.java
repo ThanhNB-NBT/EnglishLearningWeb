@@ -46,15 +46,21 @@ public class GrammarService {
     // ====== USER LEARNING METHODS =====
 
     /**
-     * Lấy danh sách topics có thể truy cập với progress
+     * Lấy tất cả topics với lessons và progress
+     * Dùng cho: Sidebar, Topic List, Overview
+     * 
+     * @param userId - ID của user
+     * @return List của GrammarTopicDTO với đầy đủ lessons
      */
     public List<GrammarTopicDTO> getAccessibleTopicsForUser(Long userId) {
+        log.info("📥 Loading all topics with lessons for user {}", userId);
+
         List<GrammarTopic> topics = grammarTopicRepository.findByIsActiveTrueOrderByOrderIndexAsc();
 
         return topics.stream().map(topic -> {
             GrammarTopicDTO dto = convertTopicToDTO(topic);
 
-            // Thêm thông tin tiến độ
+            // Calculate topic progress
             Long completedLessons = userGrammarProgressRepository.countCompletedLessonsInTopic(userId, topic.getId());
             Long totalLessons = grammarLessonRepository.countByTopicIdAndIsActive(topic.getId(), true);
 
@@ -62,14 +68,47 @@ public class GrammarService {
             dto.setTotalLessons(totalLessons.intValue());
             dto.setIsAccessible(true);
 
+            // ✅ LUÔN load lessons
+            List<GrammarLesson> lessons = grammarLessonRepository
+                    .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(topic.getId());
+
+            log.debug("📚 Topic '{}' has {} lessons", topic.getName(), lessons.size());
+
+            List<GrammarLessonDTO> lessonSummaries = lessons.stream().map(lesson -> {
+                GrammarLessonDTO summary = convertLessonToSummaryDTO(lesson);
+
+                // Get progress for each lesson
+                Optional<UserGrammarProgress> progress = userGrammarProgressRepository
+                        .findByUserIdAndLessonId(userId, lesson.getId());
+
+                summary.setIsCompleted(progress.map(UserGrammarProgress::getIsCompleted).orElse(false));
+                summary.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
+                summary.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
+
+                // Check unlock status
+                boolean isUnlocked = isLessonUnlocked(lesson, lessons, userId);
+                summary.setIsUnlocked(isUnlocked);
+                summary.setIsAccessible(isUnlocked);
+
+                return summary;
+            }).collect(Collectors.toList());
+
+            dto.setLessons(lessonSummaries);
+
+            log.debug("✅ Topic '{}': {}/{} lessons completed",
+                    topic.getName(), completedLessons, totalLessons);
+
             return dto;
         }).collect(Collectors.toList());
     }
 
     /**
-     * Lấy chi tiết topic với lessons và progress
+     * ✅ KEEP - Lấy chi tiết 1 topic (nếu cần riêng)
+     * Nhưng thực tế có thể dùng getAccessibleTopicsForUser(userId, true) rồi filter
      */
     public GrammarTopicDTO getTopicWithProgress(Long topicId, Long userId) {
+        log.info("📥 Loading topic {} for user {}", topicId, userId);
+
         GrammarTopic topic = grammarTopicRepository.findById(topicId)
                 .orElseThrow(() -> new RuntimeException("Chủ đề không tồn tại với id: " + topicId));
 
@@ -86,10 +125,12 @@ public class GrammarService {
             GrammarLessonDTO summary = convertLessonToSummaryDTO(lesson);
 
             // Thêm thông tin tiến độ
-            Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId, lesson.getId());
+            Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId,
+                    lesson.getId());
 
             summary.setIsCompleted(progress.map(UserGrammarProgress::getIsCompleted).orElse(false));
             summary.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
+            summary.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
 
             // Kiểm tra quyền truy cập
             boolean isUnlocked = isLessonUnlocked(lesson, lessons, userId);
@@ -166,10 +207,18 @@ public class GrammarService {
         dto.setQuestionCount(questionDTOs.size());
 
         // Thêm thông tin tiến độ
-        Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId, lessonId);
+        Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId,
+                lessonId);
         dto.setIsCompleted(progress.map(UserGrammarProgress::getIsCompleted).orElse(false));
         dto.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
         dto.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
+
+        // ✅ Nếu đã completed, ẩn câu hỏi (không cho làm lại)
+        if (dto.getIsCompleted()) {
+            log.info("ℹ️ Lesson {} already completed by user {}", lessonId, userId);
+            dto.setQuestions(null); // Hide questions
+            return dto;
+        }
 
         // Với bài thực hành, ẩn đáp án đúng
         if (lesson.getLessonType() == LessonType.PRACTICE) {
@@ -184,21 +233,57 @@ public class GrammarService {
      */
     @Transactional
     public LessonResultResponse submitLesson(Long userId, SubmitLessonRequest request) {
+        if (request.getLessonId() == null) {
+            throw new RuntimeException("Lesson ID không được để trống");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại với id: " + userId));
 
         GrammarLesson lesson = grammarLessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + request.getLessonId()));
 
+        log.info("📥 Submit lesson request: userId={}, lessonId={}, lessonType={}",
+                userId, lesson.getId(), lesson.getLessonType());
+
+        // ✅ Validate lesson is unlocked
+        List<GrammarLesson> allLessons = grammarLessonRepository
+                .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(lesson.getTopic().getId());
+
+        if (!isLessonUnlocked(lesson, allLessons, userId)) {
+            throw new RuntimeException("Bài học này chưa được mở khóa. Vui lòng hoàn thành bài trước đó.");
+        }
+
         // Lấy hoặc tạo progress
         UserGrammarProgress progress = userGrammarProgressRepository
                 .findByUserIdAndLessonId(userId, lesson.getId())
-                .orElse(new UserGrammarProgress());
+                .orElseGet(() -> {
+                    log.info("✨ Creating new progress for user {} and lesson {}", userId, lesson.getId());
+                    UserGrammarProgress newProgress = new UserGrammarProgress();
+                    newProgress.setUser(user);
+                    newProgress.setLesson(lesson);
+                    newProgress.setCreatedAt(LocalDateTime.now());
+                    newProgress.setAttempts(0);
+                    newProgress.setReadingTime(0);
+                    newProgress.setHasScrolledToEnd(false);
+                    newProgress.setScorePercentage(BigDecimal.ZERO);
+                    newProgress.setIsCompleted(false);
+                    return newProgress;
+                });
 
-        if (progress.getId() == null) {
+        // ✅ Ensure relations are set
+        if (progress.getUser() == null) {
             progress.setUser(user);
+        }
+        if (progress.getLesson() == null) {
             progress.setLesson(lesson);
-            progress.setCreatedAt(LocalDateTime.now());
+        }
+
+        // ✅ Check if already completed
+        boolean wasAlreadyCompleted = progress.getIsCompleted() != null && progress.getIsCompleted();
+
+        if (wasAlreadyCompleted) {
+            throw new RuntimeException("Bài học này đã hoàn thành. Không thể nộp lại.");
         }
 
         int totalScore = 0;
@@ -211,6 +296,15 @@ public class GrammarService {
         if (lesson.getLessonType() == LessonType.PRACTICE) {
             if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
                 throw new RuntimeException("Bài thực hành cần có câu trả lời");
+            }
+
+            // ✅ Validate all questions answered
+            long expectedQuestions = questionRepository.countByParentTypeAndParentId(
+                    ParentType.GRAMMAR, lesson.getId());
+
+            if (request.getAnswers().size() < expectedQuestions) {
+                throw new RuntimeException(
+                        String.format("Vui lòng trả lời tất cả %d câu hỏi", expectedQuestions));
             }
 
             questionResults = processAnswers(request.getAnswers());
@@ -230,12 +324,15 @@ public class GrammarService {
         }
         // === XỬ LÝ BÀI LÝ THUYẾT ===
         else if (lesson.getLessonType() == LessonType.THEORY) {
-            if (request.getReadingTimeSecond() == null || request.getReadingTimeSecond() < lesson.getEstimatedDuration()) {
-                throw new RuntimeException("Bạn cần dành ít nhất " + lesson.getEstimatedDuration() + " giây để đọc bài lý thuyết");
+            if (request.getReadingTimeSecond() == null
+                    || request.getReadingTimeSecond() < lesson.getEstimatedDuration()) {
+                throw new RuntimeException(
+                        "Bạn cần dành ít nhất " + lesson.getEstimatedDuration() + " giây để đọc bài lý thuyết");
             }
 
             // Track reading time
-            progress.setReadingTime((progress.getReadingTime() != null ? progress.getReadingTime() : 0) + request.getReadingTimeSecond());
+            Integer currentReadingTime = progress.getReadingTime() != null ? progress.getReadingTime() : 0;
+            progress.setReadingTime(currentReadingTime + request.getReadingTimeSecond());
             progress.setHasScrolledToEnd(true);
 
             totalScore = lesson.getPointsReward();
@@ -244,22 +341,42 @@ public class GrammarService {
         }
 
         // Cập nhật progress
-        progress.setAttempts(progress.getAttempts() + 1);
+        Integer currentAttempts = progress.getAttempts() != null ? progress.getAttempts() : 0;
+        progress.setAttempts(currentAttempts + 1);
 
-        // Chỉ mark completed nếu pass VÀ chưa completed trước đó
-        if (isPassed && !progress.getIsCompleted()) {
+        // ✅ Chỉ mark completed nếu pass VÀ chưa completed
+        if (isPassed) {
             progress.setIsCompleted(true);
             progress.setCompletedAt(LocalDateTime.now());
 
-            // Cộng điểm cho user (chỉ 1 lần)
+            // ✅ Cộng điểm (chỉ 1 lần)
             user.setTotalPoints(user.getTotalPoints() + lesson.getPointsReward());
             userRepository.save(user);
 
-            log.info("🎉 User {} completed lesson {} - earned {} points", userId, lesson.getId(), lesson.getPointsReward());
+            log.info("🎉 User {} completed lesson {} - earned {} points",
+                    userId, lesson.getId(), lesson.getPointsReward());
         }
 
         progress.setUpdatedAt(LocalDateTime.now());
-        userGrammarProgressRepository.save(progress);
+
+        // Validate before save
+        if (progress.getUser() == null) {
+            throw new RuntimeException("Progress phải có user");
+        }
+        if (progress.getLesson() == null) {
+            throw new RuntimeException("Progress phải có lesson");
+        }
+
+        log.info("💾 Saving progress: id={}, userId={}, lessonId={}, attempts={}, score={}, completed={}",
+                progress.getId(),
+                progress.getUser().getId(),
+                progress.getLesson().getId(),
+                progress.getAttempts(),
+                progress.getScorePercentage(),
+                progress.getIsCompleted());
+
+        UserGrammarProgress savedProgress = userGrammarProgressRepository.save(progress);
+        log.info("✅ Progress saved successfully: id={}", savedProgress.getId());
 
         // Kiểm tra unlock lesson tiếp theo
         boolean hasUnlockedNext = false;
@@ -276,9 +393,9 @@ public class GrammarService {
             }
         }
 
-        log.info("📊 User {} submitted lesson {}: score={}/{}, passed={}", userId, lesson.getId(), correctAnswers, totalQuestions, isPassed);
+        log.info("📊 User {} submitted lesson {}: correct={}/{}, passed={}",
+                userId, lesson.getId(), correctAnswers, totalQuestions, isPassed);
 
-        // Sử dụng Record constructor
         return new LessonResultResponse(
                 lesson.getId(),
                 lesson.getTitle(),
@@ -289,50 +406,7 @@ public class GrammarService {
                 isPassed,
                 hasUnlockedNext,
                 nextLessonId,
-                questionResults
-        );
-    }
-
-    /**
-     * Lấy random questions (cho mini quiz)
-     */
-    public List<GrammarQuestionDTO> getRandomQuestions(Long lessonId, Integer questionCount, Long userId) {
-        GrammarLesson lesson = grammarLessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Lesson không tồn tại"));
-
-        if (!lesson.getIsActive()) {
-            throw new RuntimeException("Lesson này hiện không khả dụng");
-        }
-
-        // Check access
-        List<GrammarLesson> allLessons = grammarLessonRepository.findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(
-                lesson.getTopic().getId());
-        if (!isLessonUnlocked(lesson, allLessons, userId)) {
-            throw new RuntimeException("Bạn chưa thể truy cập lesson này");
-        }
-
-        if (questionCount <= 0) {
-            throw new IllegalArgumentException("Số lượng câu hỏi phải > 0");
-        }
-
-        long totalQuestions = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR, lessonId);
-        if (questionCount > totalQuestions) {
-            questionCount = (int) totalQuestions;
-        }
-
-        List<Question> questions = questionRepository.findGrammarQuestionsByLessonId(lessonId);
-
-        // Shuffle và lấy số lượng cần thiết
-        Collections.shuffle(questions);
-        questions = questions.stream().limit(questionCount).collect(Collectors.toList());
-
-        return questions.stream()
-                .map(q -> {
-                    GrammarQuestionDTO dto = convertQuestionToDTO(q);
-                    dto.setShowCorrectAnswer(false); // Ẩn đáp án
-                    return dto;
-                })
-                .collect(Collectors.toList());
+                questionResults);
     }
 
     /**
@@ -353,7 +427,8 @@ public class GrammarService {
     private List<QuestionResultDTO> processAnswers(List<SubmitAnswerRequest> answers) {
         return answers.stream().map(answerRequest -> {
             Question question = questionRepository.findByIdWithOptions(answerRequest.getQuestionId())
-                    .orElseThrow(() -> new RuntimeException("Question không tồn tại với id: " + answerRequest.getQuestionId()));
+                    .orElseThrow(() -> new RuntimeException(
+                            "Question không tồn tại với id: " + answerRequest.getQuestionId()));
 
             if (question.getParentType() != ParentType.GRAMMAR) {
                 throw new RuntimeException("Question này không thuộc Grammar module");
@@ -363,7 +438,6 @@ public class GrammarService {
             int points = isCorrect ? question.getPoints() : 0;
             String hint = isCorrect ? null : answerCheckingService.generateHint(question, answerRequest);
 
-            // Sử dụng Record constructor
             return new QuestionResultDTO(
                     question.getId(),
                     question.getQuestionText(),
@@ -372,12 +446,11 @@ public class GrammarService {
                     isCorrect,
                     question.getExplanation(),
                     points,
-                    hint
-            );
+                    hint);
         }).collect(Collectors.toList());
     }
 
-    // ===== CONVERSION METHODS - TỐI ƯU HÓA =====
+    // ===== CONVERSION METHODS =====
 
     private GrammarTopicDTO convertTopicToDTO(GrammarTopic topic) {
         GrammarTopicDTO dto = new GrammarTopicDTO();
@@ -391,13 +464,9 @@ public class GrammarService {
         return dto;
     }
 
-    /**
-     * Convert sang Summary DTO (cho danh sách)
-     */
     private GrammarLessonDTO convertLessonToSummaryDTO(GrammarLesson lesson) {
         long questionCount = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR, lesson.getId());
 
-        // Sử dụng factory method
         return GrammarLessonDTO.summary(
                 lesson.getId(),
                 lesson.getTopic().getId(),
@@ -406,15 +475,10 @@ public class GrammarService {
                 lesson.getOrderIndex(),
                 lesson.getPointsReward(),
                 lesson.getIsActive(),
-                (int) questionCount
-        );
+                (int) questionCount);
     }
 
-    /**
-     * Convert sang Full DTO (cho chi tiết)
-     */
     private GrammarLessonDTO convertLessonToFullDTO(GrammarLesson lesson) {
-        // Sử dụng factory method
         return GrammarLessonDTO.full(
                 lesson.getId(),
                 lesson.getTopic().getId(),
@@ -426,12 +490,10 @@ public class GrammarService {
                 lesson.getEstimatedDuration(),
                 lesson.getIsActive(),
                 lesson.getCreatedAt(),
-                lesson.getTopic().getName()
-        );
+                lesson.getTopic().getName());
     }
 
     private GrammarQuestionDTO convertQuestionToDTO(Question question) {
-        // Load options
         List<QuestionOption> options = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
 
         List<GrammarQuestionOptionDTO> optionDTOs = options.stream()
@@ -440,14 +502,11 @@ public class GrammarService {
                         question.getId(),
                         option.getOptionText(),
                         option.getIsCorrect(),
-                        option.getOrderIndex()
-                ))
+                        option.getOrderIndex()))
                 .collect(Collectors.toList());
 
-        // Shuffle options cho MULTIPLE_CHOICE
         if (question.getQuestionType() == QuestionType.MULTIPLE_CHOICE && !optionDTOs.isEmpty()) {
             Collections.shuffle(optionDTOs);
-            // Reset order index sau shuffle
             for (int i = 0; i < optionDTOs.size(); i++) {
                 optionDTOs.get(i).setOrderIndex(i + 1);
             }

@@ -36,7 +36,7 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [openAccordion, setOpenAccordion] = useState(0);
+  // const [openAccordion, setOpenAccordion] = useState(0);
   const userRole = getUserRole();
 
   useEffect(() => {
@@ -61,9 +61,9 @@ const Sidebar = () => {
     }
   };
 
-  const handleAccordion = (value) => {
-    setOpenAccordion(openAccordion === value ? 0 : value);
-  };
+  // const handleAccordion = (value) => {
+  //   setOpenAccordion(openAccordion === value ? 0 : value);
+  // };
 
   const handleNavigation = (path) => {
     navigate(path);
@@ -95,26 +95,8 @@ const Sidebar = () => {
     { label: "Quản lý người dùng", path: "/admin/users", icon: UserIcon },
     {
       label: "Quản lý ngữ pháp",
-      key: "grammar",
-      accordionId: 1,
+      path: ADMIN_ROUTES.GRAMMAR_TOPICS,
       icon: BookOpenIcon,
-      dropdown: [
-        {
-          label: "Chủ đề",
-          path: ADMIN_ROUTES.GRAMMAR_TOPICS,
-          icon: BookOpenIcon,
-        },
-        {
-          label: "Bài học",
-          path: ADMIN_ROUTES.GRAMMAR_LESSONS(0),
-          icon: BookOpenIcon,
-        },
-        {
-          label: "Câu hỏi",
-          path: ADMIN_ROUTES.GRAMMAR_QUESTIONS(0),
-          icon: QuestionMarkCircleIcon,
-        },
-      ],
     },
     {
       label: "Quản lý bài đọc",
@@ -168,7 +150,7 @@ const Sidebar = () => {
               ? `fixed top-0 left-0 z-50 w-72 transform ${
                   isOpen ? "translate-x-0" : "-translate-x-full"
                 }`
-              : `relative ${isCollapsed ? "w-18" : "w-64"}`
+              : `relative ${isCollapsed ? "w-18" : "w-60"}`
           }`}
       >
         {/* Header */}
@@ -192,90 +174,97 @@ const Sidebar = () => {
             {menuItems.map((item, index) => {
               const Icon = item.icon;
 
-              if (item.dropdown && (!isCollapsed || isMobile)) {
-                return (
-                  <Accordion
-                    key={item.key || index}
-                    open={openAccordion === item.accordionId}
-                    icon={
-                      <ChevronDownIcon
-                        strokeWidth={2.5}
-                        className={`h-4 w-4 transition-transform ${
-                          openAccordion === item.accordionId ? "rotate-180" : ""
-                        }`}
-                      />
-                    }
-                  >
-                    <ListItem
-                      className="p-0 text-primary btn-secondary"
-                      selected={openAccordion === item.accordionId}
-                    >
-                      <AccordionHeader
-                        onClick={() => handleAccordion(item.accordionId)}
-                        className="border-b-0 p-3 hover:bg-transparent"
-                      >
-                        <ListItemPrefix>
-                          <Icon className="h-5 w-5 text-primary" />
-                        </ListItemPrefix>
-                        <Typography className="mr-auto font-normal text-primary">
-                          {item.label}
-                        </Typography>
-                      </AccordionHeader>
-                    </ListItem>
-                    <AccordionBody className="py-1">
-                      <List className="p-0 pl-4">
-                        {item.dropdown.map((subItem) => {
-                          const SubIcon = subItem.icon;
-                          return (
-                            <ListItem
-                              key={subItem.label}
-                              onClick={() => handleNavigation(subItem.path)}
-                              className={`text-primary hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                                isActive(subItem.path)
-                                  ? "bg-primary text-primary"
-                                  : ""
-                              }`}
-                            >
-                              <ListItemPrefix>
-                                <SubIcon className="h-4 w-4" />
-                              </ListItemPrefix>
-                              <Typography className="text-sm">
-                                {subItem.label}
-                              </Typography>
-                            </ListItem>
-                          );
-                        })}
-                      </List>
-                    </AccordionBody>
-                  </Accordion>
-                );
-              }
+              // if (item.dropdown && (!isCollapsed || isMobile)) {
+              //   return (
+              //     <Accordion
+              //       key={item.key || index}
+              //       open={openAccordion === item.accordionId}
+              //       icon={
+              //         <ChevronDownIcon
+              //           strokeWidth={2.5}
+              //           className={`h-4 w-4 transition-transform ${
+              //             openAccordion === item.accordionId ? "rotate-180" : ""
+              //           }`}
+              //         />
+              //       }
+              //     >
+              //       <ListItem
+              //         className="p-0 text-primary relative group"
+              //         selected={openAccordion === item.accordionId}
+              //       >
+              //         {/* Vạch xanh bên trái khi hover */}
+              //         <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 scale-y-0 origin-center group-hover:opacity-100 group-hover:scale-y-100 transition-all duration-300 ease-out" />
+
+              //         <AccordionHeader
+              //           onClick={() => handleAccordion(item.accordionId)}
+              //           className="border-b-0 p-3"
+              //         >
+              //           <ListItemPrefix>
+              //             <Icon className="h-5 w-5 text-primary" />
+              //           </ListItemPrefix>
+              //           <Typography className="mr-auto font-normal text-primary">
+              //             {item.label}
+              //           </Typography>
+              //         </AccordionHeader>
+              //       </ListItem>
+              //       <AccordionBody className="py-1">
+              //         <List className="p-0 pl-4">
+              //           {item.dropdown.map((subItem) => {
+              //             const SubIcon = subItem.icon;
+              //             return (
+              //               <ListItem
+              //                 key={subItem.label}
+              //                 onClick={() => handleNavigation(subItem.path)}
+              //                 className={`text-primary relative group ${
+              //                   isActive(subItem.path)
+              //                     ? "bg-primary text-primary"
+              //                     : ""
+              //                 }`}
+              //               >
+              //                 {/* Vạch xanh bên trái cho submenu khi hover */}
+              //                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 scale-y-0 origin-center group-hover:opacity-100 group-hover:scale-y-100 transition-all duration-300 ease-out" />
+
+              //                 <ListItemPrefix>
+              //                   <SubIcon className="h-4 w-4" />
+              //                 </ListItemPrefix>
+              //                 <Typography className="text-sm">
+              //                   {subItem.label}
+              //                 </Typography>
+              //               </ListItem>
+              //             );
+              //           })}
+              //         </List>
+              //       </AccordionBody>
+              //     </Accordion>
+              //   );
+              // }
 
               // Regular menu item hoặc collapsed dropdown
               return (
                 <ListItem
                   key={item.label || index}
                   onClick={() => {
-                    // Nếu là dropdown item và collapsed, navigate đến trang con đầu tiên
                     if (item.dropdown && isCollapsed && !item.path) {
                       handleNavigation(item.dropdown[0].path);
                     } else if (item.path) {
                       handleNavigation(item.path);
                     }
-                    // Nếu không có path và không có dropdown, không làm gì
                   }}
-                  className={`text-primary hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                  className={`text-primary hover:bg-gray-100 dark:hover:bg-slate-900 dark:hover:text-slate-100 relative group ${
                     item.path && isActive(item.path) ? "bg-primary" : ""
                   } ${isCollapsed && !isMobile ? "justify-center" : ""}`}
                   title={isCollapsed && !isMobile ? item.label : undefined}
                 >
+                  {/* Vạch xanh bên trái khi hover */}
+                  <div className="absolute left-0 top-2 bottom-2 w-1 bg-blue-500 opacity-0 scale-y-0 origin-center group-hover:opacity-100 group-hover:scale-y-100 transition-all duration-300 ease-out" />
+                  {/* <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 bg-blue-500 group-hover:h-full group-hover:top-0 group-hover:translate-y-0 transition-all duration-300 ease-out" /> */}
                   <ListItemPrefix
                     className={isCollapsed && !isMobile ? "m-0" : ""}
                   >
                     <Icon className="h-5 w-5" />
                   </ListItemPrefix>
                   {(!isCollapsed || isMobile) && (
-                    <Typography className="font-normal">
+                    <Typography className="font-normal hover:text-light-blue-600">
                       {item.label}
                     </Typography>
                   )}

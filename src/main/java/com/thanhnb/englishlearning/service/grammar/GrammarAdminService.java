@@ -4,6 +4,7 @@ import com.thanhnb.englishlearning.dto.grammar.*;
 import com.thanhnb.englishlearning.entity.grammar.*;
 import com.thanhnb.englishlearning.entity.question.*;
 import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.enums.QuestionType;
 import com.thanhnb.englishlearning.repository.grammar.*;
 import com.thanhnb.englishlearning.repository.question.*;
 import lombok.RequiredArgsConstructor;
@@ -234,13 +235,18 @@ public class GrammarAdminService {
         GrammarLesson lesson = grammarLessonRepository.findById(dto.getLessonId())
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại"));
 
+        // Validate DTO
+        validateQuestionDTO(dto);
+
         // Tạo mới câu hỏi với parentType = GRAMMAR
         Question question = new Question();
         question.setParentType(ParentType.GRAMMAR);
         question.setParentId(dto.getLessonId());
         question.setQuestionText(dto.getQuestionText());
         question.setQuestionType(dto.getQuestionType());
-        question.setCorrectAnswer(dto.getCorrectAnswer());
+        if (dto.getQuestionType() != QuestionType.MULTIPLE_CHOICE) {
+            question.setCorrectAnswer(dto.getCorrectAnswer());
+        }
         question.setExplanation(dto.getExplanation());
         question.setPoints(dto.getPoints() != null ? dto.getPoints() : 5);
 
@@ -269,7 +275,7 @@ public class GrammarAdminService {
                     }).collect(Collectors.toList());
 
             questionOptionRepository.saveAll(options);
-            log.info("✅ Created {} options for question id={}", options.size(), savedQuestion.getId());
+            log.info("Created {} options for question id={}", options.size(), savedQuestion.getId());
         }
 
         log.info("Created new grammar question: {} for lesson: {}",
@@ -287,9 +293,19 @@ public class GrammarAdminService {
             throw new RuntimeException("Câu hỏi không thuộc bài học ngữ pháp");
         }
 
+        // ✅ VALIDATE DTO
+        validateQuestionDTO(dto);
+
         question.setQuestionText(dto.getQuestionText());
         question.setQuestionType(dto.getQuestionType());
-        question.setCorrectAnswer(dto.getCorrectAnswer());
+
+        // ✅ Only update correctAnswer for non-MULTIPLE_CHOICE
+        if (dto.getQuestionType() != QuestionType.MULTIPLE_CHOICE) {
+            question.setCorrectAnswer(dto.getCorrectAnswer());
+        } else {
+            question.setCorrectAnswer(null); // Clear correctAnswer for MULTIPLE_CHOICE
+        }
+
         question.setExplanation(dto.getExplanation());
 
         if (dto.getPoints() != null) {
@@ -303,24 +319,30 @@ public class GrammarAdminService {
         Question savedQuestion = questionRepository.save(question);
 
         // Update options
-        if (dto.getOptions() != null) {
+        if (dto.getQuestionType() == QuestionType.MULTIPLE_CHOICE) {
             // Xóa options cũ
             questionOptionRepository.deleteByQuestionId(id);
 
             // Tạo mới options
-            List<QuestionOption> options = dto.getOptions().stream()
-                    .map(optionDTO -> {
-                        QuestionOption option = new QuestionOption();
-                        option.setQuestion(savedQuestion);
-                        option.setOptionText(optionDTO.getOptionText());
-                        option.setIsCorrect(optionDTO.getIsCorrect() != null ? optionDTO.getIsCorrect() : false);
-                        option.setOrderIndex(optionDTO.getOrderIndex());
-                        return option;
-                    }).collect(Collectors.toList());
+            if (dto.getOptions() != null && !dto.getOptions().isEmpty()) {
+                List<QuestionOption> options = dto.getOptions().stream()
+                        .map(optionDTO -> {
+                            QuestionOption option = new QuestionOption();
+                            option.setQuestion(savedQuestion);
+                            option.setOptionText(optionDTO.getOptionText());
+                            option.setIsCorrect(optionDTO.getIsCorrect() != null ? optionDTO.getIsCorrect() : false);
+                            option.setOrderIndex(optionDTO.getOrderIndex());
+                            return option;
+                        }).collect(Collectors.toList());
 
-            questionOptionRepository.saveAll(options);
-            log.info("📝 Updated {} options for question id={}", options.size(), id);
+                questionOptionRepository.saveAll(options);
+                log.info("📝 Updated {} options for question id={}", options.size(), id);
+            }
+        } else {
+            // Delete all options for non-MULTIPLE_CHOICE
+            questionOptionRepository.deleteByQuestionId(id);
         }
+
         log.info("Updated grammar questionID: {}", id);
         return convertQuestionToDTO(savedQuestion);
     }
@@ -352,18 +374,32 @@ public class GrammarAdminService {
 
         List<Question> questions = questionDTOs.stream()
                 .map(dto -> {
+                    // ✅ VALIDATE each DTO
+                    try {
+                        validateQuestionDTO(dto);
+                    } catch (RuntimeException e) {
+                        log.warn("⚠️ Skipping invalid question: {}", e.getMessage());
+                        return null;
+                    }
+
                     Question question = new Question();
                     question.setParentType(ParentType.GRAMMAR);
                     question.setParentId(lessonId);
                     question.setQuestionText(dto.getQuestionText());
                     question.setQuestionType(dto.getQuestionType());
-                    question.setCorrectAnswer(dto.getCorrectAnswer());
+
+                    // ✅ Only set correctAnswer for non-MULTIPLE_CHOICE
+                    if (dto.getQuestionType() != QuestionType.MULTIPLE_CHOICE) {
+                        question.setCorrectAnswer(dto.getCorrectAnswer());
+                    }
+
                     question.setExplanation(dto.getExplanation());
                     question.setPoints(dto.getPoints() != null ? dto.getPoints() : 5);
                     question.setOrderIndex(dto.getOrderIndex() != null ? dto.getOrderIndex() : ++orderIndex[0]);
                     question.setCreatedAt(LocalDateTime.now());
                     return question;
                 })
+                .filter(q -> q != null) // ✅ Remove null (invalid questions)
                 .collect(Collectors.toList());
 
         List<Question> savedQuestions = questionRepository.saveAll(questions);
@@ -371,9 +407,17 @@ public class GrammarAdminService {
         // Tạo các tùy chọn (cho câu trắc nghiệm)
         for (int i = 0; i < savedQuestions.size(); i++) {
             Question savedQuestion = savedQuestions.get(i);
-            GrammarQuestionDTO dto = questionDTOs.get(i);
 
-            if (dto.getOptions() != null && !dto.getOptions().isEmpty()) {
+            // Find matching DTO
+            GrammarQuestionDTO dto = questionDTOs.stream()
+                    .filter(d -> d.getQuestionText().equals(savedQuestion.getQuestionText()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (dto != null &&
+                    dto.getQuestionType() == QuestionType.MULTIPLE_CHOICE &&
+                    dto.getOptions() != null && !dto.getOptions().isEmpty()) {
+
                 List<QuestionOption> options = dto.getOptions().stream()
                         .map(optionDTO -> {
                             QuestionOption option = new QuestionOption();
@@ -389,10 +433,52 @@ public class GrammarAdminService {
                 log.info("✅ Created {} options for question id={}", options.size(), savedQuestion.getId());
             }
         }
+
         log.info("Created {} new questions for lesson: {}", questions.size(), lesson.getTitle());
         return questions.stream()
                 .map(this::convertQuestionToDTO)
                 .collect(Collectors.toList());
+    }
+
+    private void validateQuestionDTO(GrammarQuestionDTO dto) {
+        // Validate based on question type
+        switch (dto.getQuestionType()) {
+            case MULTIPLE_CHOICE:
+                // Validate options
+                if (dto.getOptions() == null || dto.getOptions().isEmpty()) {
+                    throw new RuntimeException("Câu hỏi trắc nghiệm phải có ít nhất 2 lựa chọn");
+                }
+                if (dto.getOptions().size() < 2) {
+                    throw new RuntimeException("Câu hỏi trắc nghiệm phải có ít nhất 2 lựa chọn");
+                }
+
+                // Check if all options have text
+                boolean hasEmptyOption = dto.getOptions().stream()
+                        .anyMatch(opt -> opt.getOptionText() == null || opt.getOptionText().trim().isEmpty());
+                if (hasEmptyOption) {
+                    throw new RuntimeException("Tất cả lựa chọn phải có nội dung");
+                }
+
+                // Check if at least one option is correct
+                boolean hasCorrectAnswer = dto.getOptions().stream()
+                        .anyMatch(opt -> opt.getIsCorrect() != null && opt.getIsCorrect());
+                if (!hasCorrectAnswer) {
+                    throw new RuntimeException("Phải có ít nhất 1 đáp án đúng");
+                }
+                break;
+
+            case FILL_BLANK:
+            case TRANSLATE:
+                // Validate correctAnswer
+                if (dto.getCorrectAnswer() == null || dto.getCorrectAnswer().trim().isEmpty()) {
+                    throw new RuntimeException("Đáp án đúng không được để trống cho câu hỏi " +
+                            (dto.getQuestionType() == QuestionType.FILL_BLANK ? "điền từ" : "dịch câu"));
+                }
+                break;
+
+            default:
+                throw new RuntimeException("Loại câu hỏi không hợp lệ");
+        }
     }
 
     /**
@@ -408,10 +494,8 @@ public class GrammarAdminService {
 
         for (GrammarLessonDTO lessonDTO : lessonDTOs) {
             try {
-                // Set topicId
                 lessonDTO.setTopicId(topicId);
 
-                // Tạo lesson
                 GrammarLesson lesson = new GrammarLesson();
                 lesson.setTopic(topic);
                 lesson.setTitle(lessonDTO.getTitle());
@@ -426,50 +510,63 @@ public class GrammarAdminService {
 
                 GrammarLesson savedLesson = grammarLessonRepository.save(lesson);
 
-                // Đếm số questions
                 int questionCount = 0;
 
-                // Tạo questions nếu có (cho PRACTICE lessons)
                 if (lessonDTO.getQuestions() != null && !lessonDTO.getQuestions().isEmpty()) {
                     for (GrammarQuestionDTO questionDTO : lessonDTO.getQuestions()) {
-                        // Tạo Question với ParentType.GRAMMAR
-                        Question question = new Question();
-                        question.setParentType(ParentType.GRAMMAR);
-                        question.setParentId(savedLesson.getId());
-                        question.setQuestionText(questionDTO.getQuestionText());
-                        question.setQuestionType(questionDTO.getQuestionType());
-                        question.setCorrectAnswer(questionDTO.getCorrectAnswer());
-                        question.setExplanation(questionDTO.getExplanation());
-                        question.setPoints(questionDTO.getPoints() != null ? questionDTO.getPoints() : 5);
-                        question.setOrderIndex(
-                                questionDTO.getOrderIndex() != null ? questionDTO.getOrderIndex() : questionCount + 1);
-                        question.setCreatedAt(LocalDateTime.now());
+                        try {
+                            // ✅ VALIDATE each question
+                            validateQuestionDTO(questionDTO);
 
-                        Question savedQuestion = questionRepository.save(question);
-                        questionCount++;
+                            Question question = new Question();
+                            question.setParentType(ParentType.GRAMMAR);
+                            question.setParentId(savedLesson.getId());
+                            question.setQuestionText(questionDTO.getQuestionText());
+                            question.setQuestionType(questionDTO.getQuestionType());
 
-                        // Tạo options nếu có (cho MULTIPLE_CHOICE)
-                        if (questionDTO.getOptions() != null && !questionDTO.getOptions().isEmpty()) {
-                            List<QuestionOption> options = questionDTO.getOptions().stream()
-                                    .map(optionDTO -> {
-                                        QuestionOption option = new QuestionOption();
-                                        option.setQuestion(savedQuestion);
-                                        option.setOptionText(optionDTO.getOptionText());
-                                        option.setIsCorrect(
-                                                optionDTO.getIsCorrect() != null ? optionDTO.getIsCorrect() : false);
-                                        option.setOrderIndex(optionDTO.getOrderIndex());
-                                        return option;
-                                    })
-                                    .collect(Collectors.toList());
+                            // ✅ Only set correctAnswer for non-MULTIPLE_CHOICE
+                            if (questionDTO.getQuestionType() != QuestionType.MULTIPLE_CHOICE) {
+                                question.setCorrectAnswer(questionDTO.getCorrectAnswer());
+                            }
 
-                            questionOptionRepository.saveAll(options);
+                            question.setExplanation(questionDTO.getExplanation());
+                            question.setPoints(questionDTO.getPoints() != null ? questionDTO.getPoints() : 5);
+                            question.setOrderIndex(
+                                    questionDTO.getOrderIndex() != null ? questionDTO.getOrderIndex()
+                                            : questionCount + 1);
+                            question.setCreatedAt(LocalDateTime.now());
+
+                            Question savedQuestion = questionRepository.save(question);
+                            questionCount++;
+
+                            // Tạo options nếu có (cho MULTIPLE_CHOICE)
+                            if (questionDTO.getQuestionType() == QuestionType.MULTIPLE_CHOICE &&
+                                    questionDTO.getOptions() != null && !questionDTO.getOptions().isEmpty()) {
+
+                                List<QuestionOption> options = questionDTO.getOptions().stream()
+                                        .map(optionDTO -> {
+                                            QuestionOption option = new QuestionOption();
+                                            option.setQuestion(savedQuestion);
+                                            option.setOptionText(optionDTO.getOptionText());
+                                            option.setIsCorrect(
+                                                    optionDTO.getIsCorrect() != null ? optionDTO.getIsCorrect()
+                                                            : false);
+                                            option.setOrderIndex(optionDTO.getOrderIndex());
+                                            return option;
+                                        })
+                                        .collect(Collectors.toList());
+
+                                questionOptionRepository.saveAll(options);
+                            }
+                        } catch (Exception e) {
+                            log.warn("⚠️ Skipping invalid question: {}", e.getMessage());
+                            // Continue with other questions
                         }
                     }
 
                     log.info("✅ Created {} questions for lesson: {}", questionCount, savedLesson.getTitle());
                 }
 
-                // Convert sang DTO
                 GrammarLessonDTO savedDTO = convertLessonToDTO(savedLesson);
                 savedDTO.setQuestionCount(questionCount);
                 savedLessons.add(savedDTO);
@@ -479,11 +576,10 @@ public class GrammarAdminService {
 
             } catch (Exception e) {
                 log.error("❌ Failed to import lesson: {}", lessonDTO.getTitle(), e);
-                // Continue với các lessons khác
             }
         }
 
-        log.info(" Successfully imported {} lessons for topic: {}", savedLessons.size(), topic.getName());
+        log.info("✅ Successfully imported {} lessons for topic: {}", savedLessons.size(), topic.getName());
 
         return savedLessons;
     }

@@ -3,20 +3,22 @@ import {
   Typography,
   Input,
 } from '@material-tailwind/react';
+import {
+  TrophyIcon,
+  HashtagIcon,
+  CheckCircleIcon,
+} from '@heroicons/react/24/outline';
 
-/**
- * Component: Cài đặt question (Points, Order)
- */
-const QuestionFormSettings = ({ formData, errors, onChange }) => {
+const QuestionFormSettings = ({ formData, errors, onChange, isEdit }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {/* Points */}
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          <TrophyIcon className="h-4 w-4 text-amber-500" />
           Điểm số <span className="text-red-500">*</span>
         </Typography>
         <Input
@@ -26,15 +28,17 @@ const QuestionFormSettings = ({ formData, errors, onChange }) => {
           min="1"
           max="100"
           error={!!errors.points}
-          className="!border-blue-gray-200 focus:!border-blue-500"
+          className="bg-secondary"
+          color="purple"
+          size="lg"
         />
         {errors.points && (
-          <Typography variant="small" color="red" className="mt-1">
-            {errors.points}
+          <Typography variant="small" color="red" className="mt-1 flex items-center gap-1">
+            <span>⚠️</span> {errors.points}
           </Typography>
         )}
-        <Typography variant="small" color="blue-gray" className="mt-1 opacity-60">
-          Điểm thưởng khi trả lời đúng
+        <Typography variant="small" className="text-tertiary mt-1">
+          Điểm thưởng khi trả lời đúng (1-100)
         </Typography>
       </div>
 
@@ -42,20 +46,32 @@ const QuestionFormSettings = ({ formData, errors, onChange }) => {
       <div>
         <Typography
           variant="small"
-          color="blue-gray"
-          className="mb-2 font-medium"
+          className="mb-2 font-semibold text-primary flex items-center gap-2"
         >
+          <HashtagIcon className="h-4 w-4 text-purple-500" />
           Thứ tự hiển thị
         </Typography>
-        <Input
-          type="number"
-          value={formData.orderIndex}
-          onChange={(e) => onChange("orderIndex", parseInt(e.target.value) || 1)}
-          min="1"
-          className="!border-blue-gray-200 focus:!border-blue-500"
-        />
-        <Typography variant="small" color="blue-gray" className="mt-1 opacity-60">
-          Thứ tự xuất hiện trong bài học
+        <div className="relative">
+          <Input
+            type="number"
+            value={formData.orderIndex}
+            onChange={(e) => onChange("orderIndex", parseInt(e.target.value) || 1)}
+            min="1"
+            className="bg-secondary"
+            color="purple"
+            size="lg"
+            disabled={!isEdit}
+          />
+          {!isEdit && (
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <CheckCircleIcon className="h-5 w-5 text-green-500" />
+            </div>
+          )}
+        </div>
+        <Typography variant="small" className="text-tertiary mt-1">
+          {isEdit 
+            ? "Thứ tự xuất hiện trong bài học" 
+            : `✅ Tự động: Câu hỏi thứ ${formData.orderIndex}`}
         </Typography>
       </div>
     </div>

@@ -40,7 +40,8 @@ const UserLogin = () => {
       toast.success("Đăng nhập thành công!");
       navigate(USER_ROUTES.HOME);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Đăng nhập thất bại");
+      console.error("Login error:", error);
+      toast.error("Đăng nhập thất bại");
     } finally {
       setLoading(false);
     }

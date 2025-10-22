@@ -1,4 +1,3 @@
-// File: JwtAuthenticationFilter.java
 package com.thanhnb.englishlearning.config;
 
 import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
@@ -34,6 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response, 
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
+        // Skip authentication cho public endpoints
         if (shouldNotFilter(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -44,25 +44,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractTokenFromRequest(request);
             
             if (token != null) {
-                // Kiểm tra token có bị blacklist không (đã logout)
+                // 1. Kiểm tra token có bị blacklist không (đã logout)
                 if (jwtBlacklistService.isTokenBlacklisted(token)) {
                     log.debug("Token is blacklisted, request denied");
-                    sendErrorResponse(response, "Token revoked");
+                    sendErrorResponse(response, "Token has been revoked");
                     return;
                 }
                 
-                // Validate JWT token
+                // 2. Validate JWT token
                 if (jwtUtil.isTokenValid(token)) {
                     // Extract thông tin user từ JWT
                     String username = jwtUtil.getUsernameFromToken(token);
                     
-                    // Set authentication context - ✅ ĐÃ SỬA
+                    // Set authentication context
                     setAuthenticationContext(username);
                     
                     log.debug("JWT authentication successful for user: {}", username);
                 } else {
                     log.debug("JWT token validation failed");
-                    sendErrorResponse(response, "Invalid token");
+                    sendErrorResponse(response, "Invalid or expired token");
                     return;
                 }
             } else {
@@ -103,7 +103,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 new UsernamePasswordAuthenticationToken(
                     userDetails,
                     null, 
-                    userDetails.getAuthorities() // Lấy authorities thực
+                    userDetails.getAuthorities() // Lấy authorities thực từ UserDetails
                 );
             
             SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -124,6 +124,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /**
      * Skip authentication cho các public endpoints
+     * ⚠️ FIX: BỎ /api/auth/logout khỏi danh sách skip
+     * → Logout PHẢI CẦN token để biết blacklist token nào
      */
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
@@ -136,7 +138,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.startsWith("/api/auth/forgot-password") ||
                path.startsWith("/api/auth/verify-reset-password") ||
                path.startsWith("/api/auth/endpoints") ||
-               path.startsWith("/api/auth/logout") || 
+               // ⚠️ BỎ logout khỏi đây - logout PHẢI CẦN authentication
+               // path.startsWith("/api/auth/logout") || 
                path.startsWith("/actuator/") ||
                path.startsWith("/swagger-ui/") ||
                path.startsWith("/v3/api-docs") ||

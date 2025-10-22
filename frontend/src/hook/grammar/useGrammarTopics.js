@@ -109,6 +109,58 @@ export const useTopicForm = (topicId = null) => {
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
 
+  // ✅ NEW: Fetch next order index for create mode
+  const fetchNextOrderIndex = useCallback(async () => {
+    try {
+      const topics = await topicService.fetchAll();
+      
+      if (topics.length === 0) {
+        setFormData((prev) => ({ ...prev, orderIndex: 1 }));
+      } else {
+        const maxOrder = Math.max(...topics.map(t => t.orderIndex || 0));
+        setFormData((prev) => ({ ...prev, orderIndex: maxOrder + 1 }));
+      }
+    } catch (error) {
+      console.error('Fetch next order index error:', error);
+      setFormData((prev) => ({ ...prev, orderIndex: 1 }));
+    }
+  }, []);
+
+  // ✅ FIXED: Wrap validateForm trong useCallback
+  const validateForm = useCallback(() => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Tên chủ đề là bắt buộc";
+    } else if (formData.name.length < 3) {
+      newErrors.name = "Tên chủ đề phải có ít nhất 3 ký tự";
+    } else if (formData.name.length > 100) {
+      newErrors.name = "Tên chủ đề không được vượt quá 100 ký tự";
+    }
+
+    if (formData.description && formData.description.length > 500) {
+      newErrors.description = "Mô tả không được vượt quá 500 ký tự";
+    }
+
+    if (!formData.levelRequired) {
+      newErrors.levelRequired = "Cấp độ là bắt buộc";
+    }
+
+    if (!formData.orderIndex || formData.orderIndex < 1) {
+      newErrors.orderIndex = "Thứ tự phải là số nguyên dương";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData]);
+
+  // ✅ FIXED: Validate realtime với đầy đủ dependencies
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      validateForm();
+    }
+  }, [formData, errors, validateForm]);
+
   const fetchTopic = useCallback(async () => {
     try {
       const topics = await topicService.fetchAll();
@@ -138,11 +190,14 @@ export const useTopicForm = (topicId = null) => {
     }
   }, [topicId, navigate]);
 
+  // ✅ UPDATED: Auto fetch next order index for create mode
   useEffect(() => {
     if (isEdit) {
       fetchTopic();
+    } else {
+      fetchNextOrderIndex();
     }
-  }, [isEdit, fetchTopic]);
+  }, [isEdit, fetchTopic, fetchNextOrderIndex]);
 
   useEffect(() => {
     if (originalData) {
@@ -151,37 +206,16 @@ export const useTopicForm = (topicId = null) => {
     }
   }, [formData, originalData]);
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Tên chủ đề là bắt buộc";
-    } else if (formData.name.length < 3) {
-      newErrors.name = "Tên chủ đề phải có ít nhất 3 ký tự";
-    } else if (formData.name.length > 100) {
-      newErrors.name = "Tên chủ đề không được vượt quá 100 ký tự";
-    }
-
-    if (formData.description && formData.description.length > 500) {
-      newErrors.description = "Mô tả không được vượt quá 500 ký tự";
-    }
-
-    if (!formData.levelRequired) {
-      newErrors.levelRequired = "Cấp độ là bắt buộc";
-    }
-
-    if (!formData.orderIndex || formData.orderIndex < 1) {
-      newErrors.orderIndex = "Thứ tự phải là số nguyên dương";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
+  // ✅ FIXED: Clear error properly
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
     }
   };
 
@@ -202,13 +236,16 @@ export const useTopicForm = (topicId = null) => {
 
       if (isEdit) {
         await topicService.update(topicId, submitData);
+        toast.success('Cập nhật chủ đề thành công!');
       } else {
         await topicService.create(submitData);
+        toast.success('Tạo chủ đề thành công!');
       }
       
       navigate(ADMIN_ROUTES.GRAMMAR_TOPICS);
     } catch (error) {
       console.error('Submit topic error:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     } finally {
       setSaving(false);
     }

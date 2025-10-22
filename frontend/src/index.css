@@ -29,64 +29,64 @@
 @layer components {
   /* Backgrounds - Light mode */
   .bg-primary {
-    @apply bg-white;
+    @apply bg-primary-light;
   }
   
   .bg-secondary {
-    @apply bg-gray-50;
+    @apply bg-secondary-light;
   }
   
   .bg-tertiary {
-    @apply bg-gray-100;
+    @apply bg-tertiary-light;
   }
   
   /* Backgrounds - Dark mode */
   .dark .bg-primary {
-    @apply bg-gray-900;
+    @apply bg-primary-dark;
   }
   
   .dark .bg-secondary {
-    @apply bg-gray-800;
+    @apply bg-secondary-dark;
   }
   
   .dark .bg-tertiary {
-    @apply bg-gray-700;
+    @apply bg-tertiary-dark;
   }
   
   /* Text colors - Light mode */
   .text-primary {
-    @apply text-gray-900 ;
+    @apply text-primary-light;
   }
   
   .text-secondary {
-    @apply text-gray-600 ;
+    @apply text-secondary-light;
   }
   
   .text-tertiary {
-    @apply text-gray-400 ;
+    @apply text-tertiary-light;
   }
   
   /* Text colors - Dark mode */
   .dark .text-primary {
-    @apply text-white hover:text-light-blue-300;
+    @apply text-primary-dark;
   }
   
   .dark .text-secondary {
-    @apply text-gray-300 hover:text-light-blue-200;
+    @apply text-secondary-dark;
   }
   
   .dark .text-tertiary {
-    @apply text-gray-500 hover:text-light-blue-100;
+    @apply text-tertiary-dark;
   }
   
   /* Borders - Light mode */
   .border-primary {
-    @apply border-gray-200;
+    @apply border-primary-light;
   }
   
   /* Borders - Dark mode */
   .dark .border-primary {
-    @apply border-gray-700;
+    @apply border-primary-dark;
   }
   
   /* Cards */
@@ -117,14 +117,15 @@
   }
 
   .dark .btn-gray {
-    @apply bg-gray-800 hover:bg-gray-600 text-white ;
+    @apply bg-slate-800 hover:bg-slate-600 text-white;
   }
 
   .btn-danger {
     @apply hover:bg-red-300 text-gray-900 transition-all duration-300;
   }
+  
   .dark .btn-danger {
-    @apply bg-gray-800 hover:bg-red-300 text-white ;
+    @apply bg-slate-800 hover:bg-red-300 text-white;
   }
   
   /* Inputs */
@@ -132,11 +133,11 @@
     @apply bg-secondary text-secondary border-primary placeholder:text-primary;
   }
 
-  
   /* Navbar */
   .navbar-base {
     @apply bg-secondary border-b border-primary shadow-none;
   }
+  
 }
 
 /* Ẩn icon con mắt mặc định của trình duyệt ở input password */
@@ -187,13 +188,13 @@ input[type="password"]::-webkit-input-password-toggle {
 
 /* Custom scrollbar - Dark mode */
 .dark ::-webkit-scrollbar-track {
-  @apply bg-gray-800;
+  @apply bg-slate-800;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  @apply bg-gray-600;
+  @apply bg-slate-600;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500;
+  @apply bg-slate-500;
 }
