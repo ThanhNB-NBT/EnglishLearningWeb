@@ -30,6 +30,19 @@ const PracticeQuestions = ({
   const answeredCount = Object.keys(answers).length;
   const totalCount = questions.length;
 
+  React.useEffect(() => {
+    if (!hasSubmitted && questions.length > 0) {
+      setTimeout(() => {
+        const firstInput = document.querySelector(
+          'input[data-blank-index="0"]'
+        );
+        if (firstInput) {
+          firstInput.focus();
+        }
+      }, 200);
+    }
+  }, [questions.length, hasSubmitted]);
+
   const renderFillBlankQuestion = (question, index) => {
     const userAnswerStr = answers[question.id] || "";
     const userAnswers = userAnswerStr ? userAnswerStr.split("|") : [];
@@ -44,27 +57,46 @@ const PracticeQuestions = ({
       onAnswerChange(question.id, newAnswers.join("|"));
     };
 
-    // Handle Tab key to move to next input and scroll
     const handleKeyDown = (e, blankIndex) => {
+      // Tab: chuyển sang ô tiếp theo
       if (e.key === "Tab" && !e.shiftKey && blankIndex < parts.length - 2) {
         e.preventDefault();
-        const nextInput = document.querySelector(
-          `input[data-blank-index="${blankIndex + 1}"][data-question-id="${
-            question.id
-          }"]`
-        );
-        if (nextInput) {
-          nextInput.focus();
-          // Scroll to center of screen
-          nextInput.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+        focusNextInput(question.id, blankIndex + 1);
+      }
+      // Shift+Tab: quay lại ô trước
+      else if (e.key === "Tab" && e.shiftKey && blankIndex > 0) {
+        e.preventDefault();
+        focusNextInput(question.id, blankIndex - 1);
+      }
+      // Enter: chuyển sang ô tiếp theo
+      else if (e.key === "Enter" && blankIndex < parts.length - 2) {
+        e.preventDefault();
+        focusNextInput(question.id, blankIndex + 1);
+      }
+    };
+
+    const focusNextInput = (questionId, blankIndex) => {
+      const nextInput = document.querySelector(
+        `input[data-blank-index="${blankIndex}"][data-question-id="${questionId}"]`
+      );
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+
+        setTimeout(() => {
+          nextInput.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        }, 50);
       }
     };
 
     return (
       <Card
         key={question.id}
-        className={`p-6 mb-6 ${
+        className={`p-4 mb-4 ${
           result
             ? isCorrect
               ? "border-2 border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -72,7 +104,7 @@ const PracticeQuestions = ({
             : "card-base border border-gray-200"
         }`}
       >
-        <div className="flex items-start gap-3 mb-4">
+        <div className="flex items-start gap-3">
           <Chip
             value={index + 1}
             size="sm"
@@ -82,13 +114,14 @@ const PracticeQuestions = ({
                   ? "bg-green-500"
                   : "bg-red-500"
                 : "bg-blue-500"
-            } text-white font-bold`}
+            } text-white font-bold mt-1`}
           />
 
           <div className="flex-1">
             <Typography
               variant="h6"
               className="text-primary mb-1 leading-relaxed"
+              lang="en"
             >
               {parts.map((part, idx) => (
                 <React.Fragment key={idx}>
@@ -96,17 +129,21 @@ const PracticeQuestions = ({
                   {idx < parts.length - 1 && (
                     <input
                       type="text"
+                      lang="en"
                       value={userAnswers[idx] || ""}
                       onChange={(e) => handleBlankChange(idx, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, idx)}
+                      onFocus={(e) => e.target.select()} // Select khi focus
                       disabled={hasSubmitted}
-                      placeholder=""
+                      placeholder="..."
                       data-blank-index={idx}
                       data-question-id={question.id}
-                      lang="en"
+                      inputMode="text"
+                      autoCapitalize="off"
+                      autoCorrect="off"
                       spellCheck="false"
                       autoComplete="off"
-                      className={`inline-block w-32 mx-1 px-2 py-1 text-center border-b-2 focus:outline-none transition-colors bg-transparent ${
+                      className={`inline-block w-32 pb-0 mx-1 px-2 py-1 text-center border-b-2 focus:outline-none transition-colors bg-transparent ${
                         result
                           ? isCorrect
                             ? "border-green-500 bg-green-50 text-green-700"
@@ -118,6 +155,7 @@ const PracticeQuestions = ({
                         borderLeft: "none",
                         borderRight: "none",
                         borderRadius: "0",
+                        fontFamily: "monospace", // Giúp dễ nhìn tiếng Anh hơn
                       }}
                     />
                   )}
@@ -125,7 +163,7 @@ const PracticeQuestions = ({
               ))}
             </Typography>
             <Typography variant="small" className="text-secondary">
-              {question.points} điểm
+              {question.points} điểm • Nhấn Tab để chuyển ô
             </Typography>
           </div>
 
@@ -158,7 +196,6 @@ const PracticeQuestions = ({
                 <span className="font-medium">{result.correctAnswer}</span>
               </Typography>
             )}
-
             {result.explanation && (
               <Typography variant="small">
                 <span className="font-semibold">Giải thích:</span>{" "}
@@ -296,7 +333,6 @@ const PracticeQuestions = ({
                 <span className="font-medium">{result.correctAnswer}</span>
               </Typography>
             )}
-
             {result.explanation && (
               <Typography variant="small">
                 <span className="font-semibold">Giải thích:</span>{" "}
@@ -388,7 +424,6 @@ const PracticeQuestions = ({
                 <span className="font-medium">{result.correctAnswer}</span>
               </Typography>
             )}
-
             {result.explanation && (
               <Typography variant="small">
                 <span className="font-semibold">Giải thích:</span>{" "}
@@ -405,18 +440,15 @@ const PracticeQuestions = ({
     switch (question.questionType) {
       case "FILL_BLANK":
         return renderFillBlankQuestion(question, index);
-
       case "MULTIPLE_CHOICE":
         return renderMultipleChoiceQuestion(question, index);
-
       case "TRANSLATE":
         return renderTranslateQuestion(question, index);
-
       default:
         return (
           <Card
             key={question.id}
-            className="p-6 mb-6 card-base border border-gray-200"
+            className="p-4 mb-4 card-base border border-gray-200"
           >
             <Typography variant="h6" className="text-primary mb-2">
               {index + 1}. {question.questionText}
@@ -436,22 +468,16 @@ const PracticeQuestions = ({
     }
   };
 
-  // ✅ Check if failed (not all correct)
-  const hasFailed =
-    hasSubmitted &&
-    questionResults &&
-    !Object.values(questionResults).every((r) => r.isCorrect);
-
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Progress Header */}
       <Card className="rounded-none shadow-sm card-base border-b border-primary p-3 flex-shrink-0">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <Typography variant="small" className="text-secondary">
-              Tiến độ: {answeredCount}/{totalCount}
+            <Typography variant="small" className="text-secondary p-1">
+              Tiến độ: {answeredCount}/{totalCount} {" "}
             </Typography>
-            <Typography variant="small" className="font-medium text-primary">
+            <Typography variant="small" className="font-medium text-primary p-1">
               Tổng: {questions.reduce((sum, q) => sum + (q.points || 0), 0)}{" "}
               điểm
             </Typography>
@@ -465,7 +491,11 @@ const PracticeQuestions = ({
       </Card>
 
       {/* Questions List - Scrollable */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 pb-32">
+      <div
+        className={`flex-1 overflow-y-auto px-8 py-6 ${
+          !hasSubmitted ? "pb-32" : "pb-6"
+        }`}
+      >
         <div className="max-w-4xl mx-auto">
           {lesson.description && (
             <Typography variant="h5" className="text-primary font-bold mb-6">
@@ -485,82 +515,72 @@ const PracticeQuestions = ({
         </div>
       </div>
 
-      {/* Bottom Action Bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-xl p-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Warning */}
-          {answeredCount < totalCount && !hasSubmitted && (
-            <Alert
-              color="orange"
-              className="mb-3 py-2"
-              icon={<ExclamationCircleIcon className="h-5 w-5" />}
-            >
-              <Typography variant="small">
-                Còn {totalCount - answeredCount} câu chưa trả lời
-              </Typography>
-            </Alert>
-          )}
-
-          {/* ✅ Buttons - XÓA NÚT KIỂM TRA, THÊM NÚT LÀM LẠI */}
-          <div className="flex gap-3">
-            {/* ✅ Retry Button - Show when failed */}
-            {hasFailed && (
-              <Button
-                variant="outlined"
+      {/* ✅ Bottom Action Bar - Hiển thị khi CHƯA SUBMIT trong session hiện tại */}
+      {!hasSubmitted && (
+        <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-xl p-4">
+          <div className="max-w-4xl mx-auto">
+            {/* Warning */}
+            {answeredCount < totalCount && (
+              <Alert
                 color="orange"
-                className="flex-1"
-                onClick={onRetry}
+                className="mb-3 py-2"
+                icon={<ExclamationCircleIcon className="h-5 w-5" />}
               >
-                🔄 Làm lại
-              </Button>
+                <Typography variant="small">
+                  Còn {totalCount - answeredCount} câu chưa trả lời
+                </Typography>
+              </Alert>
             )}
 
             {/* Submit Button */}
             <Button
               onClick={onSubmit}
               disabled={submitting || answeredCount === 0}
-              color={hasSubmitted ? "green" : "blue"}
-              className={hasFailed ? "flex-1" : "w-full"}
+              color="blue"
+              className="w-full"
               size="lg"
             >
               {submitting ? (
-                <span className="flex items-center gap-2">
-                  <div className="spinner h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span className="flex items-center gap-2 justify-center">
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   Đang xử lý...
                 </span>
-              ) : hasSubmitted ? (
-                "Bài tiếp theo"
               ) : (
                 "Nộp bài"
               )}
             </Button>
           </div>
+        </div>
+      )}
 
-          {/* Hint after submit */}
-          {hasSubmitted && questionResults && (
+      {/* ✅ Result Bar - Hiển thị SAU KHI SUBMIT */}
+      {hasSubmitted && questionResults && (
+        <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-xl p-4">
+          <div className="max-w-4xl mx-auto">
+            {/* Result message */}
             <Typography
               variant="small"
-              className="text-center text-secondary mt-2"
+              className="text-center text-secondary mb-3"
             >
               {Object.values(questionResults).every((r) => r.isCorrect)
                 ? "🎉 Hoàn hảo! Tất cả câu trả lời đều đúng!"
-                : "Bạn có thể xem lại các câu sai và học thêm"}
+                : `Bạn đã hoàn thành bài làm. Xem lại các câu sai và nhấn "Làm lại" nếu muốn cải thiện điểm số.`}
             </Typography>
-          )}
-        </div>
-      </div>
 
-      {/* Spinner CSS */}
-      <style jsx>{`
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-      `}</style>
+            {/* Retry button */}
+            {!Object.values(questionResults).every((r) => r.isCorrect) && (
+              <Button
+                variant="outlined"
+                color="orange"
+                className="w-full"
+                onClick={onRetry}
+              >
+                🔄 Làm lại
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,88 +1,94 @@
 // hook/useGrammarLessons.js
-// Hook tổng hợp cho quản lý Grammar Lessons (List, Create, Edit)
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { grammarAdminAPI } from '../../api/modules/grammar.api';
+import { lessonService, topicService } from '../../services/grammarService'; // ✅ Import cả topicService
 import { ADMIN_ROUTES } from '../../constants/routes';
 import toast from 'react-hot-toast';
 
-// ==================== HOOK CHO LIST ====================
+// ==================== HOOK CHO LIST WITH PAGINATION ====================
 export const useLessonList = (topicId) => {
   const [lessons, setLessons] = useState([]);
-  const [filteredLessons, setFilteredLessons] = useState([]);
   const [topicInfo, setTopicInfo] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 0,
+    pageSize: 6,
+    totalElements: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false,
+  });
 
   const loadLessons = useCallback(async () => {
     if (!topicId) return;
     
     setLoading(true);
     try {
-      const response = await grammarAdminAPI.getLessonsByTopic(topicId);
-      setLessons(response.data.data || []);
+      const data = await lessonService.fetchPaginatedByTopic(topicId, {
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        sort: 'orderIndex,asc',
+      });
+
+      if (data.content) {
+        setLessons(data.content);
+        setPagination({
+          currentPage: data.pagination.currentPage,
+          pageSize: data.pagination.pageSize,
+          totalElements: data.pagination.totalElements,
+          totalPages: data.pagination.totalPages,
+          hasNext: data.pagination.hasNext,
+          hasPrevious: data.pagination.hasPrevious,
+        });
+      } else {
+        setLessons(data || []);
+      }
     } catch (error) {
       toast.error('Lỗi khi lấy danh sách bài học');
       console.error('Load lessons error:', error);
     } finally {
       setLoading(false);
     }
-  }, [topicId]);
+  }, [topicId, pagination.currentPage, pagination.pageSize]);
 
+  // ✅ CLEANED: Dùng topicService thay vì grammarAdminAPI
   const loadTopicInfo = useCallback(async () => {
     if (!topicId) return;
     
     try {
-      const response = await grammarAdminAPI.getAllTopics();
-      const topic = response.data.data.find(t => t.id === parseInt(topicId));
+      const topics = await topicService.fetchAll();
+      const topic = topics.find(t => t.id === parseInt(topicId));
       setTopicInfo(topic);
     } catch (error) {
       console.error('Load topic info error:', error);
     }
   }, [topicId]);
 
-  const applyFilters = useCallback(() => {
-    let filtered = lessons;
-
-    if (searchTerm) {
-      filtered = filtered.filter(lesson =>
-        lesson.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lesson.content?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (filterType) {
-      filtered = filtered.filter(lesson => lesson.lessonType === filterType);
-    }
-
-    if (filterStatus) {
-      const isActive = filterStatus === 'active';
-      filtered = filtered.filter(lesson => lesson.isActive === isActive);
-    }
-
-    filtered = filtered.sort((a, b) => a.orderIndex - b.orderIndex);
-
-    setFilteredLessons(filtered);
-  }, [lessons, searchTerm, filterType, filterStatus]);
-
   useEffect(() => {
     loadLessons();
     loadTopicInfo();
   }, [loadLessons, loadTopicInfo]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
+  const handlePageChange = (newPage) => {
+    setPagination((prev) => ({ ...prev, currentPage: newPage }));
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPagination((prev) => ({ ...prev, pageSize: newSize, currentPage: 0 }));
+  };
 
   const deleteLesson = async (lessonId) => {
     try {
-      await grammarAdminAPI.deleteLesson(lessonId);
-      setLessons(lessons.filter(lesson => lesson.id !== lessonId));
-      toast.success('Xóa bài học thành công!');
+      await lessonService.delete(lessonId);
+      await loadLessons();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa bài học');
       console.error('Delete lesson error:', error);
     }
   };
@@ -93,9 +99,21 @@ export const useLessonList = (topicId) => {
     setFilterStatus('');
   };
 
+  const filteredLessons = lessons.filter((lesson) => {
+    const matchSearch =
+      !searchTerm ||
+      lesson.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lesson.content?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchType = !filterType || lesson.lessonType === filterType;
+    const matchStatus =
+      !filterStatus || (filterStatus === 'active' ? lesson.isActive : !lesson.isActive);
+
+    return matchSearch && matchType && matchStatus;
+  });
+
   return {
-    lessons,
-    filteredLessons,
+    lessons: filteredLessons,
     topicInfo,
     loading,
     searchTerm,
@@ -104,9 +122,12 @@ export const useLessonList = (topicId) => {
     setFilterType,
     filterStatus,
     setFilterStatus,
-    loadLessons,
+    pagination,
+    handlePageChange,
+    handlePageSizeChange,
     deleteLesson,
-    resetFilters
+    resetFilters,
+    reload: loadLessons,
   };
 };
 
@@ -128,11 +149,19 @@ export const useLessonForm = (topicId, lessonId = null) => {
   
   const [originalData, setOriginalData] = useState(null);
   const [topicInfo, setTopicInfo] = useState(null);
+  const [allLessons, setAllLessons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pdfParsing, setPdfParsing] = useState(false);
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
+
+  const [manualOrderIndex, setManualOrderIndex] = useState(false);
+  const [reorderDialog, setReorderDialog] = useState({
+    open: false,
+    affectedLessons: [],
+    loading: false,
+  });
 
   const [pdfDialog, setPdfDialog] = useState({
     open: false,
@@ -140,7 +169,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     summary: null,
   });
 
-  // ✅ FIXED: Wrap validateForm trong useCallback
   const validateForm = useCallback(() => {
     const newErrors = {};
 
@@ -170,17 +198,17 @@ export const useLessonForm = (topicId, lessonId = null) => {
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // ✅ FIXED: Validate realtime với đầy đủ dependencies
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       validateForm();
     }
   }, [formData, errors, validateForm]);
 
+  // ✅ CLEANED: Dùng topicService
   const loadTopicInfo = useCallback(async () => {
     try {
-      const response = await grammarAdminAPI.getAllTopics();
-      const topic = response.data.data.find((t) => t.id === parseInt(topicId));
+      const topics = await topicService.fetchAll();
+      const topic = topics.find((t) => t.id === parseInt(topicId));
       setTopicInfo(topic);
     } catch (error) {
       console.error('Load topic info error:', error);
@@ -188,14 +216,20 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   }, [topicId]);
 
+  const loadAllLessons = useCallback(async () => {
+    try {
+      const lessons = await lessonService.fetchByTopic(topicId);
+      setAllLessons(lessons);
+    } catch (error) {
+      console.error('Load all lessons error:', error);
+    }
+  }, [topicId]);
+
   const getNextOrderIndex = useCallback(async () => {
     try {
-      const response = await grammarAdminAPI.getLessonsByTopic(topicId);
-      const lessons = response.data.data || [];
-      const maxOrder = lessons.length > 0 
-        ? Math.max(...lessons.map((l) => l.orderIndex)) 
-        : 0;
-      setFormData((prev) => ({ ...prev, orderIndex: maxOrder + 1 }));
+      const nextOrder = await lessonService.getNextOrderIndex(topicId);
+      console.log('✅ Next order index for lesson:', nextOrder);
+      setFormData((prev) => ({ ...prev, orderIndex: nextOrder }));
     } catch (error) {
       console.error('Get next order index error:', error);
     }
@@ -204,8 +238,7 @@ export const useLessonForm = (topicId, lessonId = null) => {
   const loadLessonData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await grammarAdminAPI.getLessonDetail(lessonId);
-      const lesson = response.data.data;
+      const lesson = await lessonService.fetchById(lessonId);
 
       if (lesson) {
         const lessonData = {
@@ -233,12 +266,13 @@ export const useLessonForm = (topicId, lessonId = null) => {
 
   useEffect(() => {
     loadTopicInfo();
+    loadAllLessons();
     if (isEdit) {
       loadLessonData();
     } else {
       getNextOrderIndex();
     }
-  }, [isEdit, loadTopicInfo, loadLessonData, getNextOrderIndex]);
+  }, [isEdit, loadTopicInfo, loadAllLessons, loadLessonData, getNextOrderIndex]);
 
   useEffect(() => {
     if (originalData) {
@@ -247,7 +281,6 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   }, [formData, originalData]);
 
-  // ✅ FIXED: Clear error properly
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     
@@ -260,6 +293,74 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   };
 
+  const checkReorderNeeded = useCallback(() => {
+    if (!isEdit && !manualOrderIndex) {
+      return false;
+    }
+    
+    if (isEdit && originalData && formData.orderIndex === originalData.orderIndex) {
+      return false;
+    }
+    
+    const targetOrder = formData.orderIndex;
+    
+    const affected = allLessons.filter(lesson => {
+      if (isEdit && lesson.id === parseInt(lessonId)) {
+        return false;
+      }
+      
+      return lesson.orderIndex >= targetOrder;
+    });
+
+    return affected.length > 0 ? affected : false;
+  }, [formData.orderIndex, allLessons, manualOrderIndex, isEdit, lessonId, originalData]);
+
+  // ✅ NOTE: Giữ lại grammarAdminAPI ONLY cho reorderLessons vì chưa có trong service
+  const handleReorder = async () => {
+    const affectedLessons = checkReorderNeeded();
+    
+    if (!affectedLessons) {
+      return true;
+    }
+
+    // ⚠️ Import grammarAdminAPI only when needed
+    const { grammarAdminAPI } = await import('../../api/modules/grammar.api');
+
+    return new Promise((resolve) => {
+      setReorderDialog({
+        open: true,
+        affectedLessons,
+        loading: false,
+        onConfirm: async () => {
+          setReorderDialog(prev => ({ ...prev, loading: true }));
+          
+          try {
+            await grammarAdminAPI.reorderLessons(topicId, {
+              insertPosition: formData.orderIndex,
+              excludeLessonId: isEdit ? parseInt(lessonId) : null
+            });
+            
+            toast.success('Đã sắp xếp lại thứ tự các bài học');
+            setReorderDialog({ open: false, affectedLessons: [], loading: false });
+            
+            await loadAllLessons();
+            
+            resolve(true);
+          } catch (error) {
+            console.error('Reorder error:', error);
+            toast.error('Lỗi khi sắp xếp lại: ' + (error.response?.data?.message || error.message));
+            setReorderDialog(prev => ({ ...prev, loading: false }));
+            resolve(false);
+          }
+        },
+        onCancel: () => {
+          setReorderDialog({ open: false, affectedLessons: [], loading: false });
+          resolve(false);
+        }
+      });
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -268,19 +369,25 @@ export const useLessonForm = (topicId, lessonId = null) => {
       return;
     }
 
+    const needsReorder = checkReorderNeeded();
+    
+    if (needsReorder) {
+      const reorderSuccess = await handleReorder();
+      if (!reorderSuccess) {
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       if (isEdit) {
-        await grammarAdminAPI.updateLesson(lessonId, formData);
-        toast.success('Cập nhật bài học thành công!');
+        await lessonService.update(lessonId, formData);
       } else {
-        await grammarAdminAPI.createLesson(formData);
-        toast.success('Tạo bài học thành công!');
+        await lessonService.create(formData);
       }
       navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topicId));
     } catch (error) {
       console.error('Submit lesson error:', error);
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     } finally {
       setSubmitting(false);
     }
@@ -296,6 +403,7 @@ export const useLessonForm = (topicId, lessonId = null) => {
     }
   };
 
+  // ✅ NOTE: Giữ lại grammarAdminAPI cho PDF parsing & saveParsedLessons
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -318,6 +426,8 @@ export const useLessonForm = (topicId, lessonId = null) => {
     const toastId = toast.loading('🤖 Gemini AI đang phân tích file...');
 
     try {
+      // ⚠️ Dynamic import for PDF features
+      const { grammarAdminAPI } = await import('../../api/modules/grammar.api');
       const response = await grammarAdminAPI.parsePDF(topicId, file);
       const result = response.data.data;
 
@@ -361,6 +471,8 @@ export const useLessonForm = (topicId, lessonId = null) => {
       } else {
         const toastId = toast.loading(`Đang lưu ${finalData.lessons.length} bài học...`);
 
+        // ⚠️ Dynamic import
+        const { grammarAdminAPI } = await import('../../api/modules/grammar.api');
         await grammarAdminAPI.saveParsedLessons(topicId, finalData);
 
         toast.success(
@@ -412,6 +524,11 @@ export const useLessonForm = (topicId, lessonId = null) => {
     handleCancel,
     handleFileUpload,
     handleUseParsedContent,
-    getCompletionPercentage
+    getCompletionPercentage,
+    manualOrderIndex,
+    setManualOrderIndex,
+    reorderDialog,
+    totalLessons: allLessons.length,
+    willCauseReorder: !!checkReorderNeeded(),
   };
 };

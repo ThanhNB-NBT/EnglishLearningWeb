@@ -1,70 +1,76 @@
 // hook/useGrammarTopics.js
-// Hook tổng hợp cho quản lý Grammar Topics (List, Create, Edit)
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { topicService } from '../../services/grammarService';
 import { ADMIN_ROUTES } from '../../constants/routes';
 import toast from 'react-hot-toast';
 
-// ==================== HOOK CHO LIST ====================
+// ==================== HOOK CHO LIST WITH PAGINATION ====================
 export const useTopicList = () => {
   const [topics, setTopics] = useState([]);
-  const [filteredTopics, setFilteredTopics] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 0,
+    pageSize: 6,
+    totalElements: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false,
+  });
+
   const loadTopics = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await topicService.fetchAll();
-      setTopics(data);
+      const data = await topicService.fetchPaginated({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        sort: 'orderIndex,asc',
+      });
+
+      if (data.content) {
+        setTopics(data.content);
+        setPagination({
+          currentPage: data.pagination.currentPage,
+          pageSize: data.pagination.pageSize,
+          totalElements: data.pagination.totalElements,
+          totalPages: data.pagination.totalPages,
+          hasNext: data.pagination.hasNext,
+          hasPrevious: data.pagination.hasPrevious,
+        });
+      } else {
+        setTopics(data || []);
+      }
     } catch (error) {
-      toast.error('Lỗi khi lấy danh sách chủ đề ngữ pháp');
       console.error('Load topics error:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const applyFilters = useCallback(() => {
-    let filtered = topics;
-
-    if (searchTerm) {
-      filtered = filtered.filter(topic =>
-        topic.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        topic.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (filterLevel) {
-      filtered = filtered.filter(topic => topic.levelRequired === filterLevel);
-    }
-
-    if (filterStatus) {
-      const isActive = filterStatus === 'active';
-      filtered = filtered.filter(topic => topic.isActive === isActive);
-    }
-
-    setFilteredTopics(filtered);
-  }, [topics, searchTerm, filterLevel, filterStatus]);
+  }, [pagination.currentPage, pagination.pageSize]);
 
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
+  const handlePageChange = (newPage) => {
+    setPagination((prev) => ({ ...prev, currentPage: newPage }));
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPagination((prev) => ({ ...prev, pageSize: newSize, currentPage: 0 }));
+  };
 
   const deleteTopic = async (topicId) => {
     try {
       await topicService.delete(topicId);
-      setTopics(topics.filter(topic => topic.id !== topicId));
-      toast.success('Xóa chủ đề thành công!');
+      await loadTopics();
     } catch (error) {
-      toast.error('Lỗi khi xóa chủ đề');
       console.error('Delete topic error:', error);
     }
   };
@@ -75,9 +81,21 @@ export const useTopicList = () => {
     setFilterStatus('');
   };
 
+  const filteredTopics = topics.filter((topic) => {
+    const matchSearch =
+      !searchTerm ||
+      topic.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      topic.description?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchLevel = !filterLevel || topic.levelRequired === filterLevel;
+    const matchStatus =
+      !filterStatus || (filterStatus === 'active' ? topic.isActive : !topic.isActive);
+
+    return matchSearch && matchLevel && matchStatus;
+  });
+
   return {
-    topics,
-    filteredTopics,
+    topics: filteredTopics,
     loading,
     searchTerm,
     setSearchTerm,
@@ -85,9 +103,12 @@ export const useTopicList = () => {
     setFilterLevel,
     filterStatus,
     setFilterStatus,
-    loadTopics,
+    pagination,
+    handlePageChange,
+    handlePageSizeChange,
     deleteTopic,
-    resetFilters
+    resetFilters,
+    reload: loadTopics,
   };
 };
 
@@ -109,24 +130,17 @@ export const useTopicForm = (topicId = null) => {
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  // ✅ NEW: Fetch next order index for create mode
   const fetchNextOrderIndex = useCallback(async () => {
     try {
-      const topics = await topicService.fetchAll();
-      
-      if (topics.length === 0) {
-        setFormData((prev) => ({ ...prev, orderIndex: 1 }));
-      } else {
-        const maxOrder = Math.max(...topics.map(t => t.orderIndex || 0));
-        setFormData((prev) => ({ ...prev, orderIndex: maxOrder + 1 }));
-      }
+      const nextOrder = await topicService.getNextOrderIndex();
+      console.log('✅ Next order index for topic:', nextOrder);
+      setFormData((prev) => ({ ...prev, orderIndex: nextOrder }));
     } catch (error) {
       console.error('Fetch next order index error:', error);
       setFormData((prev) => ({ ...prev, orderIndex: 1 }));
     }
   }, []);
 
-  // ✅ FIXED: Wrap validateForm trong useCallback
   const validateForm = useCallback(() => {
     const newErrors = {};
 
@@ -154,7 +168,6 @@ export const useTopicForm = (topicId = null) => {
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // ✅ FIXED: Validate realtime với đầy đủ dependencies
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       validateForm();
@@ -190,7 +203,6 @@ export const useTopicForm = (topicId = null) => {
     }
   }, [topicId, navigate]);
 
-  // ✅ UPDATED: Auto fetch next order index for create mode
   useEffect(() => {
     if (isEdit) {
       fetchTopic();
@@ -206,7 +218,6 @@ export const useTopicForm = (topicId = null) => {
     }
   }, [formData, originalData]);
 
-  // ✅ FIXED: Clear error properly
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     
@@ -236,16 +247,13 @@ export const useTopicForm = (topicId = null) => {
 
       if (isEdit) {
         await topicService.update(topicId, submitData);
-        toast.success('Cập nhật chủ đề thành công!');
       } else {
         await topicService.create(submitData);
-        toast.success('Tạo chủ đề thành công!');
       }
       
       navigate(ADMIN_ROUTES.GRAMMAR_TOPICS);
     } catch (error) {
       console.error('Submit topic error:', error);
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     } finally {
       setSaving(false);
     }

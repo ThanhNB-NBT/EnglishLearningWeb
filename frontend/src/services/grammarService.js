@@ -5,15 +5,55 @@ import toast from 'react-hot-toast';
 // ==================== TOPIC SERVICES ====================
 export const topicService = {
   /**
-   * Lấy tất cả topics
+   * ✅ NEW: Lấy topics với phân trang
+   */
+  async fetchPaginated(params = {}) {
+    try {
+      const response = await grammarAdminAPI.getAllTopics(params);
+      return response.data.data; // Return full paginated data
+    } catch (error) {
+      toast.error('Lỗi khi lấy danh sách topic: ' + (error.response?.data?.message || 'Vui lòng thử lại.'));
+      throw error;
+    }
+  },
+
+  /**
+   * ✅ FIXED: Lấy TẤT CẢ topics (không phân trang) - for getting max orderIndex
    */
   async fetchAll() {
     try {
-      const response = await grammarAdminAPI.getAllTopics();
+      const response = await grammarAdminAPI.getAllTopics({ 
+        page: 0, 
+        size: 1000,  // Lấy max 1000 records
+        sort: 'orderIndex,desc' // ✅ Sort desc để lấy max order ngay
+      });
+      
+      // Handle both paginated and non-paginated response
+      if (response.data.data.content) {
+        return response.data.data.content;
+      }
       return response.data.data || [];
     } catch (error) {
       toast.error('Lỗi khi lấy danh sách topic: ' + (error.response?.data?.message || 'Vui lòng thử lại.'));
       throw error;
+    }
+  },
+
+  /**
+   * ✅ NEW: Lấy orderIndex tiếp theo (tối ưu hơn)
+   */
+  async getNextOrderIndex() {
+    try {
+      console.log('🔍 Fetching next order index for topics...');
+      
+      const response = await grammarAdminAPI.getNextTopicOrderIndex();
+      const nextOrder = response.data.data.nextOrderIndex;
+      
+      console.log('✅ Next topic orderIndex:', nextOrder);
+      return nextOrder;
+    } catch (error) {
+      console.error('❌ Get next order index error:', error);
+      return 1;
     }
   },
 
@@ -62,11 +102,32 @@ export const topicService = {
 // ==================== LESSON SERVICES ====================
 export const lessonService = {
   /**
-   * Lấy lessons theo topic
+   * Lấy lessons với phân trang
+   */
+  async fetchPaginatedByTopic(topicId, params = {}) {
+    try {
+      const response = await grammarAdminAPI.getLessonsByTopic(topicId, params);
+      return response.data.data;
+    } catch (error) {
+      console.error('Fetch paginated lessons error:', error);
+      throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách bài học');
+    }
+  },
+
+  /**
+   * Lấy TẤT CẢ lessons theo topic (không phân trang)
    */
   async fetchByTopic(topicId) {
     try {
-      const response = await grammarAdminAPI.getLessonsByTopic(topicId);
+      const response = await grammarAdminAPI.getLessonsByTopic(topicId, { 
+        page: 0, 
+        size: 1000,
+        sort: 'orderIndex,desc' // ✅ Sort desc
+      });
+      
+      if (response.data.data.content) {
+        return response.data.data.content;
+      }
       return response.data.data || [];
     } catch (error) {
       console.error('Fetch lessons by topic error:', error);
@@ -75,12 +136,30 @@ export const lessonService = {
   },
 
   /**
+   * Lấy orderIndex tiếp theo cho lesson
+   */
+  async getNextOrderIndex(topicId) {
+    try {
+      console.log(`🔍 Fetching next order index for lessons in topic ${topicId}...`);
+      
+      const response = await grammarAdminAPI.getNextLessonOrderIndex(topicId);
+      const nextOrder = response.data.data.nextOrderIndex;
+      
+      console.log('✅ Next lesson orderIndex:', nextOrder);
+      return nextOrder;
+    } catch (error) {
+      console.error('❌ Get next order index error:', error);
+      return 1;
+    }
+  },
+
+  /**
    * Lấy lesson theo ID
    */
-  async fetchById(topicId, lessonId) {
+  async fetchById(lessonId) {
     try {
-      const lessons = await this.fetchByTopic(topicId);
-      return lessons.find(lesson => lesson.id === parseInt(lessonId));
+      const response = await grammarAdminAPI.getLessonDetail(lessonId);
+      return response.data.data;
     } catch (error) {
       console.error('Fetch lesson by ID error:', error);
       throw new Error('Lỗi khi lấy thông tin bài học');
@@ -118,9 +197,9 @@ export const lessonService = {
   /**
    * Xóa lesson
    */
-  async delete(lessonId) {
+  async delete(lessonId, params = {}) {
     try {
-      await grammarAdminAPI.deleteLesson(lessonId);
+      await grammarAdminAPI.deleteLesson(lessonId, params); // params = { cascade: true } khi cần xóa cả questions
       toast.success('Xóa bài học thành công!');
       return true;
     } catch (error) {
@@ -133,15 +212,54 @@ export const lessonService = {
 // ==================== QUESTION SERVICES ====================
 export const questionService = {
   /**
-   * Lấy questions theo lesson
+   * Lấy questions với phân trang
+   */
+  async fetchPaginatedByLesson(lessonId, params = {}) {
+    try {
+      const response = await grammarAdminAPI.getQuestionsByLesson(lessonId, params);
+      return response.data.data;
+    } catch (error) {
+      console.error('Fetch paginated questions error:', error);
+      throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách câu hỏi');
+    }
+  },
+
+  /**
+   * Lấy TẤT CẢ questions theo lesson (không phân trang)
    */
   async fetchByLesson(lessonId) {
     try {
-      const response = await grammarAdminAPI.getQuestionsByLesson(lessonId);
+      const response = await grammarAdminAPI.getQuestionsByLesson(lessonId, { 
+        page: 0, 
+        size: 1000,
+        sort: 'orderIndex,desc' // ✅ Sort desc
+      });
+      
+      if (response.data.data.content) {
+        return response.data.data.content;
+      }
       return response.data.data || [];
     } catch (error) {
       console.error('Fetch questions error:', error);
       throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách câu hỏi');
+    }
+  },
+
+  /**
+   * Lấy orderIndex tiếp theo cho question
+   */
+  async getNextOrderIndex(lessonId) {
+    try {
+      console.log(`🔍 Fetching next order index for questions in lesson ${lessonId}...`);
+      
+      const response = await grammarAdminAPI.getNextQuestionOrderIndex(lessonId);
+      const nextOrder = response.data.data.nextOrderIndex;
+      
+      console.log('✅ Next question orderIndex:', nextOrder);
+      return nextOrder;
+    } catch (error) {
+      console.error('❌ Get next order index error:', error);
+      return 1;
     }
   },
 
@@ -197,6 +315,19 @@ export const questionService = {
     } catch (error) {
       console.error('Delete question error:', error);
       throw new Error(error.response?.data?.message || 'Lỗi khi xóa câu hỏi');
+    }
+  },
+
+  /**
+   * Xóa nhiều questions
+   */
+  async bulkDelete(questionIds) {
+    try {
+      await grammarAdminAPI.bulkDeleteQuestions(questionIds);
+      toast.success('Đã xóa ' + questionIds.length + ' câu hỏi thành công!');
+    } catch (error) {
+      console.error('Delete bulk questions error:', error);
+      throw new Error(error.response?.data?.message || 'Lỗi khi xóa nhiều câu hỏi');
     }
   },
 };

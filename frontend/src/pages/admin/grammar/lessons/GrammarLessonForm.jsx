@@ -26,6 +26,7 @@ import LessonFormSettings from "../../../../components/grammar/forms/LessonFormS
 import LessonContentEditor from "../../../../components/grammar/editors/LessonContentEditor";
 import LessonContentPreview from "../../../../components/grammar/editors/LessonContentPreview";
 import GeminiParsedResultDialog from "../../../../components/grammar/dialog/GeminiParsedResultDialog";
+import ConfirmDialog from "../../../../components/common/ConfirmDialog";
 
 const GrammarLessonForm = () => {
   const { topicId, lessonId } = useParams();
@@ -46,7 +47,18 @@ const GrammarLessonForm = () => {
     handleFileUpload,
     handleUseParsedContent,
     getCompletionPercentage,
+    // ✅ Reorder props
+    manualOrderIndex,
+    setManualOrderIndex,
+    reorderDialog,
+    totalLessons,
+    willCauseReorder,
   } = useLessonForm(topicId, lessonId);
+
+  // ✅ Handler cho checkbox toggle
+  const handleManualOrderToggle = (e) => {
+    setManualOrderIndex(e.target.checked);
+  };
 
   if (loading) {
     return (
@@ -64,7 +76,6 @@ const GrammarLessonForm = () => {
 
   return (
     <div className="w-full space-y-6 p-4 md:p-6">
-
       {/* Header */}
       <Card className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black border border-slate-700 shadow-xl">
         <CardBody className="p-4 md:p-6">
@@ -78,21 +89,26 @@ const GrammarLessonForm = () => {
               >
                 <ArrowLeftIcon className="h-4 w-4" />
               </IconButton>
-              
-              <div className={`p-3 rounded-xl border ${
-                isEdit 
-                  ? 'bg-orange-500/20 border-orange-500/30' 
-                  : 'bg-blue-500/20 border-blue-500/30'
-              }`}>
+
+              <div
+                className={`p-3 rounded-xl border ${
+                  isEdit
+                    ? "bg-orange-500/20 border-orange-500/30"
+                    : "bg-blue-500/20 border-blue-500/30"
+                }`}
+              >
                 {isEdit ? (
                   <PencilIcon className="h-6 w-6 text-orange-400" />
                 ) : (
                   <BookOpenIcon className="h-6 w-6 text-blue-400" />
                 )}
               </div>
-              
+
               <div>
-                <Typography variant="h4" className="text-slate-100 font-bold mb-1">
+                <Typography
+                  variant="h4"
+                  className="text-slate-100 font-bold mb-1"
+                >
                   {isEdit ? "Chỉnh sửa bài học" : "Tạo bài học mới"}
                 </Typography>
                 <Typography variant="small" className="text-slate-400">
@@ -102,12 +118,15 @@ const GrammarLessonForm = () => {
             </div>
 
             {isEdit && hasChanges && (
-              <Alert 
-                color="orange" 
+              <Alert
+                color="orange"
                 className="py-2 px-4 bg-orange-500/20 border border-orange-500/30"
                 icon={<ExclamationTriangleIcon className="h-5 w-5" />}
               >
-                <Typography variant="small" className="font-medium text-orange-400">
+                <Typography
+                  variant="small"
+                  className="font-medium text-orange-400"
+                >
                   Có thay đổi chưa lưu
                 </Typography>
               </Alert>
@@ -121,30 +140,35 @@ const GrammarLessonForm = () => {
         <CardBody className="p-4 md:p-6">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Typography variant="small" className="text-primary font-semibold">
+              <Typography
+                variant="small"
+                className="text-primary font-semibold"
+              >
                 Hoàn thành form
               </Typography>
               {completionPercentage === 100 && (
                 <CheckCircleIcon className="h-5 w-5 text-green-500" />
               )}
             </div>
-            <Typography 
-              variant="small" 
+            <Typography
+              variant="small"
               className={`font-bold ${
-                completionPercentage === 100 ? 'text-green-500' : 'text-secondary'
+                completionPercentage === 100
+                  ? "text-green-500"
+                  : "text-secondary"
               }`}
             >
               {completionPercentage}%
             </Typography>
           </div>
-          <Progress 
-            value={completionPercentage} 
-            color={isEdit ? "orange" : "blue"} 
+          <Progress
+            value={completionPercentage}
+            color={isEdit ? "orange" : "blue"}
             size="lg"
             className="bg-tertiary"
           />
           <Typography variant="small" className="text-tertiary mt-2">
-            {completionPercentage < 100 
+            {completionPercentage < 100
               ? "Vui lòng điền đầy đủ thông tin bắt buộc"
               : "✅ Form đã hoàn thiện, sẵn sàng lưu"}
           </Typography>
@@ -209,6 +233,10 @@ const GrammarLessonForm = () => {
                 errors={errors}
                 onChange={handleInputChange}
                 isEdit={isEdit}
+                manualOrderIndex={manualOrderIndex}
+                onManualOrderToggle={handleManualOrderToggle}
+                totalLessons={totalLessons}
+                willCauseReorder={willCauseReorder}
               />
             </div>
 
@@ -232,7 +260,11 @@ const GrammarLessonForm = () => {
                   className="flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
                 >
                   {submitting ? (
-                    isEdit ? "Đang lưu..." : "Đang tạo..."
+                    isEdit ? (
+                      "Đang lưu..."
+                    ) : (
+                      "Đang tạo..."
+                    )
                   ) : (
                     <>
                       <CheckCircleIcon className="h-5 w-5 mr-2" />
@@ -244,12 +276,18 @@ const GrammarLessonForm = () => {
 
               {/* Status Messages */}
               {isEdit && !hasChanges && (
-                <Typography variant="small" className="text-secondary text-center mt-3">
+                <Typography
+                  variant="small"
+                  className="text-secondary text-center mt-3"
+                >
                   ℹ️ Không có thay đổi để lưu
                 </Typography>
               )}
               {hasErrors && (
-                <Typography variant="small" className="text-red-500 text-center mt-3">
+                <Typography
+                  variant="small"
+                  className="text-red-500 text-center mt-3"
+                >
                   ⚠️ Vui lòng sửa các lỗi trước khi lưu
                 </Typography>
               )}
@@ -267,6 +305,28 @@ const GrammarLessonForm = () => {
           setPdfDialog({ open: false, parsedData: null, summary: null })
         }
         onConfirm={handleUseParsedContent}
+      />
+
+      {/* Reorder Confirm Dialog */}
+      <ConfirmDialog
+        open={reorderDialog.open}
+        onClose={() => reorderDialog.onCancel?.()}
+        onConfirm={() => reorderDialog.onConfirm?.()}
+        title="Xác nhận sắp xếp lại"
+        confirmText="Xác nhận sắp xếp lại"
+        type="reorder"
+        loading={reorderDialog.loading}
+        reorderData={{
+          targetPosition: formData.orderIndex,
+          affectedItems: reorderDialog.affectedLessons.map((lesson) => ({
+            id: lesson.id,
+            title: lesson.title,
+            subtitle:
+              lesson.lessonType === "THEORY" ? "📖 Lý thuyết" : "✏️ Thực hành",
+            orderIndex: lesson.orderIndex,
+          })),
+          isEdit: isEdit,
+        }}
       />
     </div>
   );

@@ -29,11 +29,12 @@ import {
 import PageAdminHeader from '../../../../components/common/PageAdminHeader';
 import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import ResourceCard from '../../../../components/common/ResourceCard';
+import PaginationControls from '../../../../components/common/PaginationControls';
+import PageSizeSelector from '../../../../components/common/PageSizeSelector';
 
 const GrammarTopicList = () => {
   const navigate = useNavigate();
   const {
-    filteredTopics,
     topics,
     loading,
     searchTerm,
@@ -42,8 +43,11 @@ const GrammarTopicList = () => {
     setFilterLevel,
     filterStatus,
     setFilterStatus,
+    pagination,
+    handlePageChange,
+    handlePageSizeChange,
     deleteTopic,
-    resetFilters
+    resetFilters,
   } = useTopicList();
 
   const [deleteDialog, setDeleteDialog] = useState({ open: false, topic: null });
@@ -68,19 +72,23 @@ const GrammarTopicList = () => {
 
   const getLevelColor = (level) => {
     switch (level) {
-      case 'BEGINNER': return 'green';
-      case 'INTERMEDIATE': return 'orange';
-      case 'ADVANCED': return 'red';
-      default: return 'gray';
+      case 'BEGINNER':
+        return 'green';
+      case 'INTERMEDIATE':
+        return 'orange';
+      case 'ADVANCED':
+        return 'red';
+      default:
+        return 'gray';
     }
   };
 
   const getLevelLabel = (level) => {
-    const found = levels.find(l => l.value === level);
+    const found = levels.find((l) => l.value === level);
     return found ? found.label : level;
   };
 
-  const getStatusColor = (isActive) => isActive ? 'green' : 'gray';
+  const getStatusColor = (isActive) => (isActive ? 'green' : 'gray');
   const hasActiveFilter = searchTerm || filterLevel || filterStatus;
 
   if (loading) {
@@ -124,25 +132,25 @@ const GrammarTopicList = () => {
                 label="Tìm kiếm chủ đề"
                 icon={<MagnifyingGlassIcon className="h-5 w-5" />}
                 value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 color="blue"
                 className="bg-secondary"
-                containerProps={{ className: "!min-w-full" }}
+                containerProps={{ className: '!min-w-full' }}
               />
             </div>
-            
+
             <div className="w-full">
               <Select
                 label="Cấp độ"
                 value={filterLevel}
-                onChange={val => setFilterLevel(val)}
+                onChange={(val) => setFilterLevel(val)}
                 color="blue"
                 className="bg-secondary"
-                containerProps={{ className: "!min-w-full" }}
-                menuProps={{ className: "bg-secondary border-primary" }}
+                containerProps={{ className: '!min-w-full' }}
+                menuProps={{ className: 'bg-secondary border-primary' }}
               >
                 <Option value="">Tất cả cấp độ</Option>
-                {levels.map(level => (
+                {levels.map((level) => (
                   <Option key={level.value} value={level.value}>
                     <div className="flex items-center gap-2">
                       <span className="text-base">{level.icon}</span>
@@ -157,11 +165,11 @@ const GrammarTopicList = () => {
               <Select
                 label="Trạng thái"
                 value={filterStatus}
-                onChange={val => setFilterStatus(val)}
+                onChange={(val) => setFilterStatus(val)}
                 color="blue"
                 className="bg-secondary"
-                containerProps={{ className: "!min-w-full" }}
-                menuProps={{ className: "bg-secondary border-primary" }}
+                containerProps={{ className: '!min-w-full' }}
+                menuProps={{ className: 'bg-secondary border-primary' }}
               >
                 <Option value="">Tất cả trạng thái</Option>
                 <Option value="active">Hoạt động</Option>
@@ -170,11 +178,14 @@ const GrammarTopicList = () => {
             </div>
           </div>
 
+          {/* ✅ Filter Summary with Page Size Selector */}
           <div className="mt-6 pt-4 border-t border-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <Typography variant="small" className="text-primary font-semibold">
-                Hiển thị <span className="text-blue-500">{filteredTopics.length}</span> / {topics.length} chủ đề
-              </Typography>
+              <PageSizeSelector
+                pageSize={pagination.pageSize}
+                onPageSizeChange={handlePageSizeChange}
+                options={[6, 12, 24, 48]}
+              />
               {hasActiveFilter && (
                 <Chip
                   size="sm"
@@ -201,8 +212,8 @@ const GrammarTopicList = () => {
         </CardBody>
       </Card>
 
-      {/* Topics Grid - Empty State */}
-      {filteredTopics.length === 0 ? (
+      {/* Topics Grid */}
+      {topics.length === 0 ? (
         <Card className="card-base border-primary">
           <CardBody className="p-12 text-center">
             <div className="max-w-md mx-auto">
@@ -210,15 +221,14 @@ const GrammarTopicList = () => {
                 <BookOpenIcon className="h-10 w-10 text-blue-500" />
               </div>
               <Typography variant="h5" className="text-primary mb-2 font-bold">
-                {topics.length === 0 ? 'Chưa có chủ đề nào' : 'Không tìm thấy chủ đề'}
+                {pagination.totalElements === 0 ? 'Chưa có chủ đề nào' : 'Không tìm thấy chủ đề'}
               </Typography>
               <Typography variant="small" className="text-secondary mb-6">
-                {topics.length === 0 
+                {pagination.totalElements === 0
                   ? 'Hãy tạo chủ đề ngữ pháp đầu tiên để bắt đầu.'
-                  : 'Thử thay đổi bộ lọc để tìm thấy chủ đề bạn cần.'
-                }
+                  : 'Thử thay đổi bộ lọc để tìm thấy chủ đề bạn cần.'}
               </Typography>
-              {topics.length === 0 && (
+              {pagination.totalElements === 0 && (
                 <Button
                   size="lg"
                   color="blue"
@@ -233,72 +243,87 @@ const GrammarTopicList = () => {
           </CardBody>
         </Card>
       ) : (
-        /* ✨ USING RESOURCE CARD */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredTopics.map((topic) => (
-            <ResourceCard
-              key={topic.id}
-              item={topic}
-              title={topic.name}
-              // description={topic.description || 'Chưa có mô tả'}
-              orderLabel={`#${topic.orderIndex}`}
-              icon={BookOpenIcon}
-              iconBgColor="blue-500"
-              iconColor="blue-400"
-              chips={[
-                {
-                  label: getLevelLabel(topic.levelRequired),
-                  color: getLevelColor(topic.levelRequired),
-                },
-                {
-                  label: topic.isActive ? 'Hoạt động' : 'Tạm dừng',
-                  color: getStatusColor(topic.isActive),
-                  icon: topic.isActive ? <CheckCircleIcon className="h-3 w-3" /> : <XCircleIcon className="h-3 w-3" />,
-                },
-              ]}
-              // stats={[
-              //   { label: 'Thứ tự', value: topic.orderIndex },
-              //   { label: 'Cấp độ', value: getLevelLabel(topic.levelRequired) },
-              // ]}
-              actions={[
-                {
-                  label: 'Bài học',
-                  icon: EyeIcon,
-                  className: 'border-green-500 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20',
-                  onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id)),
-                },
-                {
-                  label: 'Sửa',
-                  icon: PencilIcon,
-                  className: 'border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20',
-                  onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id)),
-                },
-                {
-                  type: 'icon',
-                  icon: TrashIcon,
-                  color: 'red',
-                  className: 'hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500',
-                  onClick: () => setDeleteDialog({ open: true, topic }),
-                },
-              ]}
-              menuActions={{
-                view: {
-                  label: 'Xem bài học',
-                  onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id)),
-                },
-                edit: {
-                  label: 'Chỉnh sửa',
-                  onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id)),
-                },
-                delete: {
-                  label: 'Xóa chủ đề',
-                  onClick: () => setDeleteDialog({ open: true, topic }),
-                },
-              }}
-              onTitleClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id))}
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {topics.map((topic) => (
+              <ResourceCard
+                key={topic.id}
+                item={topic}
+                title={topic.name}
+                orderLabel={`#${topic.orderIndex}`}
+                icon={BookOpenIcon}
+                iconBgColor="blue-500"
+                iconColor="blue-400"
+                chips={[
+                  {
+                    label: getLevelLabel(topic.levelRequired),
+                    color: getLevelColor(topic.levelRequired),
+                  },
+                  {
+                    label: topic.isActive ? 'Hoạt động' : 'Tạm dừng',
+                    color: getStatusColor(topic.isActive),
+                    icon: topic.isActive ? (
+                      <CheckCircleIcon className="h-3 w-3" />
+                    ) : (
+                      <XCircleIcon className="h-3 w-3" />
+                    ),
+                  },
+                ]}
+                actions={[
+                  {
+                    label: 'Bài học',
+                    icon: EyeIcon,
+                    className:
+                      'border-green-500 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20',
+                    onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id)),
+                  },
+                  {
+                    label: 'Sửa',
+                    icon: PencilIcon,
+                    className:
+                      'border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+                    onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id)),
+                  },
+                  {
+                    type: 'icon',
+                    icon: TrashIcon,
+                    color: 'red',
+                    className: 'hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500',
+                    onClick: () => setDeleteDialog({ open: true, topic }),
+                  },
+                ]}
+                menuActions={{
+                  view: {
+                    label: 'Xem bài học',
+                    onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id)),
+                  },
+                  edit: {
+                    label: 'Chỉnh sửa',
+                    onClick: () => navigate(ADMIN_ROUTES.GRAMMAR_TOPIC_EDIT(topic.id)),
+                  },
+                  delete: {
+                    label: 'Xóa chủ đề',
+                    onClick: () => setDeleteDialog({ open: true, topic }),
+                  },
+                }}
+                onTitleClick={() => navigate(ADMIN_ROUTES.GRAMMAR_LESSONS(topic.id))}
+              />
+            ))}
+          </div>
+
+          {/* ✅ Pagination Controls */}
+          <Card className="card-base border-primary">
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalElements={pagination.totalElements}
+              pageSize={pagination.pageSize}
+              hasNext={pagination.hasNext}
+              hasPrevious={pagination.hasPrevious}
+              onPageChange={handlePageChange}
             />
-          ))}
-        </div>
+          </Card>
+        </>
       )}
 
       {/* Confirm Dialog */}

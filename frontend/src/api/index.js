@@ -11,6 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 600000, // 10 minutes timeout
 });
 
 // ===== HELPER: Detect role từ URL =====

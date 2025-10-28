@@ -244,6 +244,7 @@ export const useGrammarLearning = () => {
     setAnswers({});
     setQuestionResults(null);
     setHasSubmitted(false);
+    loadLessonContent(currentLesson.id);
   };
 
   // Submit lesson
@@ -296,10 +297,10 @@ export const useGrammarLearning = () => {
             loadLessonContent(result.nextLessonId);
           }, 1500);
         } else {
-          // Reload topics to update sidebar
           loadTopics();
         }
       } else if (currentLesson.lessonType === "PRACTICE") {
+        // ✅ LUÔN hiển thị kết quả
         const resultsMap = {};
         result.questionResults?.forEach((qr) => {
           resultsMap[qr.questionId] = qr;
@@ -309,25 +310,30 @@ export const useGrammarLearning = () => {
 
         if (result.isPassed) {
           toast.success(
-            `🎉 Chính xác ${result.correctAnswers}/${result.totalQuestions} câu!`
+            `🎉 Chính xác ${result.correctAnswers}/${
+              result.totalQuestions
+            } câu! (${Math.round(
+              (result.correctAnswers / result.totalQuestions) * 100
+            )}%)`
           );
 
           if (result.hasUnlockedNext && result.nextLessonId) {
             toast.success("Bài học tiếp theo đã được mở khóa.", {
               duration: 3000,
             });
-            setTimeout(() => {
-              loadLessonContent(result.nextLessonId);
-            }, 2000);
-          } else {
-            // Reload topics to update sidebar
-            setTimeout(() => loadTopics(), 1000);
           }
         } else {
           toast.error(
-            `❌ Chính xác ${result.correctAnswers}/${result.totalQuestions} câu. Cần ít nhất 80% để qua bài.`
+            `❌ Chính xác ${result.correctAnswers}/${
+              result.totalQuestions
+            } câu (${Math.round(
+              (result.correctAnswers / result.totalQuestions) * 100
+            )}%). Cần ít nhất 80% để hoàn thành.`
           );
         }
+
+        // ✅ Reload topics để cập nhật sidebar NHƯNG KHÔNG load lại lesson
+        refreshTopicsOnly();
       }
     } catch (error) {
       console.error("❌ Error submitting lesson:", error);
@@ -339,6 +345,30 @@ export const useGrammarLearning = () => {
       toast.error(errorMsg);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Chỉ refresh topics list, KHÔNG load lại lesson
+  const refreshTopicsOnly = async () => {
+    try {
+      console.log("🔄 Refreshing topics list only...");
+
+      const response = await grammarUserAPI.getAccessibleTopics();
+      const topicsData = response.data.data || [];
+
+      setTopics(topicsData);
+
+      // ✅ Cập nhật currentTopic (để sidebar hiển thị đúng progress)
+      if (currentTopic) {
+        const updatedTopic = topicsData.find((t) => t.id === currentTopic.id);
+        if (updatedTopic) {
+          setCurrentTopic(updatedTopic);
+        }
+      }
+
+      console.log("✅ Topics refreshed without reloading lesson");
+    } catch (error) {
+      console.error("❌ Error refreshing topics:", error);
     }
   };
 
@@ -388,5 +418,6 @@ export const useGrammarLearning = () => {
     navigateToLesson,
     loadTopicDetails,
     loadTopics, // Export để có thể reload
+    refreshTopicsOnly,
   };
 };

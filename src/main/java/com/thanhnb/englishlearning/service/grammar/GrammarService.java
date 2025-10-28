@@ -213,13 +213,6 @@ public class GrammarService {
         dto.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
         dto.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
 
-        // ✅ Nếu đã completed, ẩn câu hỏi (không cho làm lại)
-        if (dto.getIsCompleted()) {
-            log.info("ℹ️ Lesson {} already completed by user {}", lessonId, userId);
-            dto.setQuestions(null); // Hide questions
-            return dto;
-        }
-
         // Với bài thực hành, ẩn đáp án đúng
         if (lesson.getLessonType() == LessonType.PRACTICE) {
             dto.getQuestions().forEach(q -> q.setShowCorrectAnswer(false));
@@ -246,7 +239,7 @@ public class GrammarService {
         log.info("📥 Submit lesson request: userId={}, lessonId={}, lessonType={}",
                 userId, lesson.getId(), lesson.getLessonType());
 
-        // ✅ Validate lesson is unlocked
+        // Validate lesson is unlocked
         List<GrammarLesson> allLessons = grammarLessonRepository
                 .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(lesson.getTopic().getId());
 
@@ -271,20 +264,15 @@ public class GrammarService {
                     return newProgress;
                 });
 
-        // ✅ Ensure relations are set
-        if (progress.getUser() == null) {
+        if (progress.getUser() == null)
             progress.setUser(user);
-        }
-        if (progress.getLesson() == null) {
+        if (progress.getLesson() == null)
             progress.setLesson(lesson);
-        }
 
-        // ✅ Check if already completed
+        // ✅ Track trạng thái cũ
         boolean wasAlreadyCompleted = progress.getIsCompleted() != null && progress.getIsCompleted();
-
-        if (wasAlreadyCompleted) {
-            throw new RuntimeException("Bài học này đã hoàn thành. Không thể nộp lại.");
-        }
+        BigDecimal oldScore = progress.getScorePercentage();
+        boolean isFirstCompletion = !wasAlreadyCompleted;
 
         int totalScore = 0;
         int correctAnswers = 0;
@@ -298,13 +286,10 @@ public class GrammarService {
                 throw new RuntimeException("Bài thực hành cần có câu trả lời");
             }
 
-            // ✅ Validate all questions answered
-            long expectedQuestions = questionRepository.countByParentTypeAndParentId(
-                    ParentType.GRAMMAR, lesson.getId());
-
+            long expectedQuestions = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR,
+                    lesson.getId());
             if (request.getAnswers().size() < expectedQuestions) {
-                throw new RuntimeException(
-                        String.format("Vui lòng trả lời tất cả %d câu hỏi", expectedQuestions));
+                throw new RuntimeException(String.format("Vui lòng trả lời tất cả %d câu hỏi", expectedQuestions));
             }
 
             questionResults = processAnswers(request.getAnswers());
@@ -314,13 +299,17 @@ public class GrammarService {
 
             // Tính tỷ lệ đúng
             double correctRate = totalQuestions > 0 ? (double) correctAnswers / totalQuestions : 0;
-            isPassed = correctRate >= 0.8; // Pass nếu đúng >= 80%
-
-            // Cập nhật score (lưu điểm cao nhất)
             BigDecimal currentScore = BigDecimal.valueOf(correctRate * 100);
+
+            // ✅ LUÔN cập nhật điểm cao nhất
             if (currentScore.compareTo(progress.getScorePercentage()) > 0) {
                 progress.setScorePercentage(currentScore);
+                log.info("📈 Score improved: {} -> {}", oldScore, currentScore);
+            } else {
+                log.info("📊 Score maintained: current={}, new={}", progress.getScorePercentage(), currentScore);
             }
+
+            isPassed = correctRate >= 0.8; // Pass nếu đúng >= 80%
         }
         // === XỬ LÝ BÀI LÝ THUYẾT ===
         else if (lesson.getLessonType() == LessonType.THEORY) {
@@ -330,59 +319,49 @@ public class GrammarService {
                         "Bạn cần dành ít nhất " + lesson.getEstimatedDuration() + " giây để đọc bài lý thuyết");
             }
 
-            // Track reading time
             Integer currentReadingTime = progress.getReadingTime() != null ? progress.getReadingTime() : 0;
             progress.setReadingTime(currentReadingTime + request.getReadingTimeSecond());
             progress.setHasScrolledToEnd(true);
 
             totalScore = lesson.getPointsReward();
             isPassed = true;
-            progress.setScorePercentage(BigDecimal.valueOf(100)); // Bài lý thuyết = 100%
+            progress.setScorePercentage(BigDecimal.valueOf(100));
         }
 
-        // Cập nhật progress
+        // ✅ Cập nhật attempts - LUÔN tăng
         Integer currentAttempts = progress.getAttempts() != null ? progress.getAttempts() : 0;
         progress.setAttempts(currentAttempts + 1);
 
-        // ✅ Chỉ mark completed nếu pass VÀ chưa completed
+        // ✅ Mark completed nếu pass
         if (isPassed) {
             progress.setIsCompleted(true);
-            progress.setCompletedAt(LocalDateTime.now());
+            if (!wasAlreadyCompleted) {
+                progress.setCompletedAt(LocalDateTime.now());
+            }
 
-            // ✅ Cộng điểm (chỉ 1 lần)
-            user.setTotalPoints(user.getTotalPoints() + lesson.getPointsReward());
-            userRepository.save(user);
-
-            log.info("🎉 User {} completed lesson {} - earned {} points",
-                    userId, lesson.getId(), lesson.getPointsReward());
+            // ✅ CHỈ cộng điểm lần đầu complete
+            if (isFirstCompletion) {
+                user.setTotalPoints(user.getTotalPoints() + lesson.getPointsReward());
+                userRepository.save(user);
+                log.info("🎉 User {} FIRST completed lesson {} - earned {} points",
+                        userId, lesson.getId(), lesson.getPointsReward());
+            } else {
+                log.info("♻️ User {} re-completed lesson {} - no additional points (attempts: {})",
+                        userId, lesson.getId(), progress.getAttempts());
+            }
         }
 
         progress.setUpdatedAt(LocalDateTime.now());
 
-        // Validate before save
-        if (progress.getUser() == null) {
-            throw new RuntimeException("Progress phải có user");
-        }
-        if (progress.getLesson() == null) {
-            throw new RuntimeException("Progress phải có lesson");
-        }
-
-        log.info("💾 Saving progress: id={}, userId={}, lessonId={}, attempts={}, score={}, completed={}",
-                progress.getId(),
-                progress.getUser().getId(),
-                progress.getLesson().getId(),
-                progress.getAttempts(),
-                progress.getScorePercentage(),
-                progress.getIsCompleted());
-
         UserGrammarProgress savedProgress = userGrammarProgressRepository.save(progress);
-        log.info("✅ Progress saved successfully: id={}", savedProgress.getId());
+        log.info("✅ Progress saved: attempts={}, score={}, completed={}",
+                savedProgress.getAttempts(), savedProgress.getScorePercentage(), savedProgress.getIsCompleted());
 
-        // Kiểm tra unlock lesson tiếp theo
+        // ✅ Kiểm tra unlock lesson tiếp theo - CHỈ khi lần đầu complete
         boolean hasUnlockedNext = false;
         Long nextLessonId = null;
 
-        if (isPassed) {
+        if (isPassed && isFirstCompletion) {
             Optional<GrammarLesson> nextLesson = grammarLessonRepository.findNextLessonInTopic(
                     lesson.getTopic().getId(), lesson.getOrderIndex());
 
@@ -393,20 +372,21 @@ public class GrammarService {
             }
         }
 
-        log.info("📊 User {} submitted lesson {}: correct={}/{}, passed={}",
-                userId, lesson.getId(), correctAnswers, totalQuestions, isPassed);
+        log.info("📊 Submit result: correct={}/{}, passed={}, isRetry={}",
+                correctAnswers, totalQuestions, isPassed, wasAlreadyCompleted);
 
+        // ✅ TRẢ VỀ đầy đủ questionResults cho frontend hiển thị
         return new LessonResultResponse(
                 lesson.getId(),
                 lesson.getTitle(),
                 totalQuestions,
                 correctAnswers,
                 totalScore,
-                isPassed ? lesson.getPointsReward() : 0,
+                isFirstCompletion && isPassed ? lesson.getPointsReward() : 0, // Chỉ trả về points nếu lần đầu
                 isPassed,
                 hasUnlockedNext,
                 nextLessonId,
-                questionResults);
+                questionResults); // ✅ LUÔN trả về questionResults
     }
 
     /**
