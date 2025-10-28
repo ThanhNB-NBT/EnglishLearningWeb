@@ -20,19 +20,18 @@ import {
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
-// ✨ Import Reusable Components & Hook
 import PageAdminHeader from '../../../../components/common/PageAdminHeader';
 import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import QuestionTable from '../../../../components/grammar/tables/QuestionTable';
+import PaginationControls from '../../../../components/common/PaginationControls';
+import PageSizeSelector from '../../../../components/common/PageSizeSelector';
 import { useQuestionList } from '../../../../hook/grammar/useGrammarQuestions';
 
 const GrammarQuestionList = () => {
   const { lessonId } = useParams();
   const navigate = useNavigate();
 
-  // ✨ USE HOOK
   const {
-    filteredQuestions,
     questions,
     loading,
     searchTerm,
@@ -41,6 +40,9 @@ const GrammarQuestionList = () => {
     setFilterType,
     selectedQuestions,
     setSelectedQuestions,
+    pagination,
+    handlePageChange,
+    handlePageSizeChange,
     deleteQuestion,
     bulkDeleteQuestions,
     resetFilters,
@@ -60,7 +62,7 @@ const GrammarQuestionList = () => {
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedQuestions(filteredQuestions.map(q => q.id));
+      setSelectedQuestions(questions.map(q => q.id));
     } else {
       setSelectedQuestions([]);
     }
@@ -74,11 +76,11 @@ const GrammarQuestionList = () => {
     }
   };
 
-  const isAllSelected = filteredQuestions.length > 0 && 
-    selectedQuestions.length === filteredQuestions.length;
+  const isAllSelected = questions.length > 0 && 
+    selectedQuestions.length === questions.length;
 
   const isSomeSelected = selectedQuestions.length > 0 && 
-    selectedQuestions.length < filteredQuestions.length;
+    selectedQuestions.length < questions.length;
 
   // ===== CRUD OPERATIONS =====
 
@@ -130,14 +132,12 @@ const GrammarQuestionList = () => {
         title="Quản lý Câu hỏi"
         subtitle="Bài học thực hành"
         icon={QuestionMarkCircleIcon}
-        iconBgColor="purple-500"
-        iconColor="purple-400"
         showBackButton={true}
         onBack={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
         actions={
           <Button
             size="lg"
-            className="bg-purple-500 hover:bg-purple-600 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 w-full lg:w-auto"
+            className="bg-blue-500 hover:bg-blue-600 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 w-full lg:w-auto"
             onClick={() => navigate(ADMIN_ROUTES.GRAMMAR_QUESTION_CREATE(lessonId))}
           >
             <PlusIcon className="h-5 w-5" />
@@ -156,7 +156,7 @@ const GrammarQuestionList = () => {
                 icon={<MagnifyingGlassIcon className="h-5 w-5" />}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                color="purple"
+                color="blue"
                 className="bg-secondary"
                 containerProps={{ className: "!min-w-full" }}
               />
@@ -167,7 +167,7 @@ const GrammarQuestionList = () => {
                 label="Loại câu hỏi"
                 value={filterType}
                 onChange={val => setFilterType(val)}
-                color="purple"
+                color="blue"
                 className="bg-secondary"
                 containerProps={{ className: "!min-w-full" }}
                 menuProps={{ className: "bg-secondary border-primary" }}
@@ -182,16 +182,19 @@ const GrammarQuestionList = () => {
             </div>
           </div>
 
+          {/* ✅ Filter Summary with Page Size Selector */}
           <div className="mt-6 pt-4 border-t border-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <Typography variant="small" className="text-primary font-semibold">
-                Hiển thị <span className="text-purple-500">{filteredQuestions.length}</span> / {questions.length} câu hỏi
-              </Typography>
+              <PageSizeSelector
+                pageSize={pagination.pageSize}
+                onPageSizeChange={handlePageSizeChange}
+                options={[10, 20, 50, 100]}
+              />
               {hasActiveFilter && (
                 <Chip
                   size="sm"
                   value="Đang lọc"
-                  color="purple"
+                  color="blue"
                   className="text-xs"
                   icon={<MagnifyingGlassIcon className="h-3 w-3" />}
                 />
@@ -236,7 +239,7 @@ const GrammarQuestionList = () => {
       </Card>
 
       {/* Questions Table */}
-      {filteredQuestions.length === 0 ? (
+      {questions.length === 0 ? (
         <Card className="card-base border-primary">
           <CardBody className="p-12 text-center">
             <div className="max-w-md mx-auto">
@@ -244,15 +247,15 @@ const GrammarQuestionList = () => {
                 <QuestionMarkCircleIcon className="h-10 w-10 text-purple-500" />
               </div>
               <Typography variant="h5" className="text-primary mb-2 font-bold">
-                {questions.length === 0 ? 'Chưa có câu hỏi nào' : 'Không tìm thấy câu hỏi'}
+                {pagination.totalElements === 0 ? 'Chưa có câu hỏi nào' : 'Không tìm thấy câu hỏi'}
               </Typography>
               <Typography variant="small" className="text-secondary mb-6">
-                {questions.length === 0
+                {pagination.totalElements === 0
                   ? 'Hãy tạo câu hỏi đầu tiên cho bài học này.'
                   : 'Thử thay đổi bộ lọc để tìm thấy câu hỏi bạn cần.'
                 }
               </Typography>
-              {questions.length === 0 && (
+              {pagination.totalElements === 0 && (
                 <Button
                   size="lg"
                   color="purple"
@@ -267,16 +270,31 @@ const GrammarQuestionList = () => {
           </CardBody>
         </Card>
       ) : (
-        <QuestionTable
-          questions={filteredQuestions}
-          selectedQuestions={selectedQuestions}
-          onSelectAll={handleSelectAll}
-          onSelectOne={handleSelectOne}
-          isAllSelected={isAllSelected}
-          isSomeSelected={isSomeSelected}
-          onEdit={handleEdit}
-          onDelete={(question) => setDeleteDialog({ open: true, question })}
-        />
+        <>
+          <QuestionTable
+            questions={questions}
+            selectedQuestions={selectedQuestions}
+            onSelectAll={handleSelectAll}
+            onSelectOne={handleSelectOne}
+            isAllSelected={isAllSelected}
+            isSomeSelected={isSomeSelected}
+            onEdit={handleEdit}
+            onDelete={(question) => setDeleteDialog({ open: true, question })}
+          />
+
+          {/* ✅ Pagination Controls */}
+          <Card className="card-base border-primary">
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalElements={pagination.totalElements}
+              pageSize={pagination.pageSize}
+              hasNext={pagination.hasNext}
+              hasPrevious={pagination.hasPrevious}
+              onPageChange={handlePageChange}
+            />
+          </Card>
+        </>
       )}
 
       {/* Single Delete Dialog */}

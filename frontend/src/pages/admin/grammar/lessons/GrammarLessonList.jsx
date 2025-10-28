@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLessonList } from "../../../../hook/grammar/useGrammarLessons";
+import { useGrammarPDFParse } from "../../../../hook/grammar/useGrammarPDFParse";
 import { ADMIN_ROUTES } from "../../../../constants/routes";
 import {
   Button,
@@ -27,19 +28,26 @@ import {
   PlayCircleIcon,
   ClockIcon,
   TrophyIcon,
+  DocumentPlusIcon, // ✅ NEW
 } from "@heroicons/react/24/outline";
 
 // ✨ Import Reusable Components
 import PageAdminHeader from "../../../../components/common/PageAdminHeader";
 import ConfirmDialog from "../../../../components/common/ConfirmDialog";
 import ResourceCard from "../../../../components/common/ResourceCard";
+import PaginationControls from "../../../../components/common/PaginationControls";
+import PageSizeSelector from "../../../../components/common/PageSizeSelector";
+
+// ✅ NEW: Import PDF/File parsing components
+import PDFPageSelector from "../../../../components/grammar/dialog/PDFPageSelector";
+import GeminiParsedResultDialog from "../../../../components/grammar/dialog/GeminiParsedResultDialog";
 
 const GrammarLessonList = () => {
   const { topicId } = useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null); // ✅ NEW
 
   const {
-    filteredLessons,
     lessons,
     topicInfo,
     loading,
@@ -49,9 +57,24 @@ const GrammarLessonList = () => {
     setFilterType,
     filterStatus,
     setFilterStatus,
+    pagination,
+    handlePageChange,
+    handlePageSizeChange,
     deleteLesson,
     resetFilters,
+    reload, // ✅ NEW: Add reload function
   } = useLessonList(topicId);
+
+  // ✅ NEW: PDF/File parsing hook
+  const {
+    uploading,
+    pdfDialog,
+    pageSelector,
+    handleFileSelect,
+    handlePageSelectionConfirm,
+    closePdfDialog,
+    handleImportLessons,
+  } = useGrammarPDFParse(topicId, reload);
 
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
@@ -59,27 +82,34 @@ const GrammarLessonList = () => {
   });
   const [deleting, setDeleting] = useState(false);
 
+  // ✅ NEW: Handle upload button click
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // ✅ NEW: Handle file input change
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+    // Reset input để có thể chọn lại cùng file
+    e.target.value = "";
+  };
+
   const handleDelete = async () => {
     if (!deleteDialog.lesson) return;
     setDeleting(true);
     try {
-      await deleteLesson(deleteDialog.lesson.id);
+      await deleteLesson(deleteDialog.lesson.id,
+        { cascade: deleteDialog.lesson.lessonType === "PRACTICE" }
+      );
       setDeleteDialog({ open: false, lesson: null });
     } finally {
       setDeleting(false);
     }
   };
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case "THEORY":
-        return "blue";
-      case "PRACTICE":
-        return "green";
-      default:
-        return "gray";
-    }
-  };
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -91,8 +121,6 @@ const GrammarLessonList = () => {
         return BookOpenIcon;
     }
   };
-
-  const getStatusColor = (isActive) => (isActive ? "green" : "gray");
 
   const getContentPreview = (htmlContent, maxLength = 120) => {
     if (!htmlContent) return "Chưa có nội dung";
@@ -117,7 +145,16 @@ const GrammarLessonList = () => {
 
   return (
     <div className="w-full space-y-6 p-4 md:p-6">
-      {/* ✨ REUSABLE PAGE HEADER */}
+      {/* ✅ HIDDEN FILE INPUT */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.jpg,.jpeg,.png,.webp"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* REUSABLE PAGE HEADER - Updated with Parse button */}
       <PageAdminHeader
         title={topicInfo?.name || "Bài học"}
         subtitle="Quản lý các bài học trong chủ đề ngữ pháp"
@@ -125,16 +162,34 @@ const GrammarLessonList = () => {
         showBackButton={true}
         onBack={() => navigate(ADMIN_ROUTES.GRAMMAR_TOPICS)}
         actions={
-          <Button
-            size="lg"
-            className="bg-blue-500 hover:bg-blue-600 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 w-full lg:w-auto"
-            onClick={() =>
-              navigate(ADMIN_ROUTES.GRAMMAR_LESSON_CREATE(topicId))
-            }
-          >
-            <PlusIcon className="h-5 w-5" />
-            <span className="font-semibold">Tạo mới</span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            {/* Parse File Button */}
+            <Button
+              size="lg"
+              color="purple"
+              className="shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 w-full lg:w-auto"
+              onClick={handleUploadClick}
+              disabled={uploading}
+              loading={uploading}
+            >
+              <DocumentPlusIcon className="h-5 w-5" />
+              <span className="font-semibold">
+                {uploading ? "Đang parse..." : "Parse PDF/DOCX/Image"}
+              </span>
+            </Button>
+
+            {/* Create New Button */}
+            <Button
+              size="lg"
+              className="bg-blue-500 hover:bg-blue-600 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 w-full lg:w-auto"
+              onClick={() =>
+                navigate(ADMIN_ROUTES.GRAMMAR_LESSON_CREATE(topicId))
+              }
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span className="font-semibold">Thêm mới</span>
+            </Button>
+          </div>
         }
       />
 
@@ -187,13 +242,14 @@ const GrammarLessonList = () => {
             </div>
           </div>
 
-          {/* Filter Summary */}
+          {/* Filter Summary with Page Size Selector */}
           <div className="mt-6 pt-4 border-t border-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <Typography variant="small" className="text-primary font-semibold">
-                Hiển thị <span className="text-blue-500">{filteredLessons.length}</span> /{" "}
-                {lessons.length} bài học
-              </Typography>
+              <PageSizeSelector
+                pageSize={pagination.pageSize}
+                onPageSizeChange={handlePageSizeChange}
+                options={[6, 12, 24, 48]}
+              />
               {hasActiveFilter && (
                 <Chip
                   size="sm"
@@ -221,7 +277,7 @@ const GrammarLessonList = () => {
       </Card>
 
       {/* Lessons Grid */}
-      {filteredLessons.length === 0 ? (
+      {lessons.length === 0 ? (
         <Card className="card-base border-primary">
           <CardBody className="p-12 text-center">
             <div className="max-w-md mx-auto">
@@ -229,167 +285,208 @@ const GrammarLessonList = () => {
                 <BookOpenIcon className="h-10 w-10 text-blue-500" />
               </div>
               <Typography variant="h5" className="text-primary mb-2 font-bold">
-                {lessons.length === 0
+                {pagination.totalElements === 0
                   ? "Chưa có bài học nào"
                   : "Không tìm thấy bài học"}
               </Typography>
               <Typography variant="small" className="text-secondary mb-6">
-                {lessons.length === 0
-                  ? "Hãy tạo bài học đầu tiên cho chủ đề này."
+                {pagination.totalElements === 0
+                  ? "Hãy tạo bài học bằng cách tạo thủ công hoặc parse từ file PDF/DOCX."
                   : "Thử thay đổi bộ lọc để tìm thấy bài học bạn cần."}
               </Typography>
-              {lessons.length === 0 && (
-                <Button
-                  size="lg"
-                  color="blue"
-                  onClick={() =>
-                    navigate(ADMIN_ROUTES.GRAMMAR_LESSON_CREATE(topicId))
-                  }
-                  className="flex items-center gap-2 mx-auto shadow-lg"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                  Tạo bài học đầu tiên
-                </Button>
+              {pagination.totalElements === 0 && (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    size="lg"
+                    color="purple"
+                    onClick={handleUploadClick}
+                    className="flex items-center gap-2 shadow-lg"
+                  >
+                    <DocumentPlusIcon className="h-5 w-5" />
+                    Parse từ file
+                  </Button>
+                  <Button
+                    size="lg"
+                    color="blue"
+                    onClick={() =>
+                      navigate(ADMIN_ROUTES.GRAMMAR_LESSON_CREATE(topicId))
+                    }
+                    className="flex items-center gap-2 shadow-lg"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                    Tạo thủ công
+                  </Button>
+                </div>
               )}
             </div>
           </CardBody>
         </Card>
       ) : (
-        /* ✨ USING RESOURCE CARD */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredLessons.map((lesson) => {
-            const TypeIcon = getTypeIcon(lesson.lessonType);
-            
-            return (
-              <ResourceCard
-                key={lesson.id}
-                item={lesson}
-                title={lesson.title}
-                description={
-                  lesson.lessonType === "THEORY"
-                    ? getContentPreview(lesson.content, 120)
-                    : `Bài thực hành với ${lesson.questionCount || 0} câu hỏi`
-                }
-                orderLabel={`Bài ${lesson.orderIndex}`}
-                icon={TypeIcon}
-                iconBgColor={lesson.lessonType === "THEORY" ? "blue-500" : "green-500"}
-                iconColor={lesson.lessonType === "THEORY" ? "blue-400" : "green-400"}
-                chips={[
-                  {
-                    label: lesson.lessonType === "THEORY" ? "Lý thuyết" : "Thực hành",
-                    color: getTypeColor(lesson.lessonType),
-                  },
-                  {
-                    label: lesson.isActive ? "Hoạt động" : "Tạm dừng",
-                    color: getStatusColor(lesson.isActive),
-                    icon: lesson.isActive ? (
-                      <CheckCircleIcon className="h-3 w-3" />
-                    ) : (
-                      <XCircleIcon className="h-3 w-3" />
-                    ),
-                  },
-                ]}
-                stats={[
-                  {
-                    icon: ClockIcon,
-                    iconColor: "text-blue-500",
-                    bgColor: "bg-blue-50 dark:bg-blue-900/20",
-                    label: "",
-                    value: `${lesson.estimatedDuration}s`,
-                  },
-                  {
-                    icon: TrophyIcon,
-                    iconColor: "text-amber-500",
-                    bgColor: "bg-amber-50 dark:bg-amber-900/20",
-                    label: "",
-                    value: `${lesson.pointsReward} điểm`,
-                  },
-                ]}
-                actions={
-                  lesson.lessonType === "PRACTICE"
-                    ? [
-                        {
-                          label: "Câu hỏi",
-                          icon: EyeIcon,
-                          className:
-                            "border-green-500 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20",
-                          onClick: () =>
-                            navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id)),
-                        },
-                        {
-                          label: "Sửa",
-                          icon: PencilIcon,
-                          className:
-                            "border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20",
-                          onClick: () =>
-                            navigate(
-                              ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id)
-                            ),
-                        },
-                        {
-                          type: "icon",
-                          icon: TrashIcon,
-                          color: "red",
-                          className:
-                            "hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500",
-                          onClick: () =>
-                            setDeleteDialog({ open: true, lesson }),
-                        },
-                      ]
-                    : [
-                        {
-                          label: "Sửa",
-                          icon: PencilIcon,
-                          className:
-                            "border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20",
-                          onClick: () =>
-                            navigate(
-                              ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id)
-                            ),
-                        },
-                        {
-                          type: "icon",
-                          icon: TrashIcon,
-                          color: "red",
-                          className:
-                            "hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500",
-                          onClick: () =>
-                            setDeleteDialog({ open: true, lesson }),
-                        },
-                      ]
-                }
-                menuActions={{
-                  ...(lesson.lessonType === "PRACTICE" && {
-                    view: {
-                      label: "Xem câu hỏi",
-                      onClick: () =>
-                        navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id)),
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {lessons.map((lesson) => {
+              const TypeIcon = getTypeIcon(lesson.lessonType);
+
+              return (
+                <ResourceCard
+                  key={lesson.id}
+                  item={lesson}
+                  title={lesson.title}
+                  description={
+                    lesson.lessonType === "THEORY"
+                      ? getContentPreview(lesson.content, 120)
+                      : `Bài thực hành với ${lesson.questionCount || 0} câu hỏi`
+                  }
+                  orderLabel={`Bài ${lesson.orderIndex}`}
+                  icon={TypeIcon}
+                  iconBgColor={
+                    lesson.lessonType === "THEORY" ? "blue" : "cyan"
+                  }
+                  iconColor={
+                    lesson.lessonType === "THEORY" ? "blue" : "amber"
+                  }
+                  chips={[
+                    {
+                      label:
+                        lesson.lessonType === "THEORY"
+                          ? "Lý thuyết"
+                          : "Thực hành",
+                      color: lesson.lessonType === "THEORY" ? "blue" : "amber",
                     },
-                  }),
-                  edit: {
-                    label: "Chỉnh sửa",
-                    onClick: () =>
-                      navigate(
-                        ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id)
+                    {
+                      label: lesson.isActive ? "Hoạt động" : "Tạm dừng",
+                      color: lesson.isActive ? "green" : "gray",
+                      icon: lesson.isActive ? (
+                        <CheckCircleIcon className="h-3 w-3" />
+                      ) : (
+                        <XCircleIcon className="h-3 w-3" />
                       ),
-                  },
-                  delete: {
-                    label: "Xóa bài học",
-                    onClick: () => setDeleteDialog({ open: true, lesson }),
-                  },
-                }}
-                onTitleClick={
-                  lesson.lessonType === "PRACTICE"
-                    ? () => navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id))
-                    : () =>
+                    },
+                  ]}
+                  stats={[
+                    {
+                      icon: ClockIcon,
+                      iconColor: "text-blue-500",
+                      bgColor: "bg-blue-50 dark:bg-blue-900/20",
+                      label: "",
+                      value: `${lesson.estimatedDuration}s`,
+                    },
+                    {
+                      icon: TrophyIcon,
+                      iconColor: "text-amber-500",
+                      bgColor: "bg-amber-50 dark:bg-amber-900/20",
+                      label: "",
+                      value: `${lesson.pointsReward} điểm`,
+                    },
+                  ]}
+                  actions={
+                    lesson.lessonType === "PRACTICE"
+                      ? [
+                          {
+                            label: "Câu hỏi",
+                            icon: EyeIcon,
+                            className:
+                              "border-green-500 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20",
+                            onClick: () =>
+                              navigate(
+                                ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id)
+                              ),
+                          },
+                          {
+                            label: "Sửa",
+                            icon: PencilIcon,
+                            className:
+                              "border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20",
+                            onClick: () =>
+                              navigate(
+                                ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(
+                                  topicId,
+                                  lesson.id
+                                )
+                              ),
+                          },
+                          {
+                            type: "icon",
+                            icon: TrashIcon,
+                            color: "red",
+                            className:
+                              "hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500",
+                            onClick: () =>
+                              setDeleteDialog({ open: true, lesson }),
+                          },
+                        ]
+                      : [
+                          {
+                            label: "Sửa",
+                            icon: PencilIcon,
+                            className:
+                              "border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20",
+                            onClick: () =>
+                              navigate(
+                                ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(
+                                  topicId,
+                                  lesson.id
+                                )
+                              ),
+                          },
+                          {
+                            type: "icon",
+                            icon: TrashIcon,
+                            color: "red",
+                            className:
+                              "hover:bg-red-50 dark:hover:bg-red-900/20 border-red-500",
+                            onClick: () =>
+                              setDeleteDialog({ open: true, lesson }),
+                          },
+                        ]
+                  }
+                  menuActions={{
+                    ...(lesson.lessonType === "PRACTICE" && {
+                      view: {
+                        label: "Xem câu hỏi",
+                        onClick: () =>
+                          navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id)),
+                      },
+                    }),
+                    edit: {
+                      label: "Chỉnh sửa",
+                      onClick: () =>
                         navigate(
                           ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id)
-                        )
-                }
-              />
-            );
-          })}
-        </div>
+                        ),
+                    },
+                    delete: {
+                      label: "Xóa bài học",
+                      onClick: () => setDeleteDialog({ open: true, lesson }),
+                    },
+                  }}
+                  onTitleClick={
+                    lesson.lessonType === "PRACTICE"
+                      ? () =>
+                          navigate(ADMIN_ROUTES.GRAMMAR_QUESTIONS(lesson.id))
+                      : () =>
+                          navigate(
+                            ADMIN_ROUTES.GRAMMAR_LESSON_EDIT(topicId, lesson.id)
+                          )
+                  }
+                />
+              );
+            })}
+          </div>
+
+          {/* ✅ Pagination Controls */}
+          <Card className="card-base border-primary">
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalElements={pagination.totalElements}
+              pageSize={pagination.pageSize}
+              hasNext={pagination.hasNext}
+              hasPrevious={pagination.hasPrevious}
+              onPageChange={handlePageChange}
+            />
+          </Card>
+        </>
       )}
 
       {/* ✨ REUSABLE CONFIRM DIALOG */}
@@ -405,6 +502,25 @@ const GrammarLessonList = () => {
         type="delete"
         loading={deleting}
       />
+
+      {/* ✅ NEW: PDF Page Selector Dialog */}
+      <PDFPageSelector
+        open={pageSelector.open}
+        file={pageSelector.file}
+        onClose={() => pageSelector.setOpen?.(false)}
+        onConfirm={handlePageSelectionConfirm}
+      />
+
+      {/* ✅ NEW: Parsed Result Dialog */}
+      {pdfDialog.open && pdfDialog.parsedData && (
+        <GeminiParsedResultDialog
+          open={pdfDialog.open}
+          parsedData={pdfDialog.parsedData}
+          summary={pdfDialog.summary}
+          onClose={closePdfDialog}
+          onConfirm={handleImportLessons}
+        />
+      )}
     </div>
   );
 };

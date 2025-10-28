@@ -50,8 +50,8 @@ public class Question {
     private Integer orderIndex;
 
     //Các trường cho SpeakingQuestion
-    @Column(name = "suggested_answers", columnDefinition = "TEXT")
-    private String suggestedAnswers; //Cho câu hỏi Speaking
+    @Column(name = "suggested_answer", columnDefinition = "TEXT")
+    private String suggestedAnswer; //Cho câu hỏi Speaking
 
     @Column(name = "time_limit_seconds")
     private Integer timeLimitSeconds; //Giới hạn thời gian trả lời (tính bằng giây)

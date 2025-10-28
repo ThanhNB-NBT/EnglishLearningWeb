@@ -12,6 +12,7 @@ import { ArrowLeftIcon } from "@heroicons/react/24/solid";
 const PageAdminHeader = ({
   title, //Tiêu đề
   description, //Mô tả
+  subtitle, // Add alias for description
   icon: Icon, //Icon hiển thị
   iconBgColor = "blue-500", //Màu nền icon
   iconColor = "blue-400", //Màu icon
@@ -30,6 +31,9 @@ const PageAdminHeader = ({
       navigate(-1);
     }
   };
+
+  // Use subtitle or description, fallback to empty string
+  const displayDescription = subtitle || description || "";
 
   return (
     <Card className={`bg-gradient-to-r from-${gradientFrom} to-${gradientTo} dark:from-${gradientTo} dark:to-black border border-slate-700 shadow-xl`}>
@@ -57,9 +61,12 @@ const PageAdminHeader = ({
                         <Typography variant="h4" className="text-slate-100 font-bold mb-1">
                             {title}
                         </Typography>
-                        <Typography variant="small" className="text-slate-400">
-                            {description}
-                        </Typography>
+                        {/* ✅ Only render if description exists */}
+                        {displayDescription && (
+                            <Typography variant="small" className="text-slate-400">
+                                {displayDescription}
+                            </Typography>
+                        )}
                     </div>
                 </div>
                 {/* Actions */}
@@ -71,7 +78,7 @@ const PageAdminHeader = ({
             </div>
         </CardBody>
     </Card>
-  )
+  );
 };
 
 export default PageAdminHeader;

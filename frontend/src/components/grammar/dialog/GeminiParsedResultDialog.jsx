@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Dialog,
   DialogHeader,
@@ -13,7 +13,7 @@ import {
   Checkbox,
   Collapse,
   Textarea,
-} from '@material-tailwind/react';
+} from "@material-tailwind/react";
 import {
   SparklesIcon,
   CheckCircleIcon,
@@ -22,10 +22,10 @@ import {
   ChevronUpIcon,
   EyeIcon,
   PencilIcon,
-} from '@heroicons/react/24/outline';
+} from "@heroicons/react/24/outline";
 
 /**
- * ✨ Component: Enhanced Dialog với khả năng xem chi tiết và chọn lessons
+ * Component: Enhanced Dialog với khả năng xem chi tiết và chọn lessons
  */
 const GeminiParsedResultDialog = ({
   open,
@@ -36,10 +36,10 @@ const GeminiParsedResultDialog = ({
 }) => {
   // State cho việc chọn lessons
   const [selectedLessons, setSelectedLessons] = useState([]);
-  
+
   // State cho việc mở rộng chi tiết lesson
   const [expandedLessons, setExpandedLessons] = useState([]);
-  
+
   // State cho việc edit lesson
   const [editingLesson, setEditingLesson] = useState(null);
   const [editedLessons, setEditedLessons] = useState({});
@@ -56,10 +56,8 @@ const GeminiParsedResultDialog = ({
 
   // Toggle chọn lesson
   const toggleSelectLesson = (index) => {
-    setSelectedLessons(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
+    setSelectedLessons((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
   };
 
@@ -74,10 +72,8 @@ const GeminiParsedResultDialog = ({
 
   // Toggle mở rộng chi tiết
   const toggleExpand = (index) => {
-    setExpandedLessons(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
+    setExpandedLessons((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
   };
 
@@ -85,12 +81,12 @@ const GeminiParsedResultDialog = ({
   const startEditing = (index) => {
     const lesson = getLesson(index);
     setEditingLesson(index);
-    setEditedLessons(prev => ({
+    setEditedLessons((prev) => ({
       ...prev,
       [index]: {
         title: lesson.title,
         content: lesson.content,
-      }
+      },
     }));
   };
 
@@ -102,7 +98,7 @@ const GeminiParsedResultDialog = ({
   // Cancel edit
   const cancelEdit = (index) => {
     setEditingLesson(null);
-    setEditedLessons(prev => {
+    setEditedLessons((prev) => {
       const newEdited = { ...prev };
       delete newEdited[index];
       return newEdited;
@@ -111,18 +107,23 @@ const GeminiParsedResultDialog = ({
 
   // Update edited content
   const updateEditedLesson = (index, field, value) => {
-    setEditedLessons(prev => ({
+    setEditedLessons((prev) => ({
       ...prev,
       [index]: {
         ...prev[index],
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   };
 
   // Get lesson (edited or original)
   const getLesson = (index) => {
-    return editedLessons[index] || parsedData.lessons[index];
+    const lesson = editedLessons[index] || parsedData.lessons[index] || {};
+    return {
+      title: lesson.title || "",
+      content: lesson.content || "",
+      ...lesson,
+    };
   };
 
   // Handle confirm with selected and edited lessons
@@ -133,18 +134,18 @@ const GeminiParsedResultDialog = ({
 
     // Build final data with only selected lessons
     const finalData = {
-      lessons: selectedLessons.map(index => {
+      lessons: selectedLessons.map((index) => {
         const original = parsedData.lessons[index];
         const edited = editedLessons[index];
-        
+
         return {
           ...original,
           ...(edited && {
             title: edited.title,
             content: edited.content,
-          })
+          }),
         };
-      })
+      }),
     };
 
     onConfirm(finalData);
@@ -155,7 +156,12 @@ const GeminiParsedResultDialog = ({
   const allSelected = selectedLessons.length === parsedData.lessons.length;
 
   return (
-    <Dialog open={open} handler={onClose} size="xl" className="max-h-[90vh] overflow-hidden">
+    <Dialog
+      open={open}
+      handler={onClose}
+      size="xl"
+      className="max-h-[90vh] overflow-hidden"
+    >
       <DialogHeader className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <SparklesIcon className="h-6 w-6 text-purple-500" />
@@ -171,7 +177,11 @@ const GeminiParsedResultDialog = ({
       <DialogBody className="max-h-[calc(90vh-200px)] overflow-y-auto">
         {/* Summary */}
         {summary && (
-          <Alert color="blue" icon={<SparklesIcon className="h-5 w-5" />} className="mb-4">
+          <Alert
+            color="blue"
+            icon={<SparklesIcon className="h-5 w-5" />}
+            className="mb-4"
+          >
             <Typography variant="h6" className="mb-3 font-bold">
               📊 Tóm tắt kết quả:
             </Typography>
@@ -202,7 +212,7 @@ const GeminiParsedResultDialog = ({
               </div>
               <div className="text-center p-3 bg-white/50 rounded-lg">
                 <Typography className="text-2xl font-bold text-purple-600">
-                  {summary.totalQuestions}
+                  {summary?.totalQuestions ?? 0}
                 </Typography>
                 <Typography variant="small" className="opacity-70">
                   Tổng câu hỏi
@@ -236,7 +246,7 @@ const GeminiParsedResultDialog = ({
           <Typography variant="h6" color="blue-gray" className="mb-2">
             📚 Danh sách bài học:
           </Typography>
-          
+
           {parsedData.lessons.map((lesson, index) => {
             const isSelected = selectedLessons.includes(index);
             const isExpanded = expandedLessons.includes(index);
@@ -244,10 +254,10 @@ const GeminiParsedResultDialog = ({
             const currentLesson = getLesson(index);
 
             return (
-              <Card 
-                key={index} 
+              <Card
+                key={index}
                 className={`border transition-all ${
-                  isSelected ? 'border-green-500 shadow-md' : 'border-gray-300'
+                  isSelected ? "border-green-500 shadow-md" : "border-gray-300"
                 }`}
               >
                 <CardBody className="p-4">
@@ -260,27 +270,42 @@ const GeminiParsedResultDialog = ({
                       />
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <Typography variant="small" className="font-bold text-blue-gray-600">
+                          <Typography
+                            variant="small"
+                            className="font-bold text-blue-gray-600"
+                          >
                             Bài {index + 1}
                           </Typography>
                           <Chip
                             size="sm"
-                            value={lesson.lessonType === "THEORY" ? "Lý thuyết" : "Thực hành"}
-                            color={lesson.lessonType === "THEORY" ? "blue" : "green"}
+                            value={
+                              lesson.lessonType === "THEORY"
+                                ? "Lý thuyết"
+                                : "Thực hành"
+                            }
+                            color={
+                              lesson.lessonType === "THEORY" ? "blue" : "green"
+                            }
                             className="text-xs"
                           />
                         </div>
-                        
+
                         {/* Title - Editable */}
                         {isEditing ? (
                           <Textarea
-                            value={editedLessons[index]?.title || ''}
-                            onChange={(e) => updateEditedLesson(index, 'title', e.target.value)}
+                            value={editedLessons[index]?.title || ""}
+                            onChange={(e) =>
+                              updateEditedLesson(index, "title", e.target.value)
+                            }
                             className="mb-2"
                             label="Tiêu đề"
                           />
                         ) : (
-                          <Typography variant="h6" color="blue-gray" className="mb-2">
+                          <Typography
+                            variant="h6"
+                            color="blue-gray"
+                            className="mb-2"
+                          >
                             {currentLesson.title}
                           </Typography>
                         )}
@@ -322,7 +347,7 @@ const GeminiParsedResultDialog = ({
                           Sửa
                         </Button>
                       )}
-                      
+
                       <Button
                         size="sm"
                         variant="text"
@@ -347,8 +372,15 @@ const GeminiParsedResultDialog = ({
                   {/* Content Preview (always visible) */}
                   {!isExpanded && !isEditing && (
                     <div className="bg-gray-50 p-3 rounded-lg mb-2">
-                      <Typography variant="small" color="gray" className="line-clamp-2">
-                        {currentLesson.content?.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                      <Typography
+                        variant="small"
+                        color="gray"
+                        className="line-clamp-2"
+                      >
+                        {(currentLesson.content || "")
+                          .replace(/<[^>]*>/g, "")
+                          .substring(0, 150)}
+                        ...
                       </Typography>
                     </div>
                   )}
@@ -361,15 +393,23 @@ const GeminiParsedResultDialog = ({
                       </Typography>
                       {isEditing ? (
                         <Textarea
-                          value={editedLessons[index]?.content || ''}
-                          onChange={(e) => updateEditedLesson(index, 'content', e.target.value)}
+                          value={editedLessons[index]?.content || ""}
+                          onChange={(e) =>
+                            updateEditedLesson(index, "content", e.target.value)
+                          }
                           rows={8}
                           label="Nội dung"
                         />
                       ) : (
                         <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
-                          <Typography variant="small" className="whitespace-pre-wrap">
-                            {currentLesson.content?.replace(/\\n/g, '\n')}
+                          <Typography
+                            variant="small"
+                            className="whitespace-pre-wrap"
+                          >
+                            {(currentLesson.content || "").replace(
+                              /\\n/g,
+                              "\n"
+                            )}
                           </Typography>
                         </div>
                       )}
@@ -377,23 +417,39 @@ const GeminiParsedResultDialog = ({
                       {/* Questions Preview */}
                       {lesson.questions && lesson.questions.length > 0 && (
                         <div className="mt-3">
-                          <Typography variant="small" className="font-bold mb-2">
+                          <Typography
+                            variant="small"
+                            className="font-bold mb-2"
+                          >
                             📝 Câu hỏi ({lesson.questions.length}):
                           </Typography>
                           <div className="space-y-2">
                             {lesson.questions.slice(0, 3).map((q, qIndex) => (
-                              <div key={qIndex} className="bg-white p-2 rounded border">
-                                <Typography variant="small" className="font-medium">
+                              <div
+                                key={qIndex}
+                                className="bg-white p-2 rounded border"
+                              >
+                                <Typography
+                                  variant="small"
+                                  className="font-medium"
+                                >
                                   {qIndex + 1}. {q.questionText}
                                 </Typography>
-                                <Typography variant="small" className="text-green-600">
+                                <Typography
+                                  variant="small"
+                                  className="text-green-600"
+                                >
                                   ✓ {q.correctAnswer}
                                 </Typography>
                               </div>
                             ))}
                             {lesson.questions.length > 3 && (
-                              <Typography variant="small" className="text-gray-600 text-center">
-                                ... và {lesson.questions.length - 3} câu hỏi khác
+                              <Typography
+                                variant="small"
+                                className="text-gray-600 text-center"
+                              >
+                                ... và {lesson.questions.length - 3} câu hỏi
+                                khác
                               </Typography>
                             )}
                           </div>
@@ -422,7 +478,7 @@ const GeminiParsedResultDialog = ({
         {/* Warning */}
         <Alert color="amber" className="mt-4">
           <Typography variant="small">
-            ⚠️ <strong>Lưu ý:</strong> Hãy kiểm tra kỹ nội dung trước khi lưu. 
+            ⚠️ <strong>Lưu ý:</strong> Hãy kiểm tra kỹ nội dung trước khi lưu.
             Bạn có thể chỉnh sửa sau khi import.
           </Typography>
         </Alert>

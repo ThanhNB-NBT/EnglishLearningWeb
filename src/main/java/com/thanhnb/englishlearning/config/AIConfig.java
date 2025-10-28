@@ -20,8 +20,8 @@ public class AIConfig {
     @Data
     public static class GeminiConfig {
         private String apiKey;
-        private String model = "gemini-2.0-flash-lite"; // Default model
-        private String version = "v1";
+        private String model = "gemini-2.0-flash";
+        private String version = "v1beta";
         private Integer maxTokens = 16000;
         private Double temperature = 0.4;
     }

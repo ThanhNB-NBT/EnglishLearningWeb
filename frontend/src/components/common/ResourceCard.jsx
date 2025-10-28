@@ -21,7 +21,7 @@ import {
 
 /**
  * Reusable Resource Card Component for Grid Display
- * 
+ *
  * @param {object} item - Data object (topic, lesson, question, etc.)
  * @param {string} title - Card title (item.name or item.title)
  * @param {string} description - Card description
@@ -43,7 +43,6 @@ const ResourceCard = ({
   description,
   orderLabel,
   icon: Icon,
-  iconBgColor = "blue-500",
   iconColor = "blue-400",
   chips = [],
   stats = [],
@@ -53,6 +52,38 @@ const ResourceCard = ({
   gradientFrom = "slate-800",
   gradientTo = "slate-900",
 }) => {
+  const colorMap = {
+    cyan: {
+      bg: "bg-cyan-600/20",
+      border: "border-cyan-400/40",
+      text: "text-cyan-300",
+    },
+    amber: {
+      bg: "bg-amber-600/20",
+      border: "border-amber-400/40",
+      text: "text-amber-300",
+    },
+    emerald: {
+      bg: "bg-emerald-600/20",
+      border: "border-emerald-400/40",
+      text: "text-emerald-300",
+    },
+    blue: {
+      bg: "bg-blue-600/20",
+      border: "border-blue-400/40",
+      text: "text-blue-300",
+    },
+    purple: {
+      bg: "bg-purple-600/20",
+      border: "border-purple-400/40",
+      text: "text-purple-300",
+    },
+    gray: {
+      bg: "bg-slate-600/20",
+      border: "border-slate-400/40",
+      text: "text-slate-300",
+    },
+  };
 
   const handleTitleClick = () => {
     if (onTitleClick) {
@@ -74,23 +105,36 @@ const ResourceCard = ({
             <div className="flex items-center gap-2">
               {orderLabel && (
                 <div className="px-3 py-1 bg-slate-700/50 rounded-lg border border-slate-600">
-                  <Typography variant="small" className="text-slate-300 font-bold">
+                  <Typography
+                    variant="small"
+                    className="text-slate-300 font-bold"
+                  >
                     {orderLabel}
                   </Typography>
                 </div>
               )}
-              {Icon && (
-                <div className={`p-1.5 bg-${iconBgColor}/20 rounded-lg border border-${iconBgColor}/30`}>
-                  <Icon className={`h-4 w-4 text-${iconColor}`} />
-                </div>
-              )}
+              {Icon &&
+                (() => {
+                  const color = colorMap[iconColor] || colorMap.gray;
+                  return (
+                    <div
+                      className={`p-1.5 ${color.bg} rounded-lg border ${color.border}`}
+                    >
+                      <Icon className={`h-4 w-4 ${color.text}`} />
+                    </div>
+                  );
+                })()}
             </div>
 
             {/* Menu Actions */}
             {Object.keys(menuActions).length > 0 && (
               <Menu>
                 <MenuHandler>
-                  <IconButton variant="text" size="sm" className="text-slate-300 hover:bg-slate-700">
+                  <IconButton
+                    variant="text"
+                    size="sm"
+                    className="text-slate-300 hover:bg-slate-700"
+                  >
                     <EllipsisVerticalIcon className="h-5 w-5" />
                   </IconButton>
                 </MenuHandler>
@@ -129,18 +173,29 @@ const ResourceCard = ({
                     </MenuItem>
                   )}
                   {/* Custom menu actions */}
-                  {menuActions.custom && menuActions.custom.map((action, idx) => (
-                    <MenuItem
-                      key={idx}
-                      onClick={action.onClick}
-                      className={action.className || "hover:bg-tertiary flex items-center gap-2"}
-                    >
-                      {action.icon && <action.icon className={`h-4 w-4 ${action.iconColor}`} />}
-                      <Typography variant="small" className={action.textColor || "text-primary"}>
-                        {action.label}
-                      </Typography>
-                    </MenuItem>
-                  ))}
+                  {menuActions.custom &&
+                    menuActions.custom.map((action, idx) => (
+                      <MenuItem
+                        key={idx}
+                        onClick={action.onClick}
+                        className={
+                          action.className ||
+                          "hover:bg-tertiary flex items-center gap-2"
+                        }
+                      >
+                        {action.icon && (
+                          <action.icon
+                            className={`h-4 w-4 ${action.iconColor}`}
+                          />
+                        )}
+                        <Typography
+                          variant="small"
+                          className={action.textColor || "text-primary"}
+                        >
+                          {action.label}
+                        </Typography>
+                      </MenuItem>
+                    ))}
                 </MenuList>
               </Menu>
             )}
@@ -178,7 +233,10 @@ const ResourceCard = ({
       <CardBody className="p-5">
         {/* Description */}
         {description && (
-          <Typography variant="small" className="text-secondary mb-4 line-clamp-3 leading-relaxed min-h-[4.5rem]">
+          <Typography
+            variant="small"
+            className="text-secondary mb-4 line-clamp-3 leading-relaxed min-h-[4.5rem]"
+          >
             {description}
           </Typography>
         )}
@@ -193,7 +251,10 @@ const ResourceCard = ({
                     <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
                   </div>
                 )}
-                <Typography variant="small" className="text-secondary font-medium">
+                <Typography
+                  variant="small"
+                  className="text-secondary font-medium"
+                >
                   {stat.label} {stat.value}
                 </Typography>
               </div>

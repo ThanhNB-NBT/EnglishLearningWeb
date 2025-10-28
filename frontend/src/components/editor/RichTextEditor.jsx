@@ -32,6 +32,8 @@ const RichTextEditor = ({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
+        link: false,
+        underline: false,
       }),
       Table.configure({
         resizable: true,
