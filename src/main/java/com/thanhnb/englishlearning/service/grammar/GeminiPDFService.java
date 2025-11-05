@@ -1,8 +1,8 @@
-package com.thanhnb.englishlearning.service;
+package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.config.AIConfig;
 import com.thanhnb.englishlearning.dto.grammar.GrammarLessonDTO;
-import com.thanhnb.englishlearning.dto.grammar.GrammarQuestionDTO;
+import com.thanhnb.englishlearning.dto.question.QuestionDTO;
 import com.thanhnb.englishlearning.dto.ParseResult;
 import com.thanhnb.englishlearning.enums.LessonType;
 import com.thanhnb.englishlearning.enums.QuestionType;
@@ -928,7 +928,7 @@ public class GeminiPDFService {
     
             if (lesson.getQuestions() != null && !lesson.getQuestions().isEmpty()) {
                 int questionOrder = 1;
-                for (GrammarQuestionDTO question : lesson.getQuestions()) {
+                for (QuestionDTO question : lesson.getQuestions()) {
                     if (question.getQuestionText() != null) {
                         String normalized = normalizeQuestionText(question.getQuestionText());
                         question.setQuestionText(normalized);
@@ -982,7 +982,7 @@ public class GeminiPDFService {
     /**
      * ✅ Validate FILL_BLANK questions
      */
-    private void validateFillBlankQuestion(GrammarQuestionDTO question, String lessonTitle) {
+    private void validateFillBlankQuestion(QuestionDTO question, String lessonTitle) {
         String text = question.getQuestionText();
 
         // Check if has blank marker

@@ -1,13 +1,15 @@
-package com.thanhnb.englishlearning.controller;
+package com.thanhnb.englishlearning.controller.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.*;
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
 import com.thanhnb.englishlearning.dto.PaginatedResponse;
 import com.thanhnb.englishlearning.dto.ParseResult;
-import com.thanhnb.englishlearning.service.GeminiPDFService;
 import com.thanhnb.englishlearning.service.grammar.GrammarAdminService;
+import com.thanhnb.englishlearning.service.ai.grammar.GrammarAIParsingService;
 import com.thanhnb.englishlearning.util.PaginationHelper;
 import com.thanhnb.englishlearning.dto.grammar.request.ReorderLessonRequest;
+import com.thanhnb.englishlearning.dto.question.QuestionDTO;
+import com.thanhnb.englishlearning.enums.QuestionType;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,35 +46,57 @@ import org.springframework.web.bind.annotation.RequestBody;
 public class GrammarAdminController {
 
         private final GrammarAdminService grammarAdminService;
-        private final GeminiPDFService geminiPDFService;
+        private final GrammarAIParsingService grammarAIParsingService;
 
         // ===== GEMINI PDF PARSING =====
 
+        /**
+         * ENDPOINT: Parse file using AI
+         * Supports PDF, DOCX, and Image files
+         * Returns parsed lessons with adjusted orderIndex
+         */
         @PostMapping("/topics/{topicId}/parse-file")
-        @Operation(summary = "Parse PDF/Image với page selection", description = "Upload PDF (chọn pages) hoặc Image để AI phân tích thành lessons")
+        @Operation(summary = "Parse file (PDF/DOCX/Image) thành Grammar lessons", description = "Sử dụng AI (Gemini) để phân tích file và tạo lessons với questions. "
+                        +
+                        "Hỗ trợ PDF (có thể chọn pages), DOCX, và Image (JPG/PNG/WEBP).")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Parse thành công"),
-                        @ApiResponse(responseCode = "400", description = "File không hợp lệ"),
+                        @ApiResponse(responseCode = "200", description = "Parse thành công, trả về danh sách lessons"),
+                        @ApiResponse(responseCode = "400", description = "File không hợp lệ hoặc topic không tồn tại"),
                         @ApiResponse(responseCode = "500", description = "Lỗi server hoặc Gemini API")
         })
         public ResponseEntity<CustomApiResponse<Map<String, Object>>> parseFile(
-                        @Parameter(description = "ID của topic") @PathVariable Long topicId,
-                        @Parameter(description = "File PDF hoặc Image (max 20MB)") @RequestParam("file") MultipartFile file,
-                        @Parameter(description = "Danh sách pages cần parse (nếu là PDF). VD: [1,2,3,5,7]") @RequestParam(required = false) List<Integer> pages) {
+                        @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
+
+                        @Parameter(description = "File PDF/DOCX/Image (max 20MB)", required = true) @RequestParam("file") MultipartFile file,
+
+                        @Parameter(description = "Danh sách số trang cần parse (chỉ cho PDF). VD: [1,2,3,5,7]. Nếu không có thì parse toàn bộ.") @RequestParam(required = false) List<Integer> pages) {
+
                 try {
-                        log.info("📄 Received file parsing request: file={}, topicId={}, pages={}",
-                                        file.getOriginalFilename(), topicId, pages);
+                        log.info("📄 [PARSE FILE] Received request: file={}, topicId={}, pages={}, user={}",
+                                        file.getOriginalFilename(), topicId,
+                                        pages != null ? pages.size() + " selected" : "all",
+                                        "ThanhNB-NBT");
 
-                        // ✅ Call service with page selection
-                        ParseResult result = geminiPDFService.parseFile(file, topicId, pages);
+                        //Step 1: Parse file using AI
+                        log.info("Calling AI parsing service...");
+                        ParseResult result = grammarAIParsingService.parseFileWithTopicId(file, topicId, pages);
 
-                        // Tính summary
+                        if (result == null || result.lessons == null || result.lessons.isEmpty()) {
+                                log.warn(" AI returned empty result");
+                                return ResponseEntity.badRequest()
+                                                .body(CustomApiResponse.badRequest(
+                                                                "AI không trả về lessons nào. Vui lòng kiểm tra nội dung file."));
+                        }
+
+                        // Step 2: Calculate statistics
                         long theoryCount = result.lessons.stream()
-                                        .filter(l -> "THEORY".equals(l.getLessonType().name()))
+                                        .filter(l -> l.getLessonType() != null
+                                                        && "THEORY".equals(l.getLessonType().name()))
                                         .count();
 
                         long practiceCount = result.lessons.stream()
-                                        .filter(l -> "PRACTICE".equals(l.getLessonType().name()))
+                                        .filter(l -> l.getLessonType() != null
+                                                        && "PRACTICE".equals(l.getLessonType().name()))
                                         .count();
 
                         int totalQuestions = result.lessons.stream()
@@ -80,92 +104,184 @@ public class GrammarAdminController {
                                         .mapToInt(l -> l.getQuestions().size())
                                         .sum();
 
+                        long multipleChoiceCount = result.lessons.stream()
+                                        .filter(l -> l.getQuestions() != null)
+                                        .flatMap(l -> l.getQuestions().stream())
+                                        .filter(q -> q.getQuestionType() == QuestionType.MULTIPLE_CHOICE)
+                                        .count();
+
+                        long fillBlankCount = result.lessons.stream()
+                                        .filter(l -> l.getQuestions() != null)
+                                        .flatMap(l -> l.getQuestions().stream())
+                                        .filter(q -> q.getQuestionType() == QuestionType.FILL_BLANK)
+                                        .count();
+
+                        long translateCount = result.lessons.stream()
+                                        .filter(l -> l.getQuestions() != null)
+                                        .flatMap(l -> l.getQuestions().stream())
+                                        .filter(q -> q.getQuestionType() == QuestionType.TRANSLATE)
+                                        .count();
+
+                        //Step 3: Build response
+                        Map<String, Object> summary = new HashMap<>();
+                        summary.put("fileName", file.getOriginalFilename());
+                        summary.put("fileSize", String.format("%.2f MB", file.getSize() / (1024.0 * 1024.0)));
+                        summary.put("fileType", file.getContentType());
+                        summary.put("pagesProcessed", pages != null ? pages.size() : "all");
+                        summary.put("topicId", topicId);
+                        summary.put("totalLessons", result.lessons.size());
+                        summary.put("theoryLessons", theoryCount);
+                        summary.put("practiceLessons", practiceCount);
+                        summary.put("totalQuestions", totalQuestions);
+                        summary.put("multipleChoice", multipleChoiceCount);
+                        summary.put("fillBlank", fillBlankCount);
+                        summary.put("translate", translateCount);
+                        summary.put("averageQuestionsPerPractice",
+                                        practiceCount > 0
+                                                        ? String.format("%.1f", (double) totalQuestions / practiceCount)
+                                                        : "0");
+
                         Map<String, Object> response = new HashMap<>();
                         response.put("parsedData", result);
-                        response.put("summary", Map.of(
-                                        "fileName", file.getOriginalFilename(),
-                                        "fileSize", String.format("%.2f MB", file.getSize() / (1024.0 * 1024.0)),
-                                        "pagesProcessed", pages != null ? pages.size() : "all",
-                                        "totalLessons", result.lessons.size(),
-                                        "theoryLessons", theoryCount,
-                                        "practiceLessons", practiceCount,
-                                        "totalQuestions", totalQuestions,
-                                        "averageQuestionsPerPractice",
-                                        practiceCount > 0 ? totalQuestions / practiceCount : 0));
+                        response.put("summary", summary);
 
-                        log.info("✅ File parsed successfully: {} lessons, {} questions",
-                                        result.lessons.size(), totalQuestions);
+                        log.info("[PARSE FILE] Success: {} lessons ({} theory, {} practice), {} questions",
+                                        result.lessons.size(), theoryCount, practiceCount, totalQuestions);
 
                         return ResponseEntity.ok(
                                         CustomApiResponse.success(response,
-                                                        "✅ Phân tích thành công! " + result.lessons.size()
-                                                                        + " bài học được tạo."));
+                                                        String.format("✅ Phân tích thành công! Tạo được %d bài học với %d câu hỏi.",
+                                                                        result.lessons.size(), totalQuestions)));
 
                 } catch (IllegalArgumentException e) {
-                        log.warn("⚠️ Invalid request: {}", e.getMessage());
+                        log.warn("[PARSE FILE] Invalid request: {}", e.getMessage());
                         return ResponseEntity.badRequest()
                                         .body(CustomApiResponse.badRequest(e.getMessage()));
+
                 } catch (Exception e) {
-                        log.error("❌ Error parsing file: ", e);
+                        log.error("[PARSE FILE] Error: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi khi parse file: " + e.getMessage()));
+                                        .body(CustomApiResponse.badRequest(
+                                                        String.format("Lỗi khi parse file: %s",
+                                                                        e.getMessage() != null ? e.getMessage()
+                                                                                        : "Unknown error")));
                 }
         }
 
+        /**
+         * ENDPOINT: Save parsed lessons to database
+         * Takes ParseResult from endpoint 1 and saves to DB
+         */
         @PostMapping("/topics/{topicId}/save-parsed-lessons")
-        @Operation(summary = "Import lessons từ kết quả parse", description = "Lưu các bài học đã được parse từ PDF vào database với questions")
+        @Operation(summary = "Lưu parsed lessons vào database", description = "Lưu các bài học đã được parse từ file vào database. "
+                        +
+                        "Tự động tạo lessons và questions với orderIndex đã được adjust.")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Import thành công"),
-                        @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+                        @ApiResponse(responseCode = "200", description = "Import thành công vào database"),
+                        @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc topic không tồn tại"),
                         @ApiResponse(responseCode = "500", description = "Lỗi khi lưu vào database")
         })
         public ResponseEntity<CustomApiResponse<Map<String, Object>>> saveParsedLessons(
-                        @Parameter(description = "ID của topic") @PathVariable Long topicId,
-                        @RequestBody ParseResult parsedResult) {
-                try {
-                        log.info("💾 Saving {} parsed lessons for topicId={}",
-                                        parsedResult.lessons.size(), topicId);
+                        @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
 
-                        if (parsedResult.lessons == null || parsedResult.lessons.isEmpty()) {
+                        @Parameter(description = "ParseResult từ endpoint parse-file", required = true) @RequestBody ParseResult parsedResult) {
+
+                try {
+                        log.info("[SAVE LESSONS] Saving {} parsed lessons for topicId={}, user={}",
+                                        parsedResult.lessons != null ? parsedResult.lessons.size() : 0,
+                                        topicId,
+                                        "ThanhNB-NBT");
+
+                        // Step 1: Validate input
+                        if (parsedResult == null || parsedResult.lessons == null || parsedResult.lessons.isEmpty()) {
+                                log.warn("Empty parsed result");
                                 return ResponseEntity.badRequest()
                                                 .body(CustomApiResponse.badRequest("Không có lesson nào để import"));
                         }
 
-                        // ✅ GỌI SERVICE METHOD MỚI - Import cả lessons và questions
-                        List<GrammarLessonDTO> savedLessons = grammarAdminService.importLessonsFromPDF(
+                        // Step 2: Import lessons to database
+                        log.info("Importing to database...");
+                        List<GrammarLessonDTO> savedLessons = grammarAdminService.importLessonsFromFile(
                                         topicId, parsedResult.lessons);
 
-                        // Tính tổng số questions
+                        if (savedLessons.isEmpty()) {
+                                log.warn("No lessons were saved");
+                                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                .body(CustomApiResponse
+                                                                .badRequest("Không thể lưu lessons vào database"));
+                        }
+
+                        // Step 3: Calculate statistics
+                        long theoryCount = savedLessons.stream()
+                                        .filter(l -> l.getLessonType() != null
+                                                        && "THEORY".equals(l.getLessonType().name()))
+                                        .count();
+
+                        long practiceCount = savedLessons.stream()
+                                        .filter(l -> l.getLessonType() != null
+                                                        && "PRACTICE".equals(l.getLessonType().name()))
+                                        .count();
+
                         int totalQuestionsCreated = savedLessons.stream()
                                         .filter(l -> l.getQuestionCount() != null)
                                         .mapToInt(GrammarLessonDTO::getQuestionCount)
                                         .sum();
 
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("lessonsCreated", savedLessons.size());
-                        result.put("questionsCreated", totalQuestionsCreated);
-                        result.put("lessons", savedLessons.stream()
-                                        .map(l -> Map.of(
-                                                        "id", l.getId(),
-                                                        "title", l.getTitle(),
-                                                        "lessonType", l.getLessonType(),
-                                                        "orderIndex", l.getOrderIndex(),
-                                                        "questionCount",
-                                                        l.getQuestionCount() != null ? l.getQuestionCount() : 0))
-                                        .collect(Collectors.toList()));
+                        // Step 4: Build response
+                        Map<String, Object> summary = new HashMap<>();
+                        summary.put("topicId", topicId);
+                        summary.put("lessonsCreated", savedLessons.size());
+                        summary.put("theoryLessons", theoryCount);
+                        summary.put("practiceLessons", practiceCount);
+                        summary.put("questionsCreated", totalQuestionsCreated);
+                        summary.put("orderIndexRange",
+                                        String.format("%d - %d",
+                                                        savedLessons.get(0).getOrderIndex(),
+                                                        savedLessons.get(savedLessons.size() - 1).getOrderIndex()));
 
-                        log.info("✅ Successfully imported {} lessons with {} questions",
-                                        savedLessons.size(), totalQuestionsCreated);
+                        // Lesson details for UI
+                        List<Map<String, Object>> lessonList = savedLessons.stream()
+                                        .map(l -> {
+                                                Map<String, Object> lessonMap = new HashMap<>();
+                                                lessonMap.put("id", l.getId());
+                                                lessonMap.put("title", l.getTitle());
+                                                lessonMap.put("lessonType", l.getLessonType());
+                                                lessonMap.put("orderIndex", l.getOrderIndex());
+                                                lessonMap.put("questionCount",
+                                                                l.getQuestionCount() != null ? l.getQuestionCount()
+                                                                                : 0);
+                                                lessonMap.put("pointsReward", l.getPointsReward());
+                                                lessonMap.put("estimatedDuration", l.getEstimatedDuration());
+                                                lessonMap.put("isActive", l.getIsActive());
+                                                return lessonMap;
+                                        })
+                                        .collect(Collectors.toList());
+
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("summary", summary);
+                        result.put("lessons", lessonList);
+
+                        log.info("[SAVE LESSONS] Success: {} lessons ({} theory, {} practice), {} questions created",
+                                        savedLessons.size(), theoryCount, practiceCount, totalQuestionsCreated);
 
                         return ResponseEntity.ok(
                                         CustomApiResponse.success(result,
-                                                        "✅ Import thành công " + savedLessons.size() + " bài học và "
-                                                                        + totalQuestionsCreated + " câu hỏi!"));
+                                                        String.format("✅ Import thành công %d bài học và %d câu hỏi!",
+                                                                        savedLessons.size(), totalQuestionsCreated)));
+
+                } catch (RuntimeException e) {
+                        log.error("[SAVE LESSONS] Business logic error: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(
+                                                        String.format("Lỗi: %s", e.getMessage())));
 
                 } catch (Exception e) {
-                        log.error("❌ Error saving parsed lessons: ", e);
+                        log.error("[SAVE LESSONS] Unexpected error: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi khi lưu bài học: " + e.getMessage()));
+                                        .body(CustomApiResponse.badRequest(
+                                                        String.format("Lỗi khi lưu bài học: %s",
+                                                                        e.getMessage() != null ? e.getMessage()
+                                                                                        : "Unknown error")));
                 }
         }
 
@@ -469,7 +585,7 @@ public class GrammarAdminController {
                         @ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
                         @ApiResponse(responseCode = "400", description = "Lesson không tồn tại")
         })
-        public ResponseEntity<CustomApiResponse<PaginatedResponse<GrammarQuestionDTO>>> getQuestionsByLesson(
+        public ResponseEntity<CustomApiResponse<PaginatedResponse<QuestionDTO>>> getQuestionsByLesson(
                         @Parameter(description = "ID của lesson") @PathVariable Long lessonId,
 
                         @Parameter(description = "Số trang (bắt đầu từ 0)") @RequestParam(required = false) Integer page,
@@ -479,10 +595,10 @@ public class GrammarAdminController {
                         @Parameter(description = "Sắp xếp theo") @RequestParam(required = false) String sort) {
                 try {
                         Pageable pageable = PaginationHelper.createPageable(page, size, sort);
-                        Page<GrammarQuestionDTO> questionPage = grammarAdminService
+                        Page<QuestionDTO> questionPage = grammarAdminService
                                         .getQuestionsByLessonPaginated(lessonId, pageable);
 
-                        PaginatedResponse<GrammarQuestionDTO> response = PaginatedResponse.of(questionPage);
+                        PaginatedResponse<QuestionDTO> response = PaginatedResponse.of(questionPage);
 
                         log.info("✅ Retrieved page {}/{} with {} questions for lessonId={}",
                                         response.getPagination().getCurrentPage() + 1,
@@ -506,10 +622,10 @@ public class GrammarAdminController {
                         @ApiResponse(responseCode = "201", description = "Tạo thành công"),
                         @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
         })
-        public ResponseEntity<CustomApiResponse<GrammarQuestionDTO>> createQuestion(
-                        @Valid @RequestBody GrammarQuestionDTO dto) {
+        public ResponseEntity<CustomApiResponse<QuestionDTO>> createQuestion(
+                        @Valid @RequestBody QuestionDTO dto) {
                 try {
-                        GrammarQuestionDTO created = grammarAdminService.createQuestion(dto);
+                        QuestionDTO created = grammarAdminService.createQuestion(dto);
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(CustomApiResponse.created(created, "Tạo question thành công"));
                 } catch (Exception e) {
@@ -524,11 +640,11 @@ public class GrammarAdminController {
                         @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
                         @ApiResponse(responseCode = "400", description = "Không tìm thấy hoặc dữ liệu không hợp lệ")
         })
-        public ResponseEntity<CustomApiResponse<GrammarQuestionDTO>> updateQuestion(
+        public ResponseEntity<CustomApiResponse<QuestionDTO>> updateQuestion(
                         @Parameter(description = "ID của question") @PathVariable Long id,
-                        @Valid @RequestBody GrammarQuestionDTO dto) {
+                        @Valid @RequestBody QuestionDTO dto) {
                 try {
-                        GrammarQuestionDTO updated = grammarAdminService.updateQuestion(id, dto);
+                        QuestionDTO updated = grammarAdminService.updateQuestion(id, dto);
                         return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));
                 } catch (Exception e) {
                         return ResponseEntity.badRequest()
@@ -606,11 +722,11 @@ public class GrammarAdminController {
                         @ApiResponse(responseCode = "201", description = "Tạo thành công"),
                         @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
         })
-        public ResponseEntity<CustomApiResponse<List<GrammarQuestionDTO>>> createQuestionsInBulk(
+        public ResponseEntity<CustomApiResponse<List<QuestionDTO>>> createQuestionsInBulk(
                         @Parameter(description = "ID của lesson") @PathVariable Long lessonId,
-                        @RequestBody List<GrammarQuestionDTO> questions) {
+                        @RequestBody List<QuestionDTO> questions) {
                 try {
-                        List<GrammarQuestionDTO> created = grammarAdminService.createQuestionsInBulk(lessonId,
+                        List<QuestionDTO> created = grammarAdminService.createQuestionsInBulk(lessonId,
                                         questions);
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(CustomApiResponse.created(created,

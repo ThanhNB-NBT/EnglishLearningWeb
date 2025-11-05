@@ -81,7 +81,7 @@ const Sidebar = () => {
     { label: "Grammar", path: USER_ROUTES.GRAMMAR, icon: BookOpenIcon },
     { label: "Listening", path: "/user/listening", icon: SpeakerWaveIcon },
     { label: "Writing", path: "/user/writing", icon: PencilSquareIcon },
-    { label: "Reading", path: "/user/reading", icon: ChatBubbleLeftRightIcon },
+    { label: "Reading", path: USER_ROUTES.READING, icon: ChatBubbleLeftRightIcon },
     {
       label: "Vocabulary",
       path: "/user/vocabulary",
@@ -100,7 +100,7 @@ const Sidebar = () => {
     },
     {
       label: "Quản lý bài đọc",
-      path: "/admin/reading",
+      path: ADMIN_ROUTES.READING_LESSONS,
       icon: ChatBubbleLeftRightIcon,
     },
     {

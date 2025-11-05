@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.dto.grammar;
+package com.thanhnb.englishlearning.dto.question;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -10,7 +10,7 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Lựa chọn cho câu hỏi trắc nghiệm")
-public class GrammarQuestionOptionDTO {
+public class QuestionOptionDTO {
     
     @Schema(description = "ID lựa chọn", example = "201")
     private Long id;

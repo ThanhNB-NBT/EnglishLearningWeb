@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.dto.grammar;
+package com.thanhnb.englishlearning.dto.question;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -22,7 +22,7 @@ public record QuestionResultDTO(
 
     @Schema(description = "Đúng hay sai", example = "true")
     Boolean isCorrect,
-
+    
     @Schema(description = "Giải thích")
     String explanation,
 

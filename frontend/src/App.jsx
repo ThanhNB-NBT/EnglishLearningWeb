@@ -12,6 +12,7 @@ import UserRegister from './pages/user/auth/Register';
 import UserHome from './pages/user/Home';
 import UserLayout from './layout/UserLayout';
 import GrammarLearning from './pages/user/grammar/GrammarLearning';
+import ReadingLearning from './pages/user/reading/ReadingLearning';
 
 // ===== ADMIN PAGES =====
 import AdminLogin from './pages/admin/auth/Login';
@@ -26,6 +27,12 @@ import AdminGrammarLessonList from './pages/admin/grammar/lessons/GrammarLessonL
 import AdminGrammarLessonForm from './pages/admin/grammar/lessons/GrammarLessonForm';
 import AdminGrammarQuestionList from './pages/admin/grammar/questions/GrammarQuestionList';
 import AdminGrammarQuestionForm from './pages/admin/grammar/questions/GrammarQuestionForm';
+
+// ===== ADMIN READING PAGES =====
+import AdminReadingLessonList from './pages/admin/reading/lessons/ReadingLessonList';
+import AdminReadingLessonForm from './pages/admin/reading/lessons/ReadingLessonForm';
+import AdminReadingQuestionList from './pages/admin/reading/questions/ReadingQuestionList';
+import AdminReadingQuestionForm from './pages/admin/reading/questions/ReadingQuestionForm';
 
 // ===== COMMON PAGES =====
 import VerifyEmail from './auth/VerifyEmail';
@@ -84,6 +91,7 @@ const App = () => {
           <Route path={USER_ROUTES.HOME} element={<UserHome />} />
           {/* Add more user routes here */}
           <Route path={USER_ROUTES.GRAMMAR} element={<GrammarLearning />} />
+          <Route path={USER_ROUTES.READING} element={<ReadingLearning />} />
         </Route>
 
         {/* ===== ADMIN ROUTES ===== */}
@@ -115,6 +123,16 @@ const App = () => {
           <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_QUESTIONS} element={<AdminGrammarQuestionList />} />
           <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_QUESTION_CREATE} element={<AdminGrammarQuestionForm />} />
           <Route path={ADMIN_ROUTE_PATTERNS.GRAMMAR_QUESTION_EDIT} element={<AdminGrammarQuestionForm />} />
+
+          {/* Reading Lessons */}
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_LESSONS} element={<AdminReadingLessonList />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_LESSON_CREATE} element={<AdminReadingLessonForm />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_LESSON_EDIT} element={<AdminReadingLessonForm/>} />
+          
+          {/* READING QUESTIONS */}
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_QUESTIONS} element={<AdminReadingQuestionList />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_QUESTION_CREATE} element={<AdminReadingQuestionForm />} />
+          <Route path={ADMIN_ROUTE_PATTERNS.READING_QUESTION_EDIT} element={<AdminReadingQuestionForm />} />
         </Route>
 
         {/* ===== COMMON ROUTES ===== */}

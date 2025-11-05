@@ -1,6 +1,7 @@
 package com.thanhnb.englishlearning.dto.grammar;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.thanhnb.englishlearning.dto.question.QuestionDTO;
 import com.thanhnb.englishlearning.enums.LessonType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -11,11 +12,6 @@ import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * ✨ UNIFIED DTO - Dùng cho cả Summary và Full Details
- * - Summary: Chỉ set basic fields
- * - Full: Set thêm content, questions
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -70,7 +66,7 @@ public class GrammarLessonDTO {
     private String content;
 
     @Schema(description = "Danh sách câu hỏi")
-    private List<GrammarQuestionDTO> questions;
+    private List<QuestionDTO> questions;
 
     // === USER PROGRESS (Chỉ có khi user logged in) ===
     @Schema(description = "Đã hoàn thành chưa", example = "false")

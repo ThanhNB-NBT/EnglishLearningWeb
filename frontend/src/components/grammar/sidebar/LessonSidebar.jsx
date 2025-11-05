@@ -27,8 +27,7 @@ const LessonSidebar = ({
   expandedTopics = [],
   onToggleTopic, 
   onSelectLesson 
-}) => {
-  console.log("📊 LessonSidebar props:", { topics, currentTopic, expandedTopics });
+}) => {{ topics, currentTopic, expandedTopics };
 
   return (
     <Card className="h-full rounded-none shadow-xl card-base flex flex-col overflow-hidden">
