@@ -1,9 +1,10 @@
 package com.thanhnb.englishlearning.dto.grammar.response;
 
-import com.thanhnb.englishlearning.dto.grammar.QuestionResultDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
+
+import com.thanhnb.englishlearning.dto.question.QuestionResultDTO;
 
 @Schema(description = "Kết quả sau khi nộp bài học")
 public record LessonResultResponse(

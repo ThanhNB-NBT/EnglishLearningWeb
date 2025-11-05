@@ -9,14 +9,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.thanhnb.englishlearning.entity.User;
-
+import com.thanhnb.englishlearning.service.common.LessonProgressService;
 @Entity
 @Table(name = "user_grammar_progress",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "lesson_id"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserGrammarProgress {
+public class UserGrammarProgress implements LessonProgressService.LessonProgress {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -1,6 +1,6 @@
 package com.thanhnb.englishlearning.service.question;
 
-import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
+import com.thanhnb.englishlearning.dto.question.SubmitAnswerRequest;
 import com.thanhnb.englishlearning.entity.question.Question;
 import com.thanhnb.englishlearning.enums.QuestionType;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,7 @@ public class AnswerCheckingService {
                 return checkTranslation(question, answerRequest);
 
             case TRUE_FALSE:
-                return checkTrueFalse(question, answerRequest);
+                return checkMultipleChoice(question, answerRequest);
 
             case SHORT_ANSWER:
                 return checkShortAnswer(question, answerRequest);
@@ -57,16 +57,20 @@ public class AnswerCheckingService {
 
     /**
      * Kiểm tra câu trắc nghiệm (Multiple Choice)
-     */
-    /**
-     * Kiểm tra câu trắc nghiệm (Multiple Choice)
      * Support both selectedOptionId và answer text
      */
     private boolean checkMultipleChoice(Question question, SubmitAnswerRequest answerRequest) {
+        // ✅ Validate options exist
+        if (question.getOptions() == null || question.getOptions().isEmpty()) {
+            log.warn("Question {} has no options", question.getId());
+            return false;
+        }
+
         // ✅ Option 1: Check by selectedOptionId (if provided)
         if (answerRequest.getSelectedOptionId() != null) {
             boolean isCorrect = question.getOptions().stream()
                     .anyMatch(option -> option.getId().equals(answerRequest.getSelectedOptionId())
+                            && option.getIsCorrect() != null
                             && option.getIsCorrect());
 
             log.debug("Multiple choice check (by ID): questionId={}, selectedOptionId={}, isCorrect={}",
@@ -80,8 +84,19 @@ public class AnswerCheckingService {
             String userAnswer = answerRequest.getAnswer().trim();
 
             boolean isCorrect = question.getOptions().stream()
-                    .anyMatch(option -> option.getIsCorrect() &&
-                            option.getOptionText().trim().equalsIgnoreCase(userAnswer));
+                    .anyMatch(option -> {
+
+                        if (option.getOptionText() == null) {
+                            log.warn("Option {} has NULL optionText", option.getId());
+                            return false;
+                        }
+
+                        if (option.getIsCorrect() == null || !option.getIsCorrect()) {
+                            return false;
+                        }
+
+                        return option.getOptionText().trim().equalsIgnoreCase(userAnswer);
+                    });
 
             log.debug("Multiple choice check (by text): questionId={}, answer='{}', isCorrect={}",
                     question.getId(), userAnswer, isCorrect);
@@ -101,6 +116,11 @@ public class AnswerCheckingService {
         String userAnswerStr = answerRequest.getAnswer();
 
         if (userAnswerStr == null || userAnswerStr.trim().isEmpty()) {
+            return false;
+        }
+
+        if (question.getCorrectAnswer() == null) {
+            log.warn("Question {} has NULL correctAnswer", question.getId());
             return false;
         }
 
@@ -199,6 +219,11 @@ public class AnswerCheckingService {
             return false;
         }
 
+        if (question.getCorrectAnswer() == null) {
+            log.warn("Question {} (VERB_FORM) has NULL correctAnswer", question.getId());
+            return false;
+        }
+
         String userAnswer = strictNormalize(answerRequest.getAnswer());
         String[] correctAnswers = question.getCorrectAnswer().split("\\|");
 
@@ -223,6 +248,11 @@ public class AnswerCheckingService {
      */
     private boolean checkTranslation(Question question, SubmitAnswerRequest answerRequest) {
         if (answerRequest.getAnswer() == null || answerRequest.getAnswer().trim().isEmpty()) {
+            return false;
+        }
+
+        if (question.getCorrectAnswer() == null) {
+            log.warn("Question {} (TRANSLATE) has NULL correctAnswer", question.getId());
             return false;
         }
 
@@ -482,26 +512,29 @@ public class AnswerCheckingService {
     // ===== TRUE/FALSE - ĐƠN GIẢN HÓA =====
 
     /**
-     * Kiểm tra True/False - ĐƠN GIẢN
-     * Frontend gửi: "true" hoặc "false" (string)
-     * Backend chỉ cần so sánh trực tiếp
+     * ✅ FIXED: Check TRUE_FALSE case-insensitive
      */
-    private boolean checkTrueFalse(Question question, SubmitAnswerRequest answerRequest) {
-        if (answerRequest.getAnswer() == null || answerRequest.getAnswer().trim().isEmpty()) {
-            return false;
-        }
+    // private boolean checkTrueFalse(Question question, SubmitAnswerRequest answerRequest) {
+    //     if (answerRequest.getAnswer() == null || answerRequest.getAnswer().trim().isEmpty()) {
+    //         return false;
+    //     }
 
-        String userAnswer = answerRequest.getAnswer().trim().toLowerCase();
-        String correctAnswer = question.getCorrectAnswer().trim().toLowerCase();
+    //     if (question.getCorrectAnswer() == null) {
+    //         log.warn("Question {} (TRUE_FALSE) has NULL correctAnswer", question.getId());
+    //         return false;
+    //     }
 
-        // So sánh trực tiếp "true" với "true" hoặc "false" với "false"
-        boolean isCorrect = userAnswer.equals(correctAnswer);
+    //     // ✅ FIX: Case-insensitive comparison
+    //     String userAnswer = answerRequest.getAnswer().trim().toUpperCase();
+    //     String correctAnswer = question.getCorrectAnswer().trim().toUpperCase();
 
-        log.debug("True/False check: user='{}', correct='{}', isCorrect={}",
-                userAnswer, correctAnswer, isCorrect);
+    //     boolean isCorrect = userAnswer.equals(correctAnswer);
 
-        return isCorrect;
-    }
+    //     log.info("🔍 TRUE_FALSE CHECK: questionId={}, user='{}', correct='{}', result={}",
+    //             question.getId(), userAnswer, correctAnswer, isCorrect ? "✅" : "❌");
+
+    //     return isCorrect;
+    // }
 
     /**
      * Kiểm tra câu trả lời ngắn
@@ -509,6 +542,11 @@ public class AnswerCheckingService {
      */
     private boolean checkShortAnswer(Question question, SubmitAnswerRequest answerRequest) {
         if (answerRequest.getAnswer() == null || answerRequest.getAnswer().trim().isEmpty()) {
+            return false;
+        }
+
+        if (question.getCorrectAnswer() == null) {
+            log.warn("Question {} (SHORT_ANSWER) has NULL correctAnswer", question.getId());
             return false;
         }
 
@@ -738,6 +776,10 @@ public class AnswerCheckingService {
             return "💡 Hãy điền một từ hoặc cụm từ phù hợp";
         }
 
+        if (question.getCorrectAnswer() == null) {
+            return "💡 Đáp án chưa được thiết lập";
+        }
+
         String normalized = smartNormalize(userAnswer);
         String correct = smartNormalize(question.getCorrectAnswer().split("\\|")[0]);
 
@@ -763,6 +805,10 @@ public class AnswerCheckingService {
     private String generateVerbFormHint(Question question, String userAnswer) {
         if (userAnswer == null || userAnswer.trim().isEmpty()) {
             return "💡 Hãy chia động từ theo chủ ngữ và thì";
+        }
+
+        if (question.getCorrectAnswer() == null) {
+            return "💡 Đáp án chưa được thiết lập";
         }
 
         String normalized = strictNormalize(userAnswer);

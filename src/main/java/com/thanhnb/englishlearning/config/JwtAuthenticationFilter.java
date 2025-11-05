@@ -2,6 +2,7 @@ package com.thanhnb.englishlearning.config;
 
 import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
+import com.thanhnb.englishlearning.service.user.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,7 +13,6 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,7 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final JwtBlacklistService jwtBlacklistService;
-    private final UserDetailsService userDetailsService; 
+    private final CustomUserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(
@@ -33,32 +33,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response, 
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        // Skip authentication cho public endpoints
         if (shouldNotFilter(request)) {
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            // Extract JWT token từ Authorization header
             String token = extractTokenFromRequest(request);
             
             if (token != null) {
-                // 1. Kiểm tra token có bị blacklist không (đã logout)
                 if (jwtBlacklistService.isTokenBlacklisted(token)) {
                     log.debug("Token is blacklisted, request denied");
                     sendErrorResponse(response, "Token has been revoked");
                     return;
                 }
                 
-                // 2. Validate JWT token
                 if (jwtUtil.isTokenValid(token)) {
-                    // Extract thông tin user từ JWT
                     String username = jwtUtil.getUsernameFromToken(token);
-                    
-                    // Set authentication context
                     setAuthenticationContext(username);
-                    
                     log.debug("JWT authentication successful for user: {}", username);
                 } else {
                     log.debug("JWT token validation failed");
@@ -79,9 +71,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    /**
-     * Extract JWT token từ Authorization header
-     */
     private String extractTokenFromRequest(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         
@@ -92,9 +81,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    /**
-     * Set authentication context cho Spring Security 
-     */
     private void setAuthenticationContext(String username) {
         try {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
@@ -103,7 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 new UsernamePasswordAuthenticationToken(
                     userDetails,
                     null, 
-                    userDetails.getAuthorities() // Lấy authorities thực từ UserDetails
+                    userDetails.getAuthorities()
                 );
             
             SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -113,20 +99,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * Gửi response lỗi
-     */
     private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.getWriter().write("{\"error\": \"" + message + "\"}");
     }
 
-    /**
-     * Skip authentication cho các public endpoints
-     * ⚠️ FIX: BỎ /api/auth/logout khỏi danh sách skip
-     * → Logout PHẢI CẦN token để biết blacklist token nào
-     */
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         String path = request.getServletPath();
@@ -138,8 +116,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.startsWith("/api/auth/forgot-password") ||
                path.startsWith("/api/auth/verify-reset-password") ||
                path.startsWith("/api/auth/endpoints") ||
-               // ⚠️ BỎ logout khỏi đây - logout PHẢI CẦN authentication
-               // path.startsWith("/api/auth/logout") || 
                path.startsWith("/actuator/") ||
                path.startsWith("/swagger-ui/") ||
                path.startsWith("/v3/api-docs") ||

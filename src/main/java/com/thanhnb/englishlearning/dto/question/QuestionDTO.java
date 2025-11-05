@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.dto.grammar;
+package com.thanhnb.englishlearning.dto.question;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.thanhnb.englishlearning.enums.QuestionType;
@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Câu hỏi ngữ pháp")
-public class GrammarQuestionDTO {
+public class QuestionDTO {
     
     @Schema(description = "ID câu hỏi", example = "101")
     private Long id;
@@ -55,7 +55,7 @@ public class GrammarQuestionDTO {
     private LocalDateTime createdAt;
 
     @Schema(description = "Các lựa chọn (Bắt buộc cho MULTIPLE_CHOICE, tối thiểu 2 lựa chọn)")
-    private List<GrammarQuestionOptionDTO> options;
+    private List<QuestionOptionDTO> options;
 
     @Schema(description = "Hiển thị đáp án đúng không", example = "false")
     private Boolean showCorrectAnswer = true;

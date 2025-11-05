@@ -1,4 +1,4 @@
-package com.thanhnb.englishlearning.controller;
+package com.thanhnb.englishlearning.controller.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.*;
 import com.thanhnb.englishlearning.dto.grammar.request.SubmitLessonRequest;

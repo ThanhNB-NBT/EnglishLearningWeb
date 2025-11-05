@@ -3,54 +3,68 @@ package com.thanhnb.englishlearning.service.grammar;
 import com.thanhnb.englishlearning.dto.grammar.*;
 import com.thanhnb.englishlearning.dto.grammar.request.SubmitLessonRequest;
 import com.thanhnb.englishlearning.dto.grammar.response.LessonResultResponse;
-import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
+import com.thanhnb.englishlearning.dto.question.QuestionDTO;
+import com.thanhnb.englishlearning.dto.question.QuestionResultDTO;
 import com.thanhnb.englishlearning.entity.grammar.*;
 import com.thanhnb.englishlearning.entity.question.Question;
-import com.thanhnb.englishlearning.entity.question.QuestionOption;
 import com.thanhnb.englishlearning.entity.User;
 import com.thanhnb.englishlearning.enums.ParentType;
 import com.thanhnb.englishlearning.enums.LessonType;
-import com.thanhnb.englishlearning.enums.QuestionType;
 import com.thanhnb.englishlearning.repository.UserRepository;
-import com.thanhnb.englishlearning.repository.question.QuestionRepository;
-import com.thanhnb.englishlearning.repository.question.QuestionOptionRepository;
 import com.thanhnb.englishlearning.repository.grammar.*;
-import com.thanhnb.englishlearning.service.question.AnswerCheckingService;
+import com.thanhnb.englishlearning.service.common.BaseLearningService;
+import com.thanhnb.englishlearning.service.common.LessonProgressService;
+import com.thanhnb.englishlearning.service.question.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Collections;
 
+/**
+ * ✅ REFACTORED: Grammar service - CHỈ chứa logic RIÊNG của Grammar
+ * Logic chung đã extract sang:
+ * - BaseLearningService: Unlock logic, scoring
+ * - QuestionService: Question processing
+ * - LessonProgressService: Progress tracking
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class GrammarService {
+public class GrammarService extends BaseLearningService<GrammarLesson, UserGrammarProgress> {
 
+    // ===== REPOSITORIES =====
     private final GrammarTopicRepository grammarTopicRepository;
     private final GrammarLessonRepository grammarLessonRepository;
-    private final QuestionRepository questionRepository;
-    private final QuestionOptionRepository questionOptionRepository;
     private final UserGrammarProgressRepository userGrammarProgressRepository;
-    private final AnswerCheckingService answerCheckingService;
     private final UserRepository userRepository;
 
-    // ====== USER LEARNING METHODS =====
+    // ===== SHARED SERVICES =====
+    private final QuestionService questionService;
+    private final LessonProgressService progressService;
+
+    // ===== CONSTANTS =====
+    private static final int SUBMIT_COOLDOWN_SECONDS = 30;
+    private static final double PASS_THRESHOLD = 80.0;
+
+    // ✅ Override: Chỉ định ParentType cho Grammar
+    @Override
+    protected ParentType getParentType() {
+        return ParentType.GRAMMAR;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎓 USER LEARNING METHODS
+    // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Lấy tất cả topics với lessons và progress
+     * ✅ [USER] Lấy tất cả topics với lessons và progress
      * Dùng cho: Sidebar, Topic List, Overview
-     * 
-     * @param userId - ID của user
-     * @return List của GrammarTopicDTO với đầy đủ lessons
      */
     public List<GrammarTopicDTO> getAccessibleTopicsForUser(Long userId) {
         log.info("📥 Loading all topics with lessons for user {}", userId);
@@ -61,14 +75,16 @@ public class GrammarService {
             GrammarTopicDTO dto = convertTopicToDTO(topic);
 
             // Calculate topic progress
-            Long completedLessons = userGrammarProgressRepository.countCompletedLessonsInTopic(userId, topic.getId());
-            Long totalLessons = grammarLessonRepository.countByTopicIdAndIsActive(topic.getId(), true);
+            Long completedLessons = userGrammarProgressRepository
+                    .countCompletedLessonsInTopic(userId, topic.getId());
+            Long totalLessons = grammarLessonRepository
+                    .countByTopicIdAndIsActive(topic.getId(), true);
 
             dto.setCompletedLessons(completedLessons.intValue());
             dto.setTotalLessons(totalLessons.intValue());
             dto.setIsAccessible(true);
 
-            // ✅ LUÔN load lessons
+            // Load lessons với progress
             List<GrammarLesson> lessons = grammarLessonRepository
                     .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(topic.getId());
 
@@ -85,8 +101,8 @@ public class GrammarService {
                 summary.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
                 summary.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
 
-                // Check unlock status
-                boolean isUnlocked = isLessonUnlocked(lesson, lessons, userId);
+                // ✅ Check unlock status (dùng base method)
+                boolean isUnlocked = checkUnlockStatus(lesson, lessons, userId);
                 summary.setIsUnlocked(isUnlocked);
                 summary.setIsAccessible(isUnlocked);
 
@@ -103,8 +119,7 @@ public class GrammarService {
     }
 
     /**
-     * ✅ KEEP - Lấy chi tiết 1 topic (nếu cần riêng)
-     * Nhưng thực tế có thể dùng getAccessibleTopicsForUser(userId, true) rồi filter
+     * ✅ [USER] Lấy chi tiết 1 topic với progress
      */
     public GrammarTopicDTO getTopicWithProgress(Long topicId, Long userId) {
         log.info("📥 Loading topic {} for user {}", topicId, userId);
@@ -119,21 +134,22 @@ public class GrammarService {
         GrammarTopicDTO dto = convertTopicToDTO(topic);
 
         // Lấy lessons với progress
-        List<GrammarLesson> lessons = grammarLessonRepository.findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(topicId);
+        List<GrammarLesson> lessons = grammarLessonRepository
+                .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(topicId);
 
         List<GrammarLessonDTO> lessonSummaries = lessons.stream().map(lesson -> {
             GrammarLessonDTO summary = convertLessonToSummaryDTO(lesson);
 
             // Thêm thông tin tiến độ
-            Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId,
-                    lesson.getId());
+            Optional<UserGrammarProgress> progress = userGrammarProgressRepository
+                    .findByUserIdAndLessonId(userId, lesson.getId());
 
             summary.setIsCompleted(progress.map(UserGrammarProgress::getIsCompleted).orElse(false));
             summary.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
             summary.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
 
-            // Kiểm tra quyền truy cập
-            boolean isUnlocked = isLessonUnlocked(lesson, lessons, userId);
+            // ✅ Kiểm tra quyền truy cập (dùng base method)
+            boolean isUnlocked = checkUnlockStatus(lesson, lessons, userId);
             summary.setIsUnlocked(isUnlocked);
             summary.setIsAccessible(isUnlocked);
 
@@ -144,40 +160,19 @@ public class GrammarService {
 
         // Tổng số lessons
         dto.setTotalLessons(lessons.size());
-        Long completedCount = userGrammarProgressRepository.countCompletedLessonsInTopic(userId, topicId);
+        Long completedCount = userGrammarProgressRepository
+                .countCompletedLessonsInTopic(userId, topicId);
         dto.setCompletedLessons(completedCount.intValue());
 
         return dto;
     }
 
     /**
-     * Kiểm tra lesson có được unlock không
-     */
-    private boolean isLessonUnlocked(GrammarLesson lesson, List<GrammarLesson> allLessons, Long userId) {
-        // Lesson đầu tiên luôn unlock
-        if (lesson.getOrderIndex() == 1) {
-            return true;
-        }
-
-        // Tìm lesson trước đó
-        GrammarLesson previousLesson = allLessons.stream()
-                .filter(l -> l.getOrderIndex().equals(lesson.getOrderIndex() - 1))
-                .findFirst()
-                .orElse(null);
-
-        if (previousLesson == null) {
-            return true; // Không có lesson trước = unlock
-        }
-
-        // Check lesson trước đã completed chưa
-        return userGrammarProgressRepository.existsByUserIdAndLessonIdAndIsCompletedTrue(
-                userId, previousLesson.getId());
-    }
-
-    /**
-     * Lấy nội dung lesson chi tiết
+     * ✅ [USER] Lấy nội dung lesson chi tiết với questions
      */
     public GrammarLessonDTO getLessonContent(Long lessonId, Long userId) {
+        log.info("📥 Loading lesson content: lessonId={}, userId={}", lessonId, userId);
+
         GrammarLesson lesson = grammarLessonRepository.findById(lessonId)
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + lessonId));
 
@@ -185,44 +180,46 @@ public class GrammarService {
             throw new RuntimeException("Bài học này hiện không khả dụng");
         }
 
-        // Check quyền truy cập
-        List<GrammarLesson> allLessons = grammarLessonRepository.findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(
-                lesson.getTopic().getId());
+        // ✅ Check quyền truy cập (dùng base method)
+        List<GrammarLesson> allLessons = grammarLessonRepository
+                .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(lesson.getTopic().getId());
 
-        if (!isLessonUnlocked(lesson, allLessons, userId)) {
-            throw new RuntimeException("Bạn cần hoàn thành bài học trước đó để mở khóa bài này");
+        if (!checkUnlockStatus(lesson, allLessons, userId)) {
+            throw new RuntimeException("🔒 Bạn cần hoàn thành bài học trước đó để mở khóa bài này");
         }
 
         GrammarLessonDTO dto = convertLessonToFullDTO(lesson);
 
-        // Load questions từ bảng shared với ParentType.GRAMMAR
-        List<Question> questions = questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(
+        // ✅ Load questions (dùng QuestionService)
+        List<Question> questions = questionService.loadQuestionsByParent(
                 ParentType.GRAMMAR, lessonId);
 
-        List<GrammarQuestionDTO> questionDTOs = questions.stream()
-                .map(this::convertQuestionToDTO)
+        List<QuestionDTO> questionDTOs = questions.stream()
+                .map(q -> questionService.convertToDTO(q))
                 .collect(Collectors.toList());
 
         dto.setQuestions(questionDTOs);
         dto.setQuestionCount(questionDTOs.size());
 
         // Thêm thông tin tiến độ
-        Optional<UserGrammarProgress> progress = userGrammarProgressRepository.findByUserIdAndLessonId(userId,
-                lessonId);
+        Optional<UserGrammarProgress> progress = userGrammarProgressRepository
+                .findByUserIdAndLessonId(userId, lessonId);
+
         dto.setIsCompleted(progress.map(UserGrammarProgress::getIsCompleted).orElse(false));
         dto.setUserScore(progress.map(p -> p.getScorePercentage().intValue()).orElse(0));
         dto.setUserAttempts(progress.map(UserGrammarProgress::getAttempts).orElse(0));
 
-        // Với bài thực hành, ẩn đáp án đúng
+        // ✅ Với bài PRACTICE, ẩn đáp án đúng
         if (lesson.getLessonType() == LessonType.PRACTICE) {
             dto.getQuestions().forEach(q -> q.setShowCorrectAnswer(false));
         }
 
+        log.info("✅ Loaded lesson with {} questions", questionDTOs.size());
         return dto;
     }
 
     /**
-     * Nộp bài và tính điểm - TỐI ƯU HÓA
+     * ✅ [USER] Nộp bài và tính điểm - REFACTORED với shared services
      */
     @Transactional
     public LessonResultResponse submitLesson(Long userId, SubmitLessonRequest request) {
@@ -230,207 +227,189 @@ public class GrammarService {
             throw new RuntimeException("Lesson ID không được để trống");
         }
 
+        log.info("📤 Submit lesson: userId={}, lessonId={}", userId, request.getLessonId());
+
+        // ===== LOAD ENTITIES =====
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại với id: " + userId));
 
         GrammarLesson lesson = grammarLessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + request.getLessonId()));
 
-        log.info("📥 Submit lesson request: userId={}, lessonId={}, lessonType={}",
-                userId, lesson.getId(), lesson.getLessonType());
+        log.info("📝 Lesson type: {}", lesson.getLessonType());
 
-        // Validate lesson is unlocked
+        // ===== VALIDATE UNLOCK =====
         List<GrammarLesson> allLessons = grammarLessonRepository
                 .findByTopicIdAndIsActiveTrueOrderByOrderIndexAsc(lesson.getTopic().getId());
 
-        if (!isLessonUnlocked(lesson, allLessons, userId)) {
-            throw new RuntimeException("Bài học này chưa được mở khóa. Vui lòng hoàn thành bài trước đó.");
+        if (!checkUnlockStatus(lesson, allLessons, userId)) {
+            throw new RuntimeException("🔒 Bài học này chưa được mở khóa. Vui lòng hoàn thành bài trước đó.");
         }
 
-        // Lấy hoặc tạo progress
+        // ===== GET OR CREATE PROGRESS =====
         UserGrammarProgress progress = userGrammarProgressRepository
                 .findByUserIdAndLessonId(userId, lesson.getId())
-                .orElseGet(() -> {
-                    log.info("✨ Creating new progress for user {} and lesson {}", userId, lesson.getId());
-                    UserGrammarProgress newProgress = new UserGrammarProgress();
-                    newProgress.setUser(user);
-                    newProgress.setLesson(lesson);
-                    newProgress.setCreatedAt(LocalDateTime.now());
-                    newProgress.setAttempts(0);
-                    newProgress.setReadingTime(0);
-                    newProgress.setHasScrolledToEnd(false);
-                    newProgress.setScorePercentage(BigDecimal.ZERO);
-                    newProgress.setIsCompleted(false);
-                    return newProgress;
-                });
+                .orElseGet(() -> createNewProgress(user, lesson));
 
-        if (progress.getUser() == null)
-            progress.setUser(user);
-        if (progress.getLesson() == null)
-            progress.setLesson(lesson);
+        // ===== ANTI-SPAM CHECK =====
+        long cooldown = progressService.checkSubmitCooldown(
+                progress.getUpdatedAt(), SUBMIT_COOLDOWN_SECONDS);
+        
+        if (cooldown > 0) {
+            throw new RuntimeException(
+                    "Vui lòng đợi " + cooldown + " giây trước khi nộp lại");
+        }
 
-        // ✅ Track trạng thái cũ
-        boolean wasAlreadyCompleted = progress.getIsCompleted() != null && progress.getIsCompleted();
-        BigDecimal oldScore = progress.getScorePercentage();
-        boolean isFirstCompletion = !wasAlreadyCompleted;
-
+        // ===== PROCESS BASED ON LESSON TYPE =====
         int totalScore = 0;
         int correctAnswers = 0;
         int totalQuestions = 0;
         boolean isPassed = false;
         List<QuestionResultDTO> questionResults = null;
+        double scorePercentage = 0;
 
-        // === XỬ LÝ BÀI THỰC HÀNH ===
         if (lesson.getLessonType() == LessonType.PRACTICE) {
-            if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
-                throw new RuntimeException("Bài thực hành cần có câu trả lời");
-            }
+            // ✅ BÀI PRACTICE: Process answers
+            questionService.validateAnswerCount(
+                    request.getAnswers(), ParentType.GRAMMAR, lesson.getId());
 
-            long expectedQuestions = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR,
-                    lesson.getId());
-            if (request.getAnswers().size() < expectedQuestions) {
-                throw new RuntimeException(String.format("Vui lòng trả lời tất cả %d câu hỏi", expectedQuestions));
-            }
+            questionResults = questionService.processAnswers(
+                    request.getAnswers(), ParentType.GRAMMAR);
 
-            questionResults = processAnswers(request.getAnswers());
             totalQuestions = questionResults.size();
-            correctAnswers = (int) questionResults.stream().filter(QuestionResultDTO::isCorrect).count();
-            totalScore = questionResults.stream().mapToInt(QuestionResultDTO::points).sum();
+            correctAnswers = questionService.calculateCorrectCount(questionResults);
+            totalScore = questionService.calculateTotalScore(questionResults);
+            scorePercentage = questionService.calculateScorePercentage(
+                    correctAnswers, totalQuestions);
 
-            // Tính tỷ lệ đúng
-            double correctRate = totalQuestions > 0 ? (double) correctAnswers / totalQuestions : 0;
-            BigDecimal currentScore = BigDecimal.valueOf(correctRate * 100);
+            isPassed = isPassed(scorePercentage, PASS_THRESHOLD);
 
-            // ✅ LUÔN cập nhật điểm cao nhất
-            if (currentScore.compareTo(progress.getScorePercentage()) > 0) {
-                progress.setScorePercentage(currentScore);
-                log.info("📈 Score improved: {} -> {}", oldScore, currentScore);
-            } else {
-                log.info("📊 Score maintained: current={}, new={}", progress.getScorePercentage(), currentScore);
-            }
-
-            isPassed = correctRate >= 0.8; // Pass nếu đúng >= 80%
-        }
-        // === XỬ LÝ BÀI LÝ THUYẾT ===
-        else if (lesson.getLessonType() == LessonType.THEORY) {
-            if (request.getReadingTimeSecond() == null
+        } else if (lesson.getLessonType() == LessonType.THEORY) {
+            // ✅ BÀI THEORY: Check reading time
+            if (request.getReadingTimeSecond() == null 
                     || request.getReadingTimeSecond() < lesson.getEstimatedDuration()) {
                 throw new RuntimeException(
-                        "Bạn cần dành ít nhất " + lesson.getEstimatedDuration() + " giây để đọc bài lý thuyết");
+                        "Bạn cần dành ít nhất " + lesson.getEstimatedDuration() 
+                        + " giây để đọc bài lý thuyết");
             }
 
-            Integer currentReadingTime = progress.getReadingTime() != null ? progress.getReadingTime() : 0;
+            // Update reading time
+            Integer currentReadingTime = progress.getReadingTime() != null 
+                    ? progress.getReadingTime() : 0;
             progress.setReadingTime(currentReadingTime + request.getReadingTimeSecond());
             progress.setHasScrolledToEnd(true);
 
             totalScore = lesson.getPointsReward();
+            scorePercentage = 100.0;
             isPassed = true;
-            progress.setScorePercentage(BigDecimal.valueOf(100));
         }
 
-        // ✅ Cập nhật attempts - LUÔN tăng
-        Integer currentAttempts = progress.getAttempts() != null ? progress.getAttempts() : 0;
-        progress.setAttempts(currentAttempts + 1);
+        // ===== UPDATE PROGRESS (dùng LessonProgressService) =====
+        LessonProgressService.ProgressUpdateResult result = progressService.updateProgress(
+                progress,
+                user,
+                scorePercentage,
+                isPassed,
+                lesson.getPointsReward()
+        );
 
-        // ✅ Mark completed nếu pass
-        if (isPassed) {
-            progress.setIsCompleted(true);
-            if (!wasAlreadyCompleted) {
-                progress.setCompletedAt(LocalDateTime.now());
-            }
-
-            // ✅ CHỈ cộng điểm lần đầu complete
-            if (isFirstCompletion) {
-                user.setTotalPoints(user.getTotalPoints() + lesson.getPointsReward());
-                userRepository.save(user);
-                log.info("🎉 User {} FIRST completed lesson {} - earned {} points",
-                        userId, lesson.getId(), lesson.getPointsReward());
-            } else {
-                log.info("♻️ User {} re-completed lesson {} - no additional points (attempts: {})",
-                        userId, lesson.getId(), progress.getAttempts());
-            }
-        }
-
-        progress.setUpdatedAt(LocalDateTime.now());
-
+        // ===== SAVE PROGRESS =====
         UserGrammarProgress savedProgress = userGrammarProgressRepository.save(progress);
         log.info("✅ Progress saved: attempts={}, score={}, completed={}",
-                savedProgress.getAttempts(), savedProgress.getScorePercentage(), savedProgress.getIsCompleted());
+                savedProgress.getAttempts(), savedProgress.getScorePercentage(), 
+                savedProgress.getIsCompleted());
 
-        // ✅ Kiểm tra unlock lesson tiếp theo - CHỈ khi lần đầu complete
+        // ===== CHECK UNLOCK NEXT LESSON =====
         boolean hasUnlockedNext = false;
         Long nextLessonId = null;
 
-        if (isPassed && isFirstCompletion) {
-            Optional<GrammarLesson> nextLesson = grammarLessonRepository.findNextLessonInTopic(
-                    lesson.getTopic().getId(), lesson.getOrderIndex());
+        if (result.isFirstCompletion() && isPassed) {
+            GrammarLesson nextLesson = findNextLesson(
+                    lesson, allLessons, GrammarLesson::getOrderIndex);
 
-            if (nextLesson.isPresent()) {
+            if (nextLesson != null) {
                 hasUnlockedNext = true;
-                nextLessonId = nextLesson.get().getId();
+                nextLessonId = nextLesson.getId();
                 log.info("🔓 Unlocked next lesson: {}", nextLessonId);
             }
         }
 
-        log.info("📊 Submit result: correct={}/{}, passed={}, isRetry={}",
-                correctAnswers, totalQuestions, isPassed, wasAlreadyCompleted);
+        log.info("📊 Submit result: correct={}/{}, passed={}, pointsEarned={}",
+                correctAnswers, totalQuestions, isPassed, result.getPointsEarned());
 
-        // ✅ TRẢ VỀ đầy đủ questionResults cho frontend hiển thị
+        // ===== BUILD RESPONSE =====
         return new LessonResultResponse(
                 lesson.getId(),
                 lesson.getTitle(),
                 totalQuestions,
                 correctAnswers,
                 totalScore,
-                isFirstCompletion && isPassed ? lesson.getPointsReward() : 0, // Chỉ trả về points nếu lần đầu
+                result.getPointsEarned(), // CHỈ > 0 nếu first completion
                 isPassed,
                 hasUnlockedNext,
                 nextLessonId,
-                questionResults); // ✅ LUÔN trả về questionResults
+                questionResults
+        );
     }
 
     /**
-     * Lấy user progress summary
+     * ✅ [USER] Lấy user progress summary
      */
     public List<UserGrammarProgressDTO> getUserProgressSummary(Long userId) {
+        log.info("📚 Loading user progress summary for user {}", userId);
+        
         return userGrammarProgressRepository.findUserProgressWithLessonDetails(userId)
                 .stream()
                 .map(this::convertProgressToDTO)
                 .collect(Collectors.toList());
     }
 
-    // ===== PRIVATE HELPER METHODS =====
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔧 PRIVATE HELPER METHODS (GRAMMAR-SPECIFIC)
+    // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Xử lý câu trả lời và trả về kết quả chi tiết
+     * ✅ Helper: Check unlock status (wrapper for base method)
      */
-    private List<QuestionResultDTO> processAnswers(List<SubmitAnswerRequest> answers) {
-        return answers.stream().map(answerRequest -> {
-            Question question = questionRepository.findByIdWithOptions(answerRequest.getQuestionId())
-                    .orElseThrow(() -> new RuntimeException(
-                            "Question không tồn tại với id: " + answerRequest.getQuestionId()));
+    private boolean checkUnlockStatus(
+            GrammarLesson lesson, 
+            List<GrammarLesson> allLessons, 
+            Long userId) {
 
-            if (question.getParentType() != ParentType.GRAMMAR) {
-                throw new RuntimeException("Question này không thuộc Grammar module");
-            }
-
-            boolean isCorrect = answerCheckingService.checkAnswer(question, answerRequest);
-            int points = isCorrect ? question.getPoints() : 0;
-            String hint = isCorrect ? null : answerCheckingService.generateHint(question, answerRequest);
-
-            return new QuestionResultDTO(
-                    question.getId(),
-                    question.getQuestionText(),
-                    answerRequest.getAnswer(),
-                    question.getCorrectAnswer(),
-                    isCorrect,
-                    question.getExplanation(),
-                    points,
-                    hint);
-        }).collect(Collectors.toList());
+        return isLessonUnlocked(
+                lesson,
+                allLessons,
+                userId,
+                GrammarLesson::getOrderIndex,
+                GrammarLesson::getId,
+                (uId, lId) -> userGrammarProgressRepository
+                        .existsByUserIdAndLessonIdAndIsCompletedTrue(uId, lId)
+        );
     }
 
-    // ===== CONVERSION METHODS =====
+    /**
+     * Tạo progress mới cho user
+     */
+    private UserGrammarProgress createNewProgress(User user, GrammarLesson lesson) {
+        log.info("✨ Creating new grammar progress for user {} and lesson {}", 
+                user.getId(), lesson.getId());
+
+        UserGrammarProgress progress = new UserGrammarProgress();
+        progress.setUser(user);
+        progress.setLesson(lesson);
+        progress.setCreatedAt(LocalDateTime.now());
+        progress.setReadingTime(0);
+        progress.setHasScrolledToEnd(false);
+
+        // ✅ Initialize progress (dùng LessonProgressService)
+        progressService.initializeProgress(progress);
+
+        return progress;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔄 CONVERSION METHODS (GRAMMAR-SPECIFIC)
+    // ═══════════════════════════════════════════════════════════════════════
 
     private GrammarTopicDTO convertTopicToDTO(GrammarTopic topic) {
         GrammarTopicDTO dto = new GrammarTopicDTO();
@@ -445,7 +424,8 @@ public class GrammarService {
     }
 
     private GrammarLessonDTO convertLessonToSummaryDTO(GrammarLesson lesson) {
-        long questionCount = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR, lesson.getId());
+        long questionCount = questionService.countQuestionsByParent(
+                ParentType.GRAMMAR, lesson.getId());
 
         return GrammarLessonDTO.summary(
                 lesson.getId(),
@@ -473,41 +453,6 @@ public class GrammarService {
                 lesson.getTopic().getName());
     }
 
-    private GrammarQuestionDTO convertQuestionToDTO(Question question) {
-        List<QuestionOption> options = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
-
-        List<GrammarQuestionOptionDTO> optionDTOs = options.stream()
-                .map(option -> new GrammarQuestionOptionDTO(
-                        option.getId(),
-                        question.getId(),
-                        option.getOptionText(),
-                        option.getIsCorrect(),
-                        option.getOrderIndex()))
-                .collect(Collectors.toList());
-
-        if (question.getQuestionType() == QuestionType.MULTIPLE_CHOICE && !optionDTOs.isEmpty()) {
-            Collections.shuffle(optionDTOs);
-            for (int i = 0; i < optionDTOs.size(); i++) {
-                optionDTOs.get(i).setOrderIndex(i + 1);
-            }
-        }
-
-        GrammarQuestionDTO dto = new GrammarQuestionDTO();
-        dto.setId(question.getId());
-        dto.setLessonId(question.getParentId());
-        dto.setQuestionText(question.getQuestionText());
-        dto.setQuestionType(question.getQuestionType());
-        dto.setCorrectAnswer(question.getCorrectAnswer());
-        dto.setExplanation(question.getExplanation());
-        dto.setPoints(question.getPoints());
-        dto.setOrderIndex(question.getOrderIndex());
-        dto.setCreatedAt(question.getCreatedAt());
-        dto.setOptions(optionDTOs.isEmpty() ? null : optionDTOs);
-        dto.setShowCorrectAnswer(true);
-
-        return dto;
-    }
-
     private UserGrammarProgressDTO convertProgressToDTO(UserGrammarProgress progress) {
         UserGrammarProgressDTO dto = new UserGrammarProgressDTO();
         dto.setId(progress.getId());
@@ -523,4 +468,10 @@ public class GrammarService {
         dto.setUpdatedAt(progress.getUpdatedAt());
         return dto;
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔧 IMPLEMENT LessonProgressService.LessonProgress (for UserGrammarProgress)
+    // ═══════════════════════════════════════════════════════════════════════
+    // Note: UserGrammarProgress entity cần implement interface này
+    // Hoặc tạo adapter wrapper
 }

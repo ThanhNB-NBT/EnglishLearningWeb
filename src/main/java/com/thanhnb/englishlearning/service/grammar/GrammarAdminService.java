@@ -1,6 +1,8 @@
 package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.*;
+import com.thanhnb.englishlearning.dto.question.QuestionDTO;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -12,7 +14,6 @@ import java.util.*;
 
 /**
  * Main service orchestrator - Delegate to specialized services
- * File này chỉ còn ~150 lines thay vì 1000+ lines
  */
 @Service
 @RequiredArgsConstructor
@@ -20,12 +21,12 @@ import java.util.*;
 @Transactional
 public class GrammarAdminService {
 
-    // ✅ Inject các service chuyên biệt
+    
     private final GrammarTopicService topicService;
     private final GrammarLessonService lessonService;
     private final GrammarQuestionService questionService;
     private final GrammarValidationService validationService;
-    private final GrammarImportService importService; // Will create next
+    private final GrammarImportService importService;
 
     // ===== TOPIC OPERATIONS =====
 
@@ -81,15 +82,15 @@ public class GrammarAdminService {
 
     // ===== QUESTION OPERATIONS =====
 
-    public Page<GrammarQuestionDTO> getQuestionsByLessonPaginated(Long lessonId, Pageable pageable) {
+    public Page<QuestionDTO> getQuestionsByLessonPaginated(Long lessonId, Pageable pageable) {
         return questionService.getQuestionsByLessonPaginated(lessonId, pageable);
     }
 
-    public GrammarQuestionDTO createQuestion(GrammarQuestionDTO dto) {
+    public QuestionDTO createQuestion(QuestionDTO dto) {
         return questionService.createQuestion(dto);
     }
 
-    public GrammarQuestionDTO updateQuestion(Long id, GrammarQuestionDTO dto) {
+    public QuestionDTO updateQuestion(Long id, QuestionDTO dto) {
         return questionService.updateQuestion(id, dto);
     }
 
@@ -107,7 +108,7 @@ public class GrammarAdminService {
 
     // ===== BULK OPERATIONS =====
 
-    public List<GrammarQuestionDTO> createQuestionsInBulk(Long lessonId, List<GrammarQuestionDTO> questions) {
+    public List<QuestionDTO> createQuestionsInBulk(Long lessonId, List<QuestionDTO> questions) {
         // Delegate to question service (will implement in next file)
         return questionService.createQuestionsInBulk(lessonId, questions);
     }
@@ -145,7 +146,7 @@ public class GrammarAdminService {
 
     // ===== PDF IMPORT OPERATIONS =====
 
-    public List<GrammarLessonDTO> importLessonsFromPDF(Long topicId, List<GrammarLessonDTO> lessonDTOs) {
-        return importService.importLessonsFromPDF(topicId, lessonDTOs);
+    public List<GrammarLessonDTO> importLessonsFromFile(Long topicId, List<GrammarLessonDTO> lessonDTOs) {
+        return importService.importLessonsFromFile(topicId, lessonDTOs);
     }
 }
