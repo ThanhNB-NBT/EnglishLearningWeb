@@ -1,0 +1,31 @@
+# Dockerfile.dev - Development mode với hot reload
+FROM eclipse-temurin:21-jdk
+WORKDIR /workspace
+
+# Install curl cho healthcheck (optional)
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy Maven wrapper và set permission
+COPY mvnw .
+COPY .mvn/ .mvn
+RUN chmod +x ./mvnw
+
+# Copy pom.xml và download dependencies
+# Layer này sẽ được cache nếu pom.xml không đổi
+COPY pom.xml .
+RUN ./mvnw dependency:go-offline -B || echo "Some dependencies might need source code"
+
+# ✅ Source code sẽ được mount từ host qua volume
+# ✅ Không copy src ở đây để có hot reload
+
+EXPOSE 8980
+EXPOSE 5005
+
+# Healthcheck để đảm bảo app đã sẵn sàng
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
+    CMD curl -f http://localhost:8980/actuator/health || exit 1
+
+# Chạy Spring Boot với Maven trong dev mode
+# - spring-boot:run: Chạy app trong dev mode
+# - Debug port 5005: Cho remote debugging từ IDE
+ENTRYPOINT ["./mvnw", "spring-boot:run", "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"]

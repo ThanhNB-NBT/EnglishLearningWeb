@@ -1,0 +1,17 @@
+# Dùng image node 20 làm nền
+FROM node:20-alpine
+WORKDIR /app
+
+# Cài đặt các dependencies hệ thống (chỉ chạy 1 lần khi build image)
+RUN apk add --no-cache python3 alpine-sdk cairo-dev jpeg-dev pango-dev giflib-dev
+
+# Copy file package.json VÀ npm install
+# Lớp này sẽ được cache lại nếu file package.json không đổi
+COPY package.json package-lock.json ./
+RUN npm install
+
+# Mở cổng 3000
+EXPOSE 3000
+
+# Lệnh chạy mặc định
+CMD ["npm", "run", "dev"]

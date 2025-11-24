@@ -1,69 +1,76 @@
-# Maven
-HELP.md
+# =================================
+# 1. BẢO MẬT & CẤU HÌNH MÔI TRƯỜNG (QUAN TRỌNG NHẤT)
+# =================================
+.env
+.env.*
+!.env.example
+!.env.local
+# Giữ lại .env.example để người khác biết cấu trúc config
+*.key
+*.p12
+secret.txt
+
+# =================================
+# 2. JAVA & MAVEN (BACKEND)
+# =================================
 target/
-.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
-!**/src/test/**/target/
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# =================================
+# 3. NODEJS & VUE (FRONTEND)
+# =================================
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm/
+coverage/
+*.local
 
-### IntelliJ IDEA ###
-.idea
+# =================================
+# 4. IDE & EDITOR (File cấu hình của máy cá nhân)
+# =================================
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# IntelliJ IDEA / Eclipse / NetBeans
+.idea/
 *.iws
 *.iml
 *.ipr
+.classpath
+.project
+.settings/
+.springBeans
+bin/
+.metadata/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
-.vscode/
-
-# ========== FRONTEND ==========
-/frontend/node_modules/
-/frontend/dist/
-/frontend/.next/
-/frontend/.env
-/frontend/.env.local
-/frontend/.env.development.local
-/frontend/.env.test.local
-/frontend/.env.production.local
-/frontend/npm-debug.log*
-/frontend/yarn-debug.log*
-/frontend/yarn-error.log*
-
-# ========== SENSITIVE FILES ==========
-### Application Properties với thông tin nhạy cảm ###
-application-local.properties
-application-prod.properties
-application-dev.properties
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-logs/
-*.log
-log/
-
-# ========== OS GENERATED ==========
-### macOS ###
+# =================================
+# 5. HỆ ĐIỀU HÀNH (OS FILES)
+# =================================
 .DS_Store
 .DS_Store?
 ._*
@@ -72,53 +79,12 @@ log/
 ehthumbs.db
 Thumbs.db
 
-### Windows ###
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msm
-*.msp
-
-### Linux ###
-*~
-
-# ========== SECURITY & SECRETS ==========
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.key
-*.pem
-*.p12
-secrets/
-config/secrets/
-
-# ========== IDE & EDITORS ==========
-### Eclipse ###
-.metadata
-.gradle/
-bin/
-
-### Sublime Text ###
-*.sublime-project
-*.sublime-workspace
-
-### Vim ###
-*.swp
-*.swo
-*~
-
-# ========== DEPLOYMENT ==========
+# =================================
+# 6. DOCKER & LOGS
+# =================================
+logs/
+*.log
 docker-compose.override.yml
-.docker/
-deployment/
-
-# ========== TEMP & CACHE ==========
-temp/
-tmp/
-cache/
-.cache/
+# Nếu bạn dump data ra file thì ignore luôn
+*.sql
+*.dump

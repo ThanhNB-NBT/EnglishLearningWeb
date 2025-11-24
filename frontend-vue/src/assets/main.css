@@ -1,0 +1,134 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* ===== DARK MODE STYLES ===== */
+html.dark body {
+  background-color: #141414;
+  color: #e5eaf3;
+}
+
+/* Dark mode cho các trang content */
+html.dark .dashboard-page,
+html.dark .grammar-page,
+html.dark .reading-page,
+html.dark .profile-page,
+html.dark .change-password-page,
+html.dark .admin-dashboard-page,
+html.dark .users-management-page,
+html.dark .grammar-management-page,
+html.dark .reading-management-page {
+  background-color: #141414;
+}
+
+/* Container backgrounds */
+html.dark .container {
+  background-color: transparent;
+}
+
+/* Text colors */
+html.dark .page-title,
+html.dark .section-title,
+html.dark .welcome-title,
+html.dark .stat-label,
+html.dark .stat-value,
+html.dark .module-title,
+html.dark .module-description,
+html.dark .feature-title,
+html.dark .feature-description,
+html.dark .user-name,
+html.dark .profile-name {
+  color: #e5eaf3;
+}
+
+html.dark .welcome-subtitle,
+html.dark .hero-subtitle,
+html.dark .progress-text {
+  color: rgba(229, 234, 243, 0.9);
+}
+
+/* Main container background */
+html.dark .main-container {
+  background-color: #141414 !important;
+}
+
+html.dark .main-content {
+  background-color: #141414 !important;
+}
+
+/* Sidebar dark mode */
+html.dark .sidebar {
+  background-color: #1d1d1d !important;
+  border-right-color: #2c2c2c !important;
+}
+
+html.dark .sidebar-header {
+  border-bottom-color: #2c2c2c !important;
+  color: #409eff !important;
+}
+
+html.dark .sidebar-footer {
+  border-top-color: #2c2c2c !important;
+  background-color: #1d1d1d !important;
+}
+
+/* Header dark mode */
+html.dark .header {
+  background-color: #1d1d1d !important;
+  border-bottom-color: #2c2c2c !important;
+}
+
+/* Cards dark mode */
+html.dark .el-card {
+  background-color: #1d1d1d !important;
+  border-color: #2c2c2c !important;
+}
+
+/* Stat cards icons background */
+html.dark .stat-icon {
+  opacity: 0.9;
+}
+
+/* Empty state */
+html.dark .el-empty__description {
+  color: #909399;
+}
+
+/* Auth layout - không áp dụng dark mode */
+.auth-layout {
+  /* Giữ nguyên gradient đẹp */
+}
+
+/* Home page hero - không áp dụng dark mode cho hero */
+.hero-section {
+  /* Giữ nguyên gradient */
+}
+
+/* Fix dropdown hover in dark mode */
+html.dark .user-dropdown:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Smooth transitions */
+.sidebar,
+.header,
+.main-container,
+.main-content,
+.el-card,
+body {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
