@@ -1,0 +1,124 @@
+# Maven
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# ========== FRONTEND ==========
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.next/
+/frontend/.env
+/frontend/.env.local
+/frontend/.env.development.local
+/frontend/.env.test.local
+/frontend/.env.production.local
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+
+# ========== SENSITIVE FILES ==========
+### Application Properties với thông tin nhạy cảm ###
+application-local.properties
+application-prod.properties
+application-dev.properties
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+log/
+
+# ========== OS GENERATED ==========
+### macOS ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Windows ###
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+### Linux ###
+*~
+
+# ========== SECURITY & SECRETS ==========
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+*.pem
+*.p12
+secrets/
+config/secrets/
+
+# ========== IDE & EDITORS ==========
+### Eclipse ###
+.metadata
+.gradle/
+bin/
+
+### Sublime Text ###
+*.sublime-project
+*.sublime-workspace
+
+### Vim ###
+*.swp
+*.swo
+*~
+
+# ========== DEPLOYMENT ==========
+docker-compose.override.yml
+.docker/
+deployment/
+
+# ========== TEMP & CACHE ==========
+temp/
+tmp/
+cache/
+.cache/
