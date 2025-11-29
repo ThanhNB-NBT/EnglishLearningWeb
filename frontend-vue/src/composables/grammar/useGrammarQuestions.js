@@ -45,84 +45,72 @@ export function useGrammarQuestionForm() {
     {
       value: 'MULTIPLE_CHOICE',
       label: 'Multiple Choice',
-      icon: '☑️',
       description: 'Chọn 1 đáp án đúng từ nhiều lựa chọn',
       defaultPoints: 5,
     },
     {
       value: 'TRUE_FALSE',
       label: 'True/False',
-      icon: '✅❌',
       description: 'Câu hỏi đúng/sai',
       defaultPoints: 5,
     },
     {
       value: 'FILL_BLANK',
       label: 'Fill in the Blank',
-      icon: '📝',
       description: 'Điền từ vào chỗ trống',
       defaultPoints: 5,
     },
     {
       value: 'SHORT_ANSWER',
       label: 'Short Answer',
-      icon: '✏️',
       description: 'Trả lời ngắn (text)',
       defaultPoints: 5,
     },
     {
       value: 'VERB_FORM',
       label: 'Verb Form',
-      icon: '🔤',
       description: 'Chia động từ đúng dạng',
       defaultPoints: 5,
     },
     {
       value: 'ERROR_CORRECTION',
       label: 'Error Correction',
-      icon: '🔧',
       description: 'Sửa lỗi sai trong câu',
       defaultPoints: 7,
     },
     {
       value: 'MATCHING',
       label: 'Matching',
-      icon: '🔗',
       description: 'Nối cặp tương ứng',
       defaultPoints: 10,
     },
     {
       value: 'SENTENCE_BUILDING',
       label: 'Sentence Building',
-      icon: '🧩',
       description: 'Sắp xếp từ thành câu',
       defaultPoints: 8,
     },
     {
       value: 'COMPLETE_CONVERSATION',
       label: 'Complete Conversation',
-      icon: '💬',
       description: 'Hoàn thành đoạn hội thoại',
       defaultPoints: 7,
     },
     {
       value: 'PRONUNCIATION',
       label: 'Pronunciation',
-      icon: '🔊',
       description: 'Phân loại phát âm',
       defaultPoints: 10,
     },
     {
       value: 'READING_COMPREHENSION',
       label: 'Reading Comprehension',
-      icon: '📖',
       description: 'Đọc hiểu với chỗ trống',
       defaultPoints: 15,
     },
     {
       value: 'OPEN_ENDED',
       label: 'Open Ended',
-      icon: '📄',
       description: 'Câu trả lời tự do (cần AI đánh giá)',
       defaultPoints: 20,
     },
@@ -204,7 +192,11 @@ export function useGrammarQuestionForm() {
         return {
           ...baseDTO,
           hint: metadata.hint,
-          options: metadata.options,
+          options: (metadata.options || []).map(opt => ({
+            text: opt.text,
+            isCorrect: opt.isCorrect === true,
+            order: opt.order
+          }))
         }
 
       case 'TRUE_FALSE':
@@ -222,7 +214,7 @@ export function useGrammarQuestionForm() {
           ...baseDTO,
           hint: metadata.hint,
           correctAnswer: metadata.correctAnswer,
-          caseSensitive: metadata.caseSensitive || false,
+          caseSensitive: Boolean(metadata.caseSensitive || false),
           type: formData.value.questionType,
         }
 
@@ -237,7 +229,7 @@ export function useGrammarQuestionForm() {
         return {
           ...baseDTO,
           hint: metadata.hint,
-          words: metadata.words,
+          words: metadata.words || [],
           correctSentence: metadata.correctSentence,
         }
 
@@ -246,7 +238,7 @@ export function useGrammarQuestionForm() {
           ...baseDTO,
           hint: metadata.hint,
           conversationContext: metadata.conversationContext,
-          options: metadata.options,
+          options: metadata.options || [],
           correctAnswer: metadata.correctAnswer,
         }
 
@@ -256,7 +248,10 @@ export function useGrammarQuestionForm() {
           hint: metadata.hint,
           words: metadata.words,
           categories: metadata.categories,
-          classifications: metadata.classifications,
+          classifications: (metadata.classifications || []).map(cls => ({
+            word: cls.word,
+            category: cls.category
+          }))
         }
 
       case 'READING_COMPREHENSION':
@@ -264,7 +259,11 @@ export function useGrammarQuestionForm() {
           ...baseDTO,
           hint: metadata.hint,
           passage: metadata.passage,
-          blanks: metadata.blanks,
+          blanks: (metadata.blanks || []).map(blank => ({
+            position: blank.position,
+            options: blank.options || [],
+            correctAnswer: blank.correctAnswer
+          }))
         }
 
       case 'OPEN_ENDED':
@@ -299,11 +298,7 @@ export function useGrammarQuestionForm() {
       if (dialogMode.value === 'create') {
         result = await grammarStore.createQuestion(dto)
       } else {
-        // For update, use QuestionResponseDTO format
-        const updateDTO = {
-          ...formData.value,
-        }
-        result = await grammarStore.updateQuestion(formData.value.id, updateDTO)
+        result = await grammarStore.updateQuestion(formData.value.id, dto)
       }
 
       if (result) {

@@ -14,7 +14,7 @@ public class QuestionOptionDTO {
 
     @NotBlank(message = "Nội dung lựa chọn không được để trống")
     @Schema(description = "Nội dung lựa chọn", example = "goes")
-    private String optionText;
+    private String text;
 
     @Schema(description = "Đáp án đúng không", example = "true")
     private Boolean isCorrect = false;
@@ -22,6 +22,6 @@ public class QuestionOptionDTO {
     @NotNull(message = "Thứ tự không được để trống")
     @Min(value = 1, message = "Thứ tự phải >= 1")
     @Schema(description = "Thứ tự hiển thị", example = "1")
-    private Integer orderIndex;
+    private Integer order;
     
 }

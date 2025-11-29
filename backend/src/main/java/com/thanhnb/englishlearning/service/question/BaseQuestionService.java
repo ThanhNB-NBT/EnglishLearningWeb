@@ -1,6 +1,7 @@
 package com.thanhnb.englishlearning.service.question;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.thanhnb.englishlearning.dto.question.request.CreateMultipleChoiceDTO;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.entity.question.Question;
@@ -134,7 +135,17 @@ public abstract class BaseQuestionService {
             log.debug("Set orderIndex={} for new question", createDTO.getOrderIndex());
         }
 
+        // log debug
+        log.info("Creating question type: {}", createDTO.getQuestionType());
+        if (createDTO instanceof CreateMultipleChoiceDTO) {
+            CreateMultipleChoiceDTO mcDto = (CreateMultipleChoiceDTO) createDTO;
+            log.info("Options received: {}", mcDto.getOptions().size());
+            mcDto.getOptions().forEach(opt -> log.info("   - Option: text='{}', isCorrect={}, order={}",
+                    opt.getText(), opt.getIsCorrect(), opt.getOrder()));
+        }
+
         Question question = dtoFactory.createEntity(createDTO);
+        log.info("Built metadata: {}", question.getMetadata());
         Question savedQuestion = questionRepository.save(question);
 
         log.info("Created {} question: {} (id={})",
@@ -387,7 +398,9 @@ public abstract class BaseQuestionService {
         if (sourceMetadata instanceof Map) {
             try {
                 String json = objectMapper.writeValueAsString(sourceMetadata);
-                Map<String, Object> clonedMetadata = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> clonedMetadata = objectMapper.readValue(json,
+                        new TypeReference<Map<String, Object>>() {
+                        });
                 copy.setMetadata(clonedMetadata);
             } catch (Exception e) {
                 log.error("Failed to clone metadata, using shallow copy", e);

@@ -1,3 +1,4 @@
+<!-- src/views/admin/GrammarManagementView.vue -->
 <template>
   <div class="grammar-management-view">
     <!-- Tabs -->
@@ -10,7 +11,10 @@
             Topics
           </span>
         </template>
-        <TopicsList @view-lessons="handleSwitchToLessons" @add-lesson="handleAddLessonFromTopic" />
+        <TopicsList
+          @view-lessons="handleSwitchToLessons"
+          @add-lesson="handleAddLessonFromTopic"
+        />
       </el-tab-pane>
 
       <!-- Lessons Tab -->
@@ -21,19 +25,25 @@
             Lessons
           </span>
         </template>
-        <LessonsList ref="lessonListRef" :init-topic-id="selectedTopicIdForLesson" />
+        <LessonsList
+          ref="lessonListRef"
+          :init-topic-id="selectedTopicIdForLesson"
+          @view-questions="handleSwitchToQuestions"
+        />
       </el-tab-pane>
 
-      <!-- Questions Tab (Coming soon) -->
-      <el-tab-pane label="Questions" name="questions" disabled>
+      <!-- Questions Tab -->
+      <el-tab-pane label="Questions" name="questions">
         <template #label>
           <span class="tab-label">
             <el-icon><QuestionFilled /></el-icon>
             Questions
-            <el-tag size="small" type="info">Soon</el-tag>
           </span>
         </template>
-        <el-empty description="Coming soon..." />
+        <QuestionList
+          ref="questionListRef"
+          :init-lesson-id="selectedLessonIdForQuestion"
+        />
       </el-tab-pane>
 
       <!-- AI Parsing Tab (Coming soon) -->
@@ -56,12 +66,16 @@ import { nextTick, ref } from 'vue'
 import { Collection, Document, QuestionFilled, MagicStick } from '@element-plus/icons-vue'
 import TopicsList from '@/components/admin/grammar/TopicList.vue'
 import LessonsList from '@/components/admin/grammar/LessonList.vue'
+import QuestionList from '@/components/admin/grammar/QuestionList.vue' // ✅ NEW IMPORT
 
 // Active tab
 const activeTab = ref('topics')
 const selectedTopicIdForLesson = ref(null)
+const selectedLessonIdForQuestion = ref(null) // ✅ NEW
 const lessonListRef = ref(null)
+const questionListRef = ref(null) // ✅ NEW
 
+// Switch to Lessons tab from Topics
 const handleSwitchToLessons = (topic) => {
   console.log('Switching to topic', topic)
   if (topic && topic.id) {
@@ -70,6 +84,7 @@ const handleSwitchToLessons = (topic) => {
   }
 }
 
+// Add lesson from Topics tab
 const handleAddLessonFromTopic = async (topic) => {
   console.log('Adding lesson for topic:', topic)
   if (topic && topic.id) {
@@ -82,11 +97,20 @@ const handleAddLessonFromTopic = async (topic) => {
     }
   }
 }
+
+// ✅ NEW: Switch to Questions tab from Lessons
+const handleSwitchToQuestions = (lesson) => {
+  console.log('Switching to questions for lesson:', lesson)
+  if (lesson && lesson.id) {
+    selectedLessonIdForQuestion.value = lesson.id
+    activeTab.value = 'questions'
+  }
+}
 </script>
 
 <style scoped>
 .grammar-management-view {
-  padding: 0; /* Remove padding, đã có padding ở layout */
+  padding: 0;
 }
 
 .compact-tabs {
@@ -101,13 +125,12 @@ const handleAddLessonFromTopic = async (topic) => {
   font-size: 14px;
 }
 
-/* Compact tabs content */
 :deep(.el-tabs__content) {
   padding: 0;
 }
 
 :deep(.el-tabs__header) {
-  margin: 0 0 12px; /* Giảm margin bottom */
+  margin: 0 0 12px;
 }
 
 :deep(.el-tabs__item) {

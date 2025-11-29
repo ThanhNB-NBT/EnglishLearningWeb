@@ -15,11 +15,11 @@
 
     <!-- Correct Answer -->
     <el-form-item label="Correct Answer" required>
-      <el-radio-group v-model="localMetadata.correctAnswer" @change="emitUpdate">
-        <el-radio :label="true">
+      <el-radio-group v-model="correctAnswerValue" @change="handleAnswerChange">
+        <el-radio :value="true">
           <el-text tag="b">True</el-text>
         </el-radio>
-        <el-radio :label="false">
+        <el-radio :value="false">
           <el-text tag="b">False</el-text>
         </el-radio>
       </el-radio-group>
@@ -27,15 +27,25 @@
 
     <!-- Preview -->
     <el-alert
-      :title="`Correct Answer: ${localMetadata.correctAnswer ? 'True' : 'False'}`"
+      v-if="correctAnswerValue !== null"
+      :title="`Correct Answer: ${correctAnswerValue ? 'True' : 'False'}`"
       type="success"
       :closable="false"
+    />
+
+    <!-- Validation -->
+    <el-alert
+      v-if="validationError"
+      :title="validationError"
+      type="error"
+      :closable="false"
+      style="margin-top: 12px"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   metadata: {
@@ -46,26 +56,61 @@ const props = defineProps({
 
 const emit = defineEmits(['update:metadata'])
 
+// Extract correctAnswer từ options (nếu có)
+const getCorrectAnswerFromOptions = (options) => {
+  if (!options || options.length === 0) return null
+  const trueOption = options.find(opt => opt.text === 'True')
+  return trueOption ? trueOption.isCorrect : null
+}
+
+// State: correctAnswerValue (boolean hoặc null)
+const correctAnswerValue = ref(
+  props.metadata.correctAnswer !== null && props.metadata.correctAnswer !== undefined
+    ? props.metadata.correctAnswer
+    : getCorrectAnswerFromOptions(props.metadata.options)
+)
+
 const localMetadata = ref({
   hint: props.metadata.hint || '',
-  correctAnswer: props.metadata.correctAnswer ?? true,
 })
 
+// Watch props.metadata changes
 watch(
   () => props.metadata,
   (newVal) => {
     if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        correctAnswer: newVal.correctAnswer ?? true,
-      }
+      localMetadata.value.hint = newVal.hint || ''
+
+      // Extract correctAnswer từ options hoặc correctAnswer field
+      const extracted = newVal.correctAnswer !== null && newVal.correctAnswer !== undefined
+        ? newVal.correctAnswer
+        : getCorrectAnswerFromOptions(newVal.options)
+
+      correctAnswerValue.value = extracted
     }
   },
   { deep: true }
 )
 
+// Validation
+const validationError = computed(() => {
+  if (correctAnswerValue.value === null || correctAnswerValue.value === undefined) {
+    return 'Please select True or False'
+  }
+  return null
+})
+
+// Handle answer change
+const handleAnswerChange = () => {
+  emitUpdate()
+}
+
+// Emit metadata với cấu trúc correctAnswer (backend sẽ convert sang options)
 const emitUpdate = () => {
-  emit('update:metadata', { ...localMetadata.value })
+  emit('update:metadata', {
+    hint: localMetadata.value.hint,
+    correctAnswer: correctAnswerValue.value, // ← Gửi correctAnswer
+  })
 }
 </script>
 

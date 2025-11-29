@@ -12,7 +12,7 @@
       :model="localFormData"
       :rules="formRules"
       label-width="140px"
-      label-position="right"
+      label-position="top"
     >
       <!-- Basic Info Row -->
       <el-row :gutter="20">
@@ -40,7 +40,7 @@
                 :label="option.label"
                 :value="option.value"
               >
-                <span>{{ option.icon }} {{ option.label }}</span>
+                <span>{{ option.label }}</span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -100,14 +100,13 @@
       </el-row>
 
       <!-- Content Editor -->
-      <el-form-item label="Nội dung" prop="content">
-        <div class="editor-wrapper">
-          <Editor
-            v-model="localFormData.content"
-            :api-key="tinyMceApiKey"
-            :init="editorConfig"
-          />
-        </div>
+      <el-form-item label="content">
+        <QuillRichEditor
+          v-model="localFormData.content"
+          height="500px"
+          :toolbar="lessonToolbar"
+          placeholder="Nhập nội dung..."
+        />
       </el-form-item>
     </el-form>
 
@@ -125,7 +124,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useGrammarStore } from '@/stores/grammar'
-import Editor from '@tinymce/tinymce-vue'
+import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
 
 const props = defineProps({
   visible: {
@@ -146,6 +145,17 @@ const props = defineProps({
   },
 })
 
+const lessonToolbar = [
+  [{ 'header': [1, 2, 3, false] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+  [{ 'color': [] }, { 'background': [] }],
+  [{ 'align': [] }],
+  ['blockquote', 'code-block'],
+  ['link', 'image'],
+  ['clean']
+]
+
 const emit = defineEmits(['close', 'success'])
 
 const grammarStore = useGrammarStore()
@@ -158,36 +168,6 @@ const metadataError = ref('')
 
 // Local form data to avoid mutating props directly
 const localFormData = ref({ ...props.formData })
-
-// TinyMCE API Key - Replace with your key or use 'no-api-key' for testing
-const tinyMceApiKey = 'gwd9rh14sn6hrztpltrf1t8e3b1y5dw3u0nfjqwe7hvhoj9d'
-
-// TinyMCE Editor Config
-const editorConfig = {
-  height: 500,
-  menubar: true,
-  plugins: [
-    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-    'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-    'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-  ],
-  toolbar: 'undo redo | blocks | ' +
-    'bold italic forecolor | alignleft aligncenter ' +
-    'alignright alignjustify | bullist numlist outdent indent | ' +
-    'removeformat | image media link | code | help',
-  content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-
-  // Image upload settings (optional)
-  images_upload_url: '/api/upload/image', // Replace with your upload endpoint
-  automatic_uploads: true,
-
-  // Media embed settings
-  media_live_embeds: true,
-
-  // Vietnamese language (optional - need to add language file)
-  language: 'vi_VN',
-  language_url: '/tinymce/langs/vi_VN.js',
-}
 
 const formRules = {
   title: [
@@ -212,8 +192,8 @@ const formRules = {
 }
 
 const lessonTypeOptions = [
-  { value: 'THEORY', label: 'Theory (Lý thuyết)', icon: '📖' },
-  { value: 'PRACTICE', label: 'Practice (Thực hành)', icon: '✍️' },
+  { value: 'THEORY', label: 'Theory (Lý thuyết)'},
+  { value: 'PRACTICE', label: 'Practice (Thực hành)' },
 ]
 
 // Computed
@@ -225,7 +205,7 @@ const dialogVisible = computed({
 })
 
 const dialogTitle = computed(() => {
-  return props.mode === 'create' ? '📝 Tạo Lesson Mới' : '✏️ Chỉnh Sửa Lesson'
+  return props.mode === 'create' ? 'Tạo Lesson Mới' : 'Chỉnh Sửa Lesson'
 })
 
 const submitButtonText = computed(() => {

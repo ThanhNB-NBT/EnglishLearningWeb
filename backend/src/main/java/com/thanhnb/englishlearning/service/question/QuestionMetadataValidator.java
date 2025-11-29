@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * ✅ Centralized metadata structure validation
+ * Centralized metadata structure validation
  * Validates metadata BEFORE saving to database
  */
 @Component
@@ -43,12 +43,11 @@ public class QuestionMetadataValidator {
             default -> throw new IllegalArgumentException("Unsupported question type: " + questionType);
         }
 
-        log.debug("✅ Validated metadata structure for {}", questionType);
+        log.debug("Validated metadata structure for {}", questionType);
     }
 
     // ========== PRIVATE VALIDATION METHODS ==========
 
-    // QuestionMetadataValidator.java - CẢI TIẾN validateMultipleChoice
     private void validateMultipleChoice(Map<String, Object> metadata, QuestionType type) {
         if (!metadata.containsKey("options")) {
             throw new RuntimeException(type + " cần có 'options' trong metadata");
@@ -66,13 +65,13 @@ public class QuestionMetadataValidator {
             throw new RuntimeException(type + " cần ít nhất 1 option");
         }
 
-        boolean hasCorrect = false;
+        int correctCount = 0; // ĐẾM SỐ OPTION ĐÚNG
         Set<Integer> seenOrders = new HashSet<>();
 
         for (int i = 0; i < options.size(); i++) {
             Map<String, Object> option = options.get(i);
 
-            // ✅ Validate text exists and not empty
+            // Validate text
             if (!option.containsKey("text")) {
                 throw new RuntimeException(type + " mỗi option cần có 'text'");
             }
@@ -87,7 +86,7 @@ public class QuestionMetadataValidator {
                 throw new RuntimeException(type + " option 'text' không được rỗng (index: " + i + ")");
             }
 
-            // ✅ Validate isCorrect
+            // Validate isCorrect
             if (!option.containsKey("isCorrect")) {
                 throw new RuntimeException(type + " mỗi option cần có 'isCorrect'");
             }
@@ -96,11 +95,12 @@ public class QuestionMetadataValidator {
                 throw new RuntimeException(type + " option 'isCorrect' phải là Boolean");
             }
 
+            // ĐẾM SỐ OPTION ĐÚNG
             if (Boolean.TRUE.equals(option.get("isCorrect"))) {
-                hasCorrect = true;
+                correctCount++;
             }
 
-            // ✅ Validate order
+            // Validate order
             if (!option.containsKey("order")) {
                 throw new RuntimeException(type + " mỗi option cần có 'order'");
             }
@@ -115,15 +115,21 @@ public class QuestionMetadataValidator {
                 throw new RuntimeException(type + " option 'order' phải >= 1 (found: " + order + ")");
             }
 
-            // ✅ Check duplicate order
             if (seenOrders.contains(order)) {
                 throw new RuntimeException(type + " có order bị trùng: " + order);
             }
             seenOrders.add(order);
         }
 
-        if (!hasCorrect) {
-            throw new RuntimeException(type + " cần ít nhất 1 option đúng (isCorrect=true)");
+        // KIỂM TRA CHÍNH XÁC 1 OPTION ĐÚNG
+        if (correctCount == 0) {
+            throw new RuntimeException(type + " cần có ít nhất 1 option đúng (isCorrect=true)");
+        }
+
+        if (correctCount > 1) {
+            throw new RuntimeException(
+                    String.format("%s chỉ được có đúng 1 option đúng (tìm thấy %d options đúng)",
+                            type, correctCount));
         }
     }
 
