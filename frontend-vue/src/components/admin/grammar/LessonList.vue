@@ -19,14 +19,33 @@
             :value="topic.id"
           >
             <span style="float: left">{{ topic.name }}</span>
-            <el-tag
-              :type="getLevelColor(topic.levelRequired)"
-              size="small"
-              style="float: right; margin-left: 10px"
-            >
+            <el-tag :type="getLevelColor(topic.levelRequired)" size="small" style="float: right; margin-left: 10px">
               {{ topic.levelRequired }}
             </el-tag>
           </el-option>
+        </el-select>
+
+        <!-- Search Input -->
+        <el-input
+          v-model="searchQuery"
+          placeholder="Tìm kiếm tiêu đề lesson..."
+          :prefix-icon="Search"
+          clearable
+          style="width: 300px"
+          @input="handleSearch"
+        />
+
+        <!-- Filter by Type -->
+        <el-select
+          v-model="filterType"
+          placeholder="Lọc theo loại"
+          clearable
+          style="width: 150px"
+          @change="handleFilter"
+        >
+          <el-option label="Tất cả" value="" />
+          <el-option label="Lý thuyết" value="THEORY" />
+          <el-option label="Thực hành" value="PRACTICE" />
         </el-select>
 
         <!-- Stats -->
@@ -47,42 +66,22 @@
       </div>
 
       <div class="right-actions">
-        <el-button
-          type="primary"
-          :icon="Plus"
-          @click="handleCreate"
-          :disabled="!selectedTopicId"
-          size="small"
-        >
+        <el-button type="primary" :icon="Plus" @click="handleCreate" :disabled="!selectedTopicId" size="small">
           Tạo Lesson
         </el-button>
 
-        <el-button
-          :icon="Refresh"
-          @click="handleRefresh"
-          :disabled="!selectedTopicId"
-          size="small"
-        >
+        <el-button :icon="Refresh" @click="handleRefresh" :disabled="!selectedTopicId" size="small">
           Làm mới
         </el-button>
 
-        <el-button
-          :icon="Tools"
-          @click="handleValidateOrder"
-          :disabled="!selectedTopicId"
-          size="small"
-        >
+        <el-button :icon="Tools" @click="handleValidateOrder" :disabled="!selectedTopicId" size="small">
           Validate
         </el-button>
       </div>
     </div>
 
     <!-- Empty State -->
-    <el-empty
-      v-if="!selectedTopicId"
-      description="Vui lòng chọn Topic để xem Lessons"
-      :image-size="150"
-    >
+    <el-empty v-if="!selectedTopicId" description="Vui lòng chọn Topic để xem Lessons" :image-size="150">
       <template #image>
         <el-icon :size="80" color="#909399">
           <FolderOpened />
@@ -93,14 +92,18 @@
     <!-- Lessons Table -->
     <div v-else>
       <el-table
-        :data="lessons"
+        :data="paginatedLessons"
         v-loading="lessonsLoading"
         border
         stripe
         style="width: 100%"
         @sort-change="handleSortChange"
+        @row-click="handleViewLesson"
         empty-text="Chưa có lesson nào"
         size="small"
+        :header-cell-style="{ background: '#f5f7fa', fontWeight: 'bold' }"
+        :row-style="{ cursor: 'pointer' }"
+        class="custom-table"
       >
         <!-- Order Index -->
         <el-table-column prop="orderIndex" label="STT" width="70" sortable="custom" align="center">
@@ -126,12 +129,7 @@
           <template #default="{ row }">
             <div class="lesson-title">
               <span class="title-text">{{ row.title }}</span>
-              <el-tag
-                v-if="!row.isActive"
-                type="danger"
-                size="small"
-                style="margin-left: 8px"
-              >
+              <el-tag v-if="!row.isActive" type="danger" size="small" style="margin-left: 8px">
                 Inactive
               </el-tag>
             </div>
@@ -148,7 +146,7 @@
         </el-table-column>
 
         <!-- Question Count -->
-        <el-table-column prop="questionCount" label="Câu hỏi" width="90" align="center">
+        <el-table-column label="Câu hỏi" width="90" align="center">
           <template #default="{ row }">
             <el-tag type="primary" size="small">
               <el-icon><QuestionFilled /></el-icon>
@@ -183,40 +181,25 @@
               size="small"
               @change="handleToggleActive(row)"
               :loading="row.statusLoading"
+              @click.stop
             />
           </template>
         </el-table-column>
 
         <!-- Actions -->
-        <el-table-column label="Thao tác" width="180" align="center" fixed="right">
+        <el-table-column label="Thao tác" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button-group>
-              <el-tooltip content="Questions">
-                <el-button
-                  type="primary"
-                  :icon="List"
-                  size="small"
-                  @click="handleViewQuestions(row)"
-                />
-              </el-tooltip>
+            <el-button-group size="small">
+              <el-button
+                :icon="QuestionFilled"
+                @click.stop="handleViewQuestions(row)"
+                :type="row.questionCount > 0 ? 'primary' : 'default'"
+              >
+                Questions ({{ row.questionCount || 0 }})
+              </el-button>
 
-              <el-tooltip content="Chỉnh sửa">
-                <el-button
-                  type="warning"
-                  :icon="Edit"
-                  size="small"
-                  @click="handleEdit(row)"
-                />
-              </el-tooltip>
-
-              <el-tooltip content="Xóa">
-                <el-button
-                  type="danger"
-                  :icon="Delete"
-                  size="small"
-                  @click="handleDelete(row)"
-                />
-              </el-tooltip>
+              <el-button :icon="Edit" @click.stop="handleEdit(row)">Sửa</el-button>
+              <el-button :icon="Delete" type="danger" @click.stop="handleDelete(row)">Xóa</el-button>
             </el-button-group>
           </template>
         </el-table-column>
@@ -246,6 +229,16 @@
       @close="handleCloseDialog"
       @success="handleFormSuccess"
     />
+
+    <!-- Lesson Preview Dialog -->
+    <el-dialog
+      v-model="previewDialogVisible"
+      title="Chi tiết Lesson"
+      width="800px"
+      destroy-on-close
+    >
+      <LessonPreview v-if="selectedLesson" :lesson="selectedLesson" />
+    </el-dialog>
   </div>
 </template>
 
@@ -256,10 +249,11 @@ import { useGrammarLessonForm } from '@/composables/grammar/useGrammarLessons'
 import { getLevelColor } from '@/types/grammar.types'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import {
-  Plus, Refresh, Tools, Edit, Delete, List,
-  Document, Reading, EditPen, QuestionFilled, FolderOpened
+  Plus, Refresh, Tools, Edit, Delete,
+  Document, Reading, EditPen, QuestionFilled, FolderOpened, Search
 } from '@element-plus/icons-vue'
 import LessonFormDialog from './LessonFormDialog.vue'
+import LessonPreview from './LessonPreview.vue'
 
 const props = defineProps({
   initTopicId: {
@@ -281,22 +275,62 @@ const {
 const selectedTopicId = ref(null)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const previewDialogVisible = ref(false)
+const selectedLesson = ref(null)
+const searchQuery = ref('')
+const filterType = ref('')
 
 const topics = computed(() => grammarStore.topics)
 const lessons = computed(() => grammarStore.lessons)
-const lessonsLoading = computed(() => grammarStore.lessonsLoading)
-const lessonsPagination = computed(() => grammarStore.lessonsPagination)
 
-const theoryCount = computed(() => lessons.value.filter(l => l.lessonType === 'THEORY').length)
-const practiceCount = computed(() => lessons.value.filter(l => l.lessonType === 'PRACTICE').length)
+// CLIENT-SIDE FILTERING (like TopicList)
+const filteredLessons = computed(() => {
+  let result = [...lessons.value]
+
+  // Filter by search query
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(lesson =>
+      lesson.title.toLowerCase().includes(query)
+    )
+  }
+
+  // Filter by type
+  if (filterType.value) {
+    result = result.filter(lesson => lesson.lessonType === filterType.value)
+  }
+
+  return result
+})
+
+// CLIENT-SIDE PAGINATION
+const paginatedLessons = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredLessons.value.slice(start, end)
+})
+
+// Update pagination based on filtered results
+const lessonsPagination = computed(() => ({
+  totalElements: filteredLessons.value.length,
+  totalPages: Math.ceil(filteredLessons.value.length / pageSize.value),
+  currentPage: currentPage.value,
+  pageSize: pageSize.value
+}))
+const lessonsLoading = computed(() => grammarStore.lessonsLoading)
+
+const theoryCount = computed(() => filteredLessons.value.filter(l => l.lessonType === 'THEORY').length)
+const practiceCount = computed(() => filteredLessons.value.filter(l => l.lessonType === 'PRACTICE').length)
 
 const loadLessons = async () => {
   if (!selectedTopicId.value || typeof selectedTopicId.value !== 'number') {
     return
   }
+
+  // Load ALL lessons without filtering (let client-side handle it)
   await grammarStore.fetchLessons(selectedTopicId.value, {
-    page: currentPage.value - 1,
-    size: pageSize.value,
+    page: 0,
+    size: 1000, // Load all lessons
     sort: 'orderIndex,asc',
   })
 }
@@ -327,6 +361,17 @@ const handleCreate = async () => {
 }
 
 defineExpose({ openCreateDialog: handleCreate })
+
+const handleViewLesson = async (lesson) => {
+  try {
+    const fullLesson = await grammarStore.fetchLessonById(lesson.id)
+    selectedLesson.value = fullLesson
+    previewDialogVisible.value = true
+  } catch (error) {
+    console.error('Failed to load lesson:', error)
+    ElMessage.error('Không thể tải chi tiết lesson')
+  }
+}
 
 const handleEdit = async (lesson) => {
   try {
@@ -371,11 +416,21 @@ const handleToggleActive = async (lesson) => {
 const emit = defineEmits(['view-questions'])
 
 const handleViewQuestions = (lesson) => {
-  ElMessage.info('Tính năng Questions sắp có!')
+  console.log('Viewing questions for lesson:', lesson)
   emit('view-questions', lesson)
 }
 
 const handleRefresh = async () => {
+  currentPage.value = 1
+  await loadLessons()
+}
+
+const handleSearch = async () => {
+  currentPage.value = 1
+  await loadLessons()
+}
+
+const handleFilter = async () => {
   currentPage.value = 1
   await loadLessons()
 }
@@ -388,24 +443,33 @@ const handleValidateOrder = async () => {
   }
 }
 
-const handlePageChange = async (page) => {
+const handlePageChange = (page) => {
   currentPage.value = page
-  await loadLessons()
 }
 
-const handleSizeChange = async (size) => {
+const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  await loadLessons()
 }
 
 const handleSortChange = async ({ prop, order }) => {
   const sortOrder = order === 'ascending' ? 'asc' : 'desc'
-  await grammarStore.fetchLessons(selectedTopicId.value, {
+  const params = {
     page: currentPage.value - 1,
     size: pageSize.value,
     sort: `${prop},${sortOrder}`,
-  })
+  }
+
+  // TODO: Backend chưa hỗ trợ search/filter
+  // if (searchQuery.value.trim()) {
+  //   params.search = searchQuery.value.trim()
+  // }
+
+  // if (filterType.value) {
+  //   params.lessonType = filterType.value
+  // }
+
+  await grammarStore.fetchLessons(selectedTopicId.value, params)
 }
 
 const handleCloseDialog = () => closeDialog()
@@ -428,14 +492,14 @@ onMounted(async () => {
 
 <style scoped>
 .lesson-list-container {
-  padding: 16px; /* Giảm từ 20px */
+  padding: 16px;
 }
 
 .header-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px; /* Giảm từ 20px */
+  margin-bottom: 16px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -467,9 +531,47 @@ onMounted(async () => {
 }
 
 .pagination-container {
-  margin-top: 16px; /* Giảm từ 20px */
+  margin-top: 16px;
   display: flex;
   justify-content: center;
+}
+
+/* Đảm bảo cột Actions có border đầy đủ - CSS mạnh hơn */
+.custom-table {
+  border: 1px solid var(--el-table-border-color);
+}
+
+.custom-table :deep(.el-table__inner-wrapper) {
+  border: 1px solid var(--el-table-border-color);
+}
+
+.custom-table :deep(.el-table__cell) {
+  border-right: 1px solid var(--el-table-border-color) !important;
+  padding: 12px 8px;
+}
+
+.custom-table :deep(.el-table__header-wrapper .el-table__cell) {
+  background: var(--el-fill-color-light) !important;
+  color: var(--el-text-color-primary) !important;
+  font-weight: bold;
+}
+
+/* Force border cho fixed column */
+.custom-table :deep(.el-table__fixed-right) {
+  border-left: 2px solid var(--el-table-border-color) !important;
+}
+
+.custom-table :deep(.el-table__fixed-right .el-table__cell) {
+  border-left: 2px solid var(--el-table-border-color) !important;
+}
+
+.custom-table :deep(.el-table__body-wrapper .el-table__row .el-table__cell:last-child) {
+  border-left: 2px solid var(--el-table-border-color) !important;
+}
+
+.custom-table :deep(.el-table__row:hover) {
+  background-color: var(--el-fill-color-light);
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {

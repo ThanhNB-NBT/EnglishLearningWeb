@@ -164,11 +164,16 @@ const removeOption = (index) => {
 
 const handleCorrectChange = (index) => {
   // For multiple choice, only one can be correct
-  localMetadata.value.options.forEach((opt, idx) => {
-    if (idx !== index) {
-      opt.isCorrect = false
-    }
-  })
+  const clickedOption = localMetadata.value.options[index]
+
+  if (clickedOption.isCorrect) {
+    localMetadata.value.options.forEach((opt, idx) => {
+      if (idx !== index) {
+        opt.isCorrect = false
+      }
+    })
+  }
+
   emitUpdate()
 }
 

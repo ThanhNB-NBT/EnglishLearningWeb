@@ -36,7 +36,7 @@ export const useGrammarStore = defineStore('grammar', {
       size: 10,
       totalElements: 0,
       totalPages: 0,
-    }
+    },
   }),
 
   getters: {
@@ -54,14 +54,11 @@ export const useGrammarStore = defineStore('grammar', {
 
     // Questions getters
     getQuestionById: (state) => (id) => state.questions.find((q) => q.id === id),
-    getQuestionsByType: (state) => (type) =>
-      state.questions.filter((q) => q.questionType === type),
+    getQuestionsByType: (state) => (type) => state.questions.filter((q) => q.questionType === type),
     multipleChoiceQuestions: (state) =>
       state.questions.filter((q) => q.questionType === 'MULTIPLE_CHOICE'),
-    trueFalseQuestions: (state) =>
-      state.questions.filter((q) => q.questionType === 'TRUE_FALSE'),
-    fillBlankQuestions: (state) =>
-      state.questions.filter((q) => q.questionType === 'FILL_BLANK'),
+    trueFalseQuestions: (state) => state.questions.filter((q) => q.questionType === 'TRUE_FALSE'),
+    fillBlankQuestions: (state) => state.questions.filter((q) => q.questionType === 'FILL_BLANK'),
     questionCountByType: (state) => {
       const counts = {}
       state.questions.forEach((q) => {
@@ -70,12 +67,12 @@ export const useGrammarStore = defineStore('grammar', {
       })
       return counts
     },
-    totalQuestionPoints: (state) =>
-      state.questions.reduce((sum, q) => sum + (q.points || 0), 0),
+    totalQuestionPoints: (state) => state.questions.reduce((sum, q) => sum + (q.points || 0), 0),
     hasQuestions: (state) => state.questions.length > 0,
-    sortedQuestions: (state) =>
-      [...state.questions].sort((a, b) => a.orderIndex - b.orderIndex),
+    sortedQuestions: (state) => [...state.questions].sort((a, b) => a.orderIndex - b.orderIndex),
   },
+
+  actions: {
     // ==================== TOPICS CRUD ====================
 
     async fetchTopics(params = {}) {
@@ -227,6 +224,18 @@ export const useGrammarStore = defineStore('grammar', {
     },
 
     // ==================== LESSONS CRUD ====================
+
+    async fetchAllLessons() {
+      try {
+        const response = await grammarAdminAPI.getAllLessons({ size: 1000 })
+        if (response.data.success) {
+          return response.data.data.content || []
+        }
+      } catch (error) {
+        console.error('Error fetching all lessons:', error)
+        return []
+      }
+    },
 
     async fetchLessons(topicId, params = {}) {
       this.lessonsLoading = true
@@ -542,7 +551,7 @@ export const useGrammarStore = defineStore('grammar', {
       this.questions = []
       this.currentQuestion = null
       this.questionsLoading = false
-      this.questionsPagination = { page: 0, size: 10, totalElements: 0, totalPages: 0}
+      this.questionsPagination = { page: 0, size: 10, totalElements: 0, totalPages: 0 }
     },
   },
-)
+})

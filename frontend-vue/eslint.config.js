@@ -16,6 +16,10 @@ export default defineConfig([
     languageOptions: {
       globals: {
         ...globals.browser,
+        defineProps: 'readonly',
+        defineEmits: 'readonly',
+        defineExpose: 'readonly',
+        withDefaults: 'readonly',
       },
     },
   },

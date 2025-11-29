@@ -34,7 +34,6 @@ services:
     container_name: english-app-test
     ports:
       - "8980:8980"
-      - "5005:5005"
     depends_on:
       db:
         condition: service_healthy

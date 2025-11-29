@@ -250,7 +250,7 @@ const fetchAllTopics = async () => {
       sort: 'orderIndex,asc',
     })
 
-    console.log('✅ Loaded all topics:', grammarStore.topics.length)
+    console.log('Loaded all topics:', grammarStore.topics.length)
   } catch {
     // Error handled in store
   }
@@ -309,7 +309,7 @@ const handleToggleActive = async (topic) => {
         orderIndex: topic.orderIndex,
         isActive: true
       })
-      ElMessage.success('✅ Đã kích hoạt lại topic!')
+      ElMessage.success('Đã kích hoạt lại topic!')
     }
 
     // Refresh lại danh sách
@@ -334,7 +334,7 @@ const handleValidateOrder = async () => {
     const result = await grammarStore.validateTopicsOrder()
 
     if (result.issuesFixed === 0) {
-      ElMessage.success('✅ Order Index đã chính xác!')
+      ElMessage.success('Order Index đã chính xác!')
     }
   } catch {
     // Error handled in store
@@ -358,7 +358,7 @@ const handleRefresh = async () => {
 
 const handlePageChange = (page) => {
   currentPage.value = page
-  console.log('📄 Changed to page:', page)
+  console.log('Changed to page:', page)
 
   // Scroll to top
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -367,13 +367,13 @@ const handlePageChange = (page) => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  console.log('📏 Changed page size to:', size)
+  console.log('Changed page size to:', size)
 }
 
 const handleFormSuccess = async () => {
   // Refresh toàn bộ danh sách
   await fetchAllTopics()
-  console.log('🔄 Refreshed topics list after form success')
+  console.log('Refreshed topics list after form success')
 }
 </script>
 

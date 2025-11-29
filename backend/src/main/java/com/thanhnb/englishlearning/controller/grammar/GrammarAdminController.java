@@ -24,8 +24,6 @@ import java.util.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -49,11 +47,6 @@ public class GrammarAdminController {
         @Operation(summary = "Parse file (PDF/DOCX/Image) thành Grammar lessons", description = "Sử dụng AI (Gemini) để phân tích file và tạo lessons với questions. "
                         +
                         "Hỗ trợ PDF (có thể chọn pages), DOCX, và Image (JPG/PNG/WEBP).")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Parse thành công, trả về danh sách lessons"),
-                        @ApiResponse(responseCode = "400", description = "File không hợp lệ hoặc topic không tồn tại"),
-                        @ApiResponse(responseCode = "500", description = "Lỗi server hoặc Gemini API")
-        })
         public ResponseEntity<CustomApiResponse<Map<String, Object>>> parseFile(
                         @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
 
@@ -133,11 +126,6 @@ public class GrammarAdminController {
         @Operation(summary = "Lưu parsed lessons vào database", description = "Lưu các bài học đã được parse từ file vào database. "
                         +
                         "Tự động tạo lessons và questions với orderIndex đã được adjust.")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Import thành công vào database"),
-                        @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc topic không tồn tại"),
-                        @ApiResponse(responseCode = "500", description = "Lỗi khi lưu vào database")
-        })
         public ResponseEntity<CustomApiResponse<Map<String, Object>>> saveParsedLessons(
                         @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
 

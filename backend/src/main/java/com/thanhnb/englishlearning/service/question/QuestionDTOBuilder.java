@@ -37,11 +37,11 @@ public class QuestionDTOBuilder {
         question.setPoints(dto.getPoints() != null ? dto.getPoints() : 5);
         question.setOrderIndex(dto.getOrderIndex() != null ? dto.getOrderIndex() : 0);
         question.setCreatedAt(LocalDateTime.now());
-        
+
         // Build metadata based on question type
         Map<String, Object> metadata = buildMetadata(dto);
         question.setMetadata(metadata);
-        
+
         return question;
     }
 
@@ -50,17 +50,18 @@ public class QuestionDTOBuilder {
      */
     public Map<String, Object> buildMetadata(CreateQuestionDTO dto) {
         Map<String, Object> metadata = new HashMap<>();
-        
+
         return switch (dto.getQuestionType()) {
             case MULTIPLE_CHOICE -> buildMultipleChoiceMetadata((CreateMultipleChoiceDTO) dto, metadata);
             case TRUE_FALSE -> buildTrueFalseMetadata((CreateTrueFalseDTO) dto, metadata);
-            case FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION -> 
+            case FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION ->
                 buildTextAnswerMetadata((CreateTextAnswerDTO) dto, metadata);
             case MATCHING -> buildMatchingMetadata((CreateMatchingDTO) dto, metadata);
             case SENTENCE_BUILDING -> buildSentenceBuildingMetadata((CreateSentenceBuildingDTO) dto, metadata);
             case COMPLETE_CONVERSATION -> buildConversationMetadata((CreateConversationDTO) dto, metadata);
             case PRONUNCIATION -> buildPronunciationMetadata((CreatePronunciationsDTO) dto, metadata);
-            case READING_COMPREHENSION -> buildReadingComprehensionMetadata((CreateReadingComprehensionDTO) dto, metadata);
+            case READING_COMPREHENSION ->
+                buildReadingComprehensionMetadata((CreateReadingComprehensionDTO) dto, metadata);
             case OPEN_ENDED -> buildOpenEndedMetadata((CreateOpenEndedDTO) dto, metadata);
         };
     }
@@ -70,58 +71,88 @@ public class QuestionDTOBuilder {
     // ═══════════════════════════════════════════════════════════════
 
     private Map<String, Object> buildMultipleChoiceMetadata(CreateMultipleChoiceDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
-        
-        List<Map<String, Object>> options = new ArrayList<>();
+        log.info("Building MultipleChoice metadata...");
+
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
 
         if (dto.getOptions() == null || dto.getOptions().isEmpty()) {
-        throw new IllegalArgumentException("Câu hỏi Multiple Choice phải có ít nhất một lựa chọn.");
-    }
+            throw new IllegalArgumentException("Câu hỏi Multiple Choice phải có ít nhất một lựa chọn.");
+        }
+
+        List<Map<String, Object>> options = new ArrayList<>();
+        long correctCount = 0;
 
         for (CreateMultipleChoiceDTO.OptionDTO opt : dto.getOptions()) {
+            // Xử lý isCorrect null-safe
+            Boolean isCorrect = opt.getIsCorrect();
+            if (isCorrect == null) {
+                isCorrect = false; // Default to false
+            }
+
+            if (isCorrect) {
+                correctCount++;
+            }
+
             Map<String, Object> option = new HashMap<>();
             option.put("text", opt.getText());
-            option.put("isCorrect", opt.isCorrect());
+            option.put("isCorrect", isCorrect);
             option.put("order", opt.getOrder());
             options.add(option);
         }
+
+        // Validation
+        if (correctCount == 0) {
+            log.error("No correct option found in {} options", options.size());
+            throw new IllegalArgumentException("Câu hỏi Multiple Choice phải có ít nhất một lựa chọn đúng.");
+        }
+
+        if (correctCount > 1) {
+            log.error("Found {} correct options, expected exactly 1", correctCount);
+            throw new IllegalArgumentException(
+                    String.format("Câu hỏi Multiple Choice chỉ được có một lựa chọn đúng (tìm thấy %d)", correctCount));
+        }
+
         meta.put("options", options);
-        
+        log.info("Metadata built successfully with {} options, {} correct", options.size(), correctCount);
         return meta;
     }
 
     private Map<String, Object> buildTrueFalseMetadata(CreateTrueFalseDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
-        
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
+
         // True/False được lưu dạng options để tương thích với checking logic
         List<Map<String, Object>> options = new ArrayList<>();
-        
+
         Map<String, Object> trueOption = new HashMap<>();
         trueOption.put("text", "True");
         trueOption.put("isCorrect", dto.getCorrectAnswer());
         trueOption.put("order", 1);
         options.add(trueOption);
-        
+
         Map<String, Object> falseOption = new HashMap<>();
         falseOption.put("text", "False");
         falseOption.put("isCorrect", !dto.getCorrectAnswer());
         falseOption.put("order", 2);
         options.add(falseOption);
-        
+
         meta.put("options", options);
         return meta;
     }
 
     private Map<String, Object> buildTextAnswerMetadata(CreateTextAnswerDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
         meta.put("correctAnswer", dto.getCorrectAnswer());
         meta.put("caseSensitive", dto.getCaseSensitive() != null ? dto.getCaseSensitive() : false);
         return meta;
     }
 
     private Map<String, Object> buildMatchingMetadata(CreateMatchingDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
-        
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
+
         List<Map<String, Object>> pairs = new ArrayList<>();
         for (CreateMatchingDTO.PairDTO pair : dto.getPairs()) {
             Map<String, Object> pairMap = new HashMap<>();
@@ -131,19 +162,21 @@ public class QuestionDTOBuilder {
             pairs.add(pairMap);
         }
         meta.put("pairs", pairs);
-        
+
         return meta;
     }
 
     private Map<String, Object> buildSentenceBuildingMetadata(CreateSentenceBuildingDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
         meta.put("words", dto.getWords());
         meta.put("correctSentence", dto.getCorrectSentence());
         return meta;
     }
 
     private Map<String, Object> buildConversationMetadata(CreateConversationDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
         meta.put("conversationContext", dto.getConversationContext());
         meta.put("options", dto.getOptions());
         meta.put("correctAnswer", dto.getCorrectAnswer());
@@ -151,10 +184,11 @@ public class QuestionDTOBuilder {
     }
 
     private Map<String, Object> buildPronunciationMetadata(CreatePronunciationsDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
         meta.put("words", dto.getWords());
         meta.put("categories", dto.getCategories());
-        
+
         List<Map<String, Object>> classifications = new ArrayList<>();
         for (CreatePronunciationsDTO.ClassificationDTO cls : dto.getClassifications()) {
             Map<String, Object> clsMap = new HashMap<>();
@@ -163,14 +197,16 @@ public class QuestionDTOBuilder {
             classifications.add(clsMap);
         }
         meta.put("correctClassifications", classifications);
-        
+
         return meta;
     }
 
-    private Map<String, Object> buildReadingComprehensionMetadata(CreateReadingComprehensionDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
+    private Map<String, Object> buildReadingComprehensionMetadata(CreateReadingComprehensionDTO dto,
+            Map<String, Object> meta) {
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
         meta.put("passage", dto.getPassage());
-        
+
         List<Map<String, Object>> blanks = new ArrayList<>();
         for (CreateReadingComprehensionDTO.BlankDTO blank : dto.getBlanks()) {
             Map<String, Object> blankMap = new HashMap<>();
@@ -180,16 +216,21 @@ public class QuestionDTOBuilder {
             blanks.add(blankMap);
         }
         meta.put("blanks", blanks);
-        
+
         return meta;
     }
 
     private Map<String, Object> buildOpenEndedMetadata(CreateOpenEndedDTO dto, Map<String, Object> meta) {
-        if (dto.getHint() != null) meta.put("hint", dto.getHint());
-        if (dto.getSuggestedAnswer() != null) meta.put("suggestedAnswer", dto.getSuggestedAnswer());
-        if (dto.getTimeLimitSeconds() != null) meta.put("timeLimitSeconds", dto.getTimeLimitSeconds());
-        if (dto.getMinWord() != null) meta.put("minWords", dto.getMinWord());
-        if (dto.getMaxWord() != null) meta.put("maxWords", dto.getMaxWord());
+        if (dto.getHint() != null)
+            meta.put("hint", dto.getHint());
+        if (dto.getSuggestedAnswer() != null)
+            meta.put("suggestedAnswer", dto.getSuggestedAnswer());
+        if (dto.getTimeLimitSeconds() != null)
+            meta.put("timeLimitSeconds", dto.getTimeLimitSeconds());
+        if (dto.getMinWord() != null)
+            meta.put("minWords", dto.getMinWord());
+        if (dto.getMaxWord() != null)
+            meta.put("maxWords", dto.getMaxWord());
         return meta;
     }
 
@@ -216,11 +257,11 @@ public class QuestionDTOBuilder {
     public CreateQuestionDTO responseToCreateDTO(QuestionResponseDTO responseDTO) {
         QuestionType type = responseDTO.getQuestionType();
         Map<String, Object> meta = responseDTO.getMetadata();
-        
+
         CreateQuestionDTO createDTO = switch (type) {
             case MULTIPLE_CHOICE -> convertToMultipleChoiceDTO(responseDTO, meta);
             case TRUE_FALSE -> convertToTrueFalseDTO(responseDTO, meta);
-            case FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION -> 
+            case FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION ->
                 convertToTextAnswerDTO(responseDTO, meta, type);
             case MATCHING -> convertToMatchingDTO(responseDTO, meta);
             case SENTENCE_BUILDING -> convertToSentenceBuildingDTO(responseDTO, meta);
@@ -229,7 +270,7 @@ public class QuestionDTOBuilder {
             case READING_COMPREHENSION -> convertToReadingComprehensionDTO(responseDTO, meta);
             case OPEN_ENDED -> convertToOpenEndedDTO(responseDTO, meta);
         };
-        
+
         // Set common fields
         createDTO.setParentType(responseDTO.getParentType());
         createDTO.setParentId(responseDTO.getParentId());
@@ -237,7 +278,7 @@ public class QuestionDTOBuilder {
         createDTO.setExplanation(responseDTO.getExplanation());
         createDTO.setPoints(responseDTO.getPoints());
         createDTO.setOrderIndex(responseDTO.getOrderIndex());
-        
+
         return createDTO;
     }
 
@@ -249,19 +290,19 @@ public class QuestionDTOBuilder {
     private CreateMultipleChoiceDTO convertToMultipleChoiceDTO(QuestionResponseDTO dto, Map<String, Object> meta) {
         CreateMultipleChoiceDTO result = new CreateMultipleChoiceDTO();
         result.setHint((String) meta.get("hint"));
-        
+
         List<Map<String, Object>> optionMaps = (List<Map<String, Object>>) meta.get("options");
         List<CreateMultipleChoiceDTO.OptionDTO> options = new ArrayList<>();
-        
+
         for (Map<String, Object> opt : optionMaps) {
             CreateMultipleChoiceDTO.OptionDTO option = new CreateMultipleChoiceDTO.OptionDTO();
             option.setText((String) opt.get("text"));
-            option.setCorrect(Boolean.TRUE.equals(opt.get("isCorrect")));
+            option.setIsCorrect(Boolean.TRUE.equals(opt.get("isCorrect")));
             option.setOrder((Integer) opt.get("order"));
             options.add(option);
         }
         result.setOptions(options);
-        
+
         return result;
     }
 
@@ -269,20 +310,21 @@ public class QuestionDTOBuilder {
     private CreateTrueFalseDTO convertToTrueFalseDTO(QuestionResponseDTO dto, Map<String, Object> meta) {
         CreateTrueFalseDTO result = new CreateTrueFalseDTO();
         result.setHint((String) meta.get("hint"));
-        
+
         // Extract correctAnswer từ options
         List<Map<String, Object>> options = (List<Map<String, Object>>) meta.get("options");
         boolean correctAnswer = options.stream()
-            .filter(opt -> "True".equals(opt.get("text")))
-            .findFirst()
-            .map(opt -> Boolean.TRUE.equals(opt.get("isCorrect")))
-            .orElse(false);
-        
+                .filter(opt -> "True".equals(opt.get("text")))
+                .findFirst()
+                .map(opt -> Boolean.TRUE.equals(opt.get("isCorrect")))
+                .orElse(false);
+
         result.setCorrectAnswer(correctAnswer);
         return result;
     }
 
-    private CreateTextAnswerDTO convertToTextAnswerDTO(QuestionResponseDTO dto, Map<String, Object> meta, QuestionType type) {
+    private CreateTextAnswerDTO convertToTextAnswerDTO(QuestionResponseDTO dto, Map<String, Object> meta,
+            QuestionType type) {
         CreateTextAnswerDTO result = new CreateTextAnswerDTO();
         result.setHint((String) meta.get("hint"));
         result.setCorrectAnswer((String) meta.get("correctAnswer"));
@@ -295,10 +337,10 @@ public class QuestionDTOBuilder {
     private CreateMatchingDTO convertToMatchingDTO(QuestionResponseDTO dto, Map<String, Object> meta) {
         CreateMatchingDTO result = new CreateMatchingDTO();
         result.setHint((String) meta.get("hint"));
-        
+
         List<Map<String, Object>> pairMaps = (List<Map<String, Object>>) meta.get("pairs");
         List<CreateMatchingDTO.PairDTO> pairs = new ArrayList<>();
-        
+
         for (Map<String, Object> pairMap : pairMaps) {
             CreateMatchingDTO.PairDTO pair = new CreateMatchingDTO.PairDTO();
             pair.setLeft((String) pairMap.get("left"));
@@ -307,7 +349,7 @@ public class QuestionDTOBuilder {
             pairs.add(pair);
         }
         result.setPairs(pairs);
-        
+
         return result;
     }
 
@@ -336,10 +378,10 @@ public class QuestionDTOBuilder {
         result.setHint((String) meta.get("hint"));
         result.setWords((List<String>) meta.get("words"));
         result.setCategories((List<String>) meta.get("categories"));
-        
+
         List<Map<String, Object>> clsMaps = (List<Map<String, Object>>) meta.get("correctClassifications");
         List<CreatePronunciationsDTO.ClassificationDTO> classifications = new ArrayList<>();
-        
+
         for (Map<String, Object> clsMap : clsMaps) {
             CreatePronunciationsDTO.ClassificationDTO cls = new CreatePronunciationsDTO.ClassificationDTO();
             cls.setWord((String) clsMap.get("word"));
@@ -347,19 +389,20 @@ public class QuestionDTOBuilder {
             classifications.add(cls);
         }
         result.setClassifications(classifications);
-        
+
         return result;
     }
 
     @SuppressWarnings("unchecked")
-    private CreateReadingComprehensionDTO convertToReadingComprehensionDTO(QuestionResponseDTO dto, Map<String, Object> meta) {
+    private CreateReadingComprehensionDTO convertToReadingComprehensionDTO(QuestionResponseDTO dto,
+            Map<String, Object> meta) {
         CreateReadingComprehensionDTO result = new CreateReadingComprehensionDTO();
         result.setHint((String) meta.get("hint"));
         result.setPassage((String) meta.get("passage"));
-        
+
         List<Map<String, Object>> blankMaps = (List<Map<String, Object>>) meta.get("blanks");
         List<CreateReadingComprehensionDTO.BlankDTO> blanks = new ArrayList<>();
-        
+
         for (Map<String, Object> blankMap : blankMaps) {
             CreateReadingComprehensionDTO.BlankDTO blank = new CreateReadingComprehensionDTO.BlankDTO();
             blank.setPosition((Integer) blankMap.get("position"));
@@ -368,7 +411,7 @@ public class QuestionDTOBuilder {
             blanks.add(blank);
         }
         result.setBlanks(blanks);
-        
+
         return result;
     }
 
@@ -376,22 +419,22 @@ public class QuestionDTOBuilder {
         CreateOpenEndedDTO result = new CreateOpenEndedDTO();
         result.setHint((String) meta.get("hint"));
         result.setSuggestedAnswer((String) meta.get("suggestedAnswer"));
-        
+
         Object timeLimit = meta.get("timeLimitSeconds");
         if (timeLimit instanceof Integer) {
             result.setTimeLimitSeconds((Integer) timeLimit);
         }
-        
+
         Object minWords = meta.get("minWords");
         if (minWords instanceof Integer) {
             result.setMinWord((Integer) minWords);
         }
-        
+
         Object maxWords = meta.get("maxWords");
         if (maxWords instanceof Integer) {
             result.setMaxWord((Integer) maxWords);
         }
-        
+
         return result;
     }
 }
