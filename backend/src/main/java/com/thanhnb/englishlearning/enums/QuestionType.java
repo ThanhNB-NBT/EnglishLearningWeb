@@ -12,7 +12,8 @@ public enum QuestionType {
     PRONUNCIATION("Phát âm"),
     READING_COMPREHENSION("Đọc hiểu"),
     OPEN_ENDED("Tự luận"),
-    SENTENCE_BUILDING("Xây dựng câu");
+    SENTENCE_BUILDING("Xây dựng câu"),
+    TEXT_ANSWER("Trả lời bằng văn bản");
 
     private final String description;
 

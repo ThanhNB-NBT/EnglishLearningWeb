@@ -1,180 +1,71 @@
-<!-- src/components/admin/questions/ConversationForm.vue -->
 <template>
   <div class="conversation-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
-    </el-form-item>
-
-    <!-- Conversation Context -->
-    <el-form-item label="Conversation Context" required>
-      <el-input
-        v-model="localMetadata.conversationContext"
-        type="textarea"
-        :rows="4"
-        placeholder="Enter the conversation context with ___ for the blank (e.g., A: How are you? B: ___ A: That's great!)"
-        @input="emitUpdate"
-      />
-      <template #extra>
-        <el-text size="small" type="info">
-          Use "___" to mark where users should fill in the response.
-        </el-text>
+    <el-alert title="Tạo hội thoại" type="success" :closable="false" class="mb-4">
+      <template #default>
+        Thêm các dòng thoại cho nhân vật A và B. Để tạo chỗ trống cần điền, hãy viết từ đó trong ngoặc vuông. <br>
+        Ví dụ: <b>Hello, how [are] you?</b> (Người dùng sẽ phải điền từ "are").
       </template>
-    </el-form-item>
+    </el-alert>
 
-    <!-- Options -->
-    <el-form-item label="Response Options" required>
-      <el-input
-        v-model="optionsInput"
-        placeholder="Enter options separated by commas (e.g., I'm fine, Not bad, Great)"
-        @input="handleOptionsInput"
-      />
-    </el-form-item>
+    <div class="chat-container">
+      <transition-group name="list">
+        <div v-for="(line, index) in localMetadata.dialogue" :key="index" class="chat-line mb-3"
+          :class="{ 'is-right': line.speaker === 'B' }">
+          <div class="speaker-avatar" :class="line.speaker === 'A' ? 'bg-primary' : 'bg-warning'">
+            {{ line.speaker }}
+          </div>
 
-    <!-- Options Preview -->
-    <el-form-item label="Options Preview" v-if="localMetadata.options.length > 0">
-      <el-space wrap>
-        <el-tag
-          v-for="(option, index) in localMetadata.options"
-          :key="index"
-          :type="option === localMetadata.correctAnswer ? 'success' : 'info'"
-          closable
-          @close="removeOption(index)"
-          @click="setCorrectAnswer(option)"
-          style="cursor: pointer"
-        >
-          {{ option }}
-          <el-icon v-if="option === localMetadata.correctAnswer"><Check /></el-icon>
-        </el-tag>
-      </el-space>
-      <template #extra>
-        <el-text size="small" type="info">
-          Click on an option to mark it as correct answer.
-        </el-text>
-      </template>
-    </el-form-item>
+          <div class="chat-bubble">
+            <div class="bubble-header">
+              <span class="text-xs text-gray-400">Dòng #{{ index + 1 }}</span>
+              <el-button type="danger" link icon="Delete" size="small" @click="removeLine(index)" />
+            </div>
 
-    <!-- Correct Answer -->
-    <el-form-item label="Correct Answer" required>
-      <el-select
-        v-model="localMetadata.correctAnswer"
-        placeholder="Select correct answer"
-        style="width: 100%"
-        @change="emitUpdate"
-      >
-        <el-option
-          v-for="option in localMetadata.options"
-          :key="option"
-          :label="option"
-          :value="option"
-        />
-      </el-select>
-    </el-form-item>
+            <el-input v-model="line.text" type="textarea" :rows="2"
+              placeholder="Nhập lời thoại... VD: Nice to [meet] you." @input="emitUpdate" />
+          </div>
+        </div>
+      </transition-group>
+    </div>
 
-    <!-- Validation Info -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 12px"
-    />
+    <div class="actions-bar mt-4">
+      <el-button type="primary" plain @click="addLine('A')">+ Thêm thoại A</el-button>
+      <el-button type="warning" plain @click="addLine('B')">+ Thêm thoại B</el-button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Check } from '@element-plus/icons-vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
+  metadata: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['update:metadata'])
 
+// Init data
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  conversationContext: props.metadata.conversationContext || '',
-  options: props.metadata.options || [],
-  correctAnswer: props.metadata.correctAnswer || '',
+  dialogue: props.metadata?.dialogue || [
+    { speaker: 'A', text: '' },
+    { speaker: 'B', text: '' }
+  ]
 })
 
-const optionsInput = ref(
-  props.metadata.options ? props.metadata.options.join(', ') : ''
-)
-
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        conversationContext: newVal.conversationContext || '',
-        options: newVal.options || [],
-        correctAnswer: newVal.correctAnswer || '',
-      }
-      optionsInput.value = newVal.options ? newVal.options.join(', ') : ''
-    }
-  },
-  { deep: true }
-)
-
-const validationError = computed(() => {
-  if (!localMetadata.value.conversationContext || localMetadata.value.conversationContext.trim() === '') {
-    return 'Conversation context is required'
+watch(() => props.metadata, (newVal) => {
+  if (newVal && newVal.dialogue) {
+    localMetadata.value.dialogue = newVal.dialogue
   }
+}, { deep: true })
 
-  if (!localMetadata.value.conversationContext.includes('___')) {
-    return 'Conversation context must include "___" to mark the blank'
-  }
-
-  if (!localMetadata.value.options || localMetadata.value.options.length < 2) {
-    return 'Need at least 2 response options'
-  }
-
-  if (!localMetadata.value.correctAnswer || localMetadata.value.correctAnswer.trim() === '') {
-    return 'Correct answer must be selected'
-  }
-
-  return null
-})
-
-const handleOptionsInput = () => {
-  const options = optionsInput.value
-    .split(',')
-    .map((o) => o.trim())
-    .filter((o) => o.length > 0)
-
-  localMetadata.value.options = options
+// Actions
+const addLine = (speaker) => {
+  localMetadata.value.dialogue.push({ speaker, text: '' })
   emitUpdate()
 }
 
-const removeOption = (index) => {
-  const removedOption = localMetadata.value.options[index]
-  localMetadata.value.options.splice(index, 1)
-
-  // If removed option was correct answer, clear it
-  if (localMetadata.value.correctAnswer === removedOption) {
-    localMetadata.value.correctAnswer = ''
-  }
-
-  optionsInput.value = localMetadata.value.options.join(', ')
-  emitUpdate()
-}
-
-const setCorrectAnswer = (option) => {
-  localMetadata.value.correctAnswer = option
+const removeLine = (index) => {
+  localMetadata.value.dialogue.splice(index, 1)
   emitUpdate()
 }
 
@@ -185,6 +76,85 @@ const emitUpdate = () => {
 
 <style scoped>
 .conversation-form {
-  padding: 8px 0;
+  padding: 10px 0;
+}
+
+.chat-container {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.chat-line {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  max-width: 85%;
+}
+
+.chat-line.is-right {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.speaker-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.bg-primary {
+  background-color: #409eff;
+}
+
+.bg-warning {
+  background-color: #e6a23c;
+}
+
+.chat-bubble {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  position: relative;
+}
+
+.chat-line.is-right .chat-bubble {
+  background: #ecf5ff;
+  /* Màu xanh nhạt cho B */
+}
+
+.bubble-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.actions-bar {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* Transition */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>

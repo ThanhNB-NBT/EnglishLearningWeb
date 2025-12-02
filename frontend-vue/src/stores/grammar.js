@@ -92,7 +92,7 @@ export const useGrammarStore = defineStore('grammar', {
           }
         }
       } catch (error) {
-        console.error('❌ Error fetching topics:', error)
+        console.error('Error fetching topics:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tải danh sách topics')
         this.topics = []
         this.topicsPagination = { page: 0, size: 10, totalElements: 0, totalPages: 0 }
@@ -111,7 +111,7 @@ export const useGrammarStore = defineStore('grammar', {
           return this.currentTopic
         }
       } catch (error) {
-        console.error('❌ Error fetching topic:', error)
+        console.error('Error fetching topic:', error)
         ElMessage.error('Không thể tải chi tiết topic')
         throw error
       } finally {
@@ -123,11 +123,11 @@ export const useGrammarStore = defineStore('grammar', {
       try {
         const response = await grammarAdminAPI.createTopic(topicData)
         if (response.data.success) {
-          ElMessage.success('✅ Tạo topic thành công!')
+          ElMessage.success('Tạo topic thành công!')
           return response.data.data
         }
       } catch (error) {
-        console.error('❌ Error creating topic:', error)
+        console.error('Error creating topic:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tạo topic')
         throw error
       }
@@ -141,11 +141,11 @@ export const useGrammarStore = defineStore('grammar', {
           const index = this.topics.findIndex((t) => t.id === id)
           if (index !== -1) this.topics[index] = updatedTopic
           if (this.currentTopic?.id === id) this.currentTopic = updatedTopic
-          ElMessage.success('✅ Cập nhật topic thành công!')
+          ElMessage.success('Cập nhật topic thành công!')
           return updatedTopic
         }
       } catch (error) {
-        console.error('❌ Error updating topic:', error)
+        console.error('Error updating topic:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể cập nhật topic')
         throw error
       }
@@ -160,10 +160,10 @@ export const useGrammarStore = defineStore('grammar', {
             this.topicsPagination.totalElements -= 1
           }
           if (this.currentTopic?.id === id) this.currentTopic = null
-          ElMessage.success('✅ Xóa topic thành công!')
+          ElMessage.success('Xóa topic thành công!')
         }
       } catch (error) {
-        console.error('❌ Error deleting topic:', error)
+        console.error('Error deleting topic:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể xóa topic')
         throw error
       }
@@ -176,10 +176,10 @@ export const useGrammarStore = defineStore('grammar', {
           const topic = this.topics.find((t) => t.id === id)
           if (topic) topic.isActive = false
           if (this.currentTopic?.id === id) this.currentTopic.isActive = false
-          ElMessage.success('✅ Đã tắt topic!')
+          ElMessage.success(' Đã tắt topic!')
         }
       } catch (error) {
-        console.error('❌ Error deactivating topic:', error)
+        console.error('Error deactivating topic:', error)
         ElMessage.error('Không thể tắt topic')
         throw error
       }
@@ -192,7 +192,7 @@ export const useGrammarStore = defineStore('grammar', {
           return response.data.data.nextOrderIndex
         }
       } catch (error) {
-        console.error('❌ Error getting next order index:', error)
+        console.error(' Error getting next order index:', error)
         const maxOrder =
           this.topics.length > 0 ? Math.max(...this.topics.map((t) => t.orderIndex)) : 0
         return maxOrder + 1
@@ -205,15 +205,15 @@ export const useGrammarStore = defineStore('grammar', {
         if (response.data.success) {
           const result = response.data.data
           if (result.issuesFixed > 0) {
-            ElMessage.success(`✅ Đã fix ${result.issuesFixed} vấn đề orderIndex!`)
+            ElMessage.success(` Đã fix ${result.issuesFixed} vấn đề orderIndex!`)
             await this.fetchTopics()
           } else {
-            ElMessage.info('✅ OrderIndex đã đúng, không cần fix')
+            ElMessage.info(' OrderIndex đã đúng, không cần fix')
           }
           return result
         }
       } catch (error) {
-        console.error('❌ Error validating topics order:', error)
+        console.error(' Error validating topics order:', error)
         ElMessage.error('Không thể validate orderIndex')
         throw error
       }
@@ -254,10 +254,10 @@ export const useGrammarStore = defineStore('grammar', {
             totalElements: data.totalElements ?? 0,
             totalPages: data.totalPages ?? 0,
           }
-          console.log('✅ Fetched lessons:', this.lessons.length)
+          console.log(' Fetched lessons:', this.lessons.length)
         }
       } catch (error) {
-        console.error('❌ Error fetching lessons:', error)
+        console.error(' Error fetching lessons:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tải danh sách lessons')
         this.lessons = []
         this.lessonsPagination = { page: 0, size: 10, totalElements: 0, totalPages: 0 }
@@ -273,11 +273,11 @@ export const useGrammarStore = defineStore('grammar', {
         const response = await grammarAdminAPI.getLessonDetail(lessonId)
         if (response.data.success) {
           this.currentLesson = response.data.data
-          console.log('✅ Fetched lesson:', this.currentLesson.title)
+          console.log(' Fetched lesson:', this.currentLesson.title)
           return this.currentLesson
         }
       } catch (error) {
-        console.error('❌ Error fetching lesson:', error)
+        console.error(' Error fetching lesson:', error)
         ElMessage.error('Không thể tải chi tiết lesson')
         throw error
       } finally {
@@ -289,11 +289,11 @@ export const useGrammarStore = defineStore('grammar', {
       try {
         const response = await grammarAdminAPI.createLesson(lessonData)
         if (response.data.success) {
-          ElMessage.success('✅ Tạo lesson thành công!')
+          ElMessage.success(' Tạo lesson thành công!')
           return response.data.data
         }
       } catch (error) {
-        console.error('❌ Error creating lesson:', error)
+        console.error(' Error creating lesson:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tạo lesson')
         throw error
       }
@@ -307,11 +307,11 @@ export const useGrammarStore = defineStore('grammar', {
           const index = this.lessons.findIndex((l) => l.id === id)
           if (index !== -1) this.lessons[index] = updatedLesson
           if (this.currentLesson?.id === id) this.currentLesson = updatedLesson
-          ElMessage.success('✅ Cập nhật lesson thành công!')
+          ElMessage.success(' Cập nhật lesson thành công!')
           return updatedLesson
         }
       } catch (error) {
-        console.error('❌ Error updating lesson:', error)
+        console.error(' Error updating lesson:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể cập nhật lesson')
         throw error
       }
@@ -326,10 +326,10 @@ export const useGrammarStore = defineStore('grammar', {
             this.lessonsPagination.totalElements -= 1
           }
           if (this.currentLesson?.id === id) this.currentLesson = null
-          ElMessage.success('✅ Xóa lesson thành công!')
+          ElMessage.success(' Xóa lesson thành công!')
         }
       } catch (error) {
-        console.error('❌ Error deleting lesson:', error)
+        console.error(' Error deleting lesson:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể xóa lesson')
         throw error
       }
@@ -342,10 +342,10 @@ export const useGrammarStore = defineStore('grammar', {
           const lesson = this.lessons.find((l) => l.id === id)
           if (lesson) lesson.isActive = false
           if (this.currentLesson?.id === id) this.currentLesson.isActive = false
-          ElMessage.success('✅ Đã tắt lesson!')
+          ElMessage.success(' Đã tắt lesson!')
         }
       } catch (error) {
-        console.error('❌ Error deactivating lesson:', error)
+        console.error(' Error deactivating lesson:', error)
         ElMessage.error('Không thể tắt lesson')
         throw error
       }
@@ -358,7 +358,7 @@ export const useGrammarStore = defineStore('grammar', {
           return response.data.data.nextOrderIndex
         }
       } catch (error) {
-        console.error('❌ Error getting next lesson order index:', error)
+        console.error(' Error getting next lesson order index:', error)
         const maxOrder =
           this.lessons.length > 0 ? Math.max(...this.lessons.map((l) => l.orderIndex)) : 0
         return maxOrder + 1
@@ -371,15 +371,15 @@ export const useGrammarStore = defineStore('grammar', {
         if (response.data.success) {
           const result = response.data.data
           if (result.issuesFixed > 0) {
-            ElMessage.success(`✅ Đã fix ${result.issuesFixed} vấn đề orderIndex!`)
+            ElMessage.success(` Đã fix ${result.issuesFixed} vấn đề orderIndex!`)
             await this.fetchLessons(topicId)
           } else {
-            ElMessage.info('✅ OrderIndex đã đúng, không cần fix')
+            ElMessage.info(' OrderIndex đã đúng, không cần fix')
           }
           return result
         }
       } catch (error) {
-        console.error('❌ Error validating lessons order:', error)
+        console.error(' Error validating lessons order:', error)
         ElMessage.error('Không thể validate orderIndex')
         throw error
       }
@@ -448,11 +448,11 @@ export const useGrammarStore = defineStore('grammar', {
       try {
         const response = await grammarAdminAPI.createQuestion(questionData)
         if (response.data.success) {
-          ElMessage.success('✅ Tạo question thành công!')
+          ElMessage.success(' Tạo question thành công!')
           return response.data.data
         }
       } catch (error) {
-        console.error('❌ Error creating question:', error)
+        console.error(' Error creating question:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tạo question')
         throw error
       }
@@ -466,11 +466,11 @@ export const useGrammarStore = defineStore('grammar', {
           const index = this.questions.findIndex((q) => q.id === id)
           if (index !== -1) this.questions[index] = updatedQuestion
           if (this.currentQuestion?.id === id) this.currentQuestion = updatedQuestion
-          ElMessage.success('✅ Cập nhật question thành công!')
+          ElMessage.success(' Cập nhật question thành công!')
           return updatedQuestion
         }
       } catch (error) {
-        console.error('❌ Error updating question:', error)
+        console.error(' Error updating question:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể cập nhật question')
         throw error
       }
@@ -485,10 +485,10 @@ export const useGrammarStore = defineStore('grammar', {
             this.questionsPagination.totalElements -= 1
           }
           if (this.currentQuestion?.id === id) this.currentQuestion = null
-          ElMessage.success('✅ Xóa question thành công!')
+          ElMessage.success(' Xóa question thành công!')
         }
       } catch (error) {
-        console.error('❌ Error deleting question:', error)
+        console.error(' Error deleting question:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể xóa question')
         throw error
       }
@@ -503,11 +503,11 @@ export const useGrammarStore = defineStore('grammar', {
           if (this.questionsPagination.totalElements >= deleted) {
             this.questionsPagination.totalElements -= deleted
           }
-          ElMessage.success(`✅ Đã xóa ${deleted} questions!`)
+          ElMessage.success(` Đã xóa ${deleted} questions!`)
           return response.data.data
         }
       } catch (error) {
-        console.error('❌ Error bulk deleting questions:', error)
+        console.error(' Error bulk deleting questions:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể xóa hàng loạt')
         throw error
       }
@@ -520,7 +520,7 @@ export const useGrammarStore = defineStore('grammar', {
           return response.data.data.nextOrderIndex
         }
       } catch (error) {
-        console.error('❌ Error getting next question order index:', error)
+        console.error(' Error getting next question order index:', error)
         const maxOrder =
           this.questions.length > 0 ? Math.max(...this.questions.map((q) => q.orderIndex)) : 0
         return maxOrder + 1

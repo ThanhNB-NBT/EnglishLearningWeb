@@ -11,8 +11,6 @@ import java.util.List;
 @Schema(description = "DTO để TẠO MỚI câu hỏi ghép đôi (MATCHING)")
 public class CreateMatchingDTO extends CreateQuestionDTO {
 
-    private String hint;
-
     @NotNull
     @Size(min = 2)
     private List<PairDTO> pairs;

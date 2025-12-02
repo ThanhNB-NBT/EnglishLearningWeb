@@ -13,8 +13,6 @@ import java.util.List;
 @Schema(description = "DTO để TẠO MỚI câu hỏi xây dựng câu (SENTENCE_BUILDING)")
 public class CreateSentenceBuildingDTO extends CreateQuestionDTO {
 
-    private String hint;
-
     @NotNull
     @Size(min = 2)
     private List<String> words;

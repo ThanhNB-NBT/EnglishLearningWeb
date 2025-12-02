@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,16 +32,13 @@ public abstract class BaseQuestionService {
     protected QuestionRepository questionRepository;
 
     @Autowired
-    protected QuestionMapper conversionService;
+    protected QuestionConverter questionConverter;
 
     @Autowired
     protected QuestionMetadataValidator metadataValidator;
 
     @Autowired
-    protected QuestionDTOBuilder dtoFactory;
-
-    @Autowired
-    protected com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    protected ObjectMapper objectMapper;
 
     /**
      * TEMPLATE METHOD: Subclass override để chỉ định ParentType
@@ -72,7 +70,7 @@ public abstract class BaseQuestionService {
 
         return questionRepository.findByParentTypeAndParentId(
                 getParentType(), lessonId, pageable)
-                .map(conversionService::convertToDTO);
+                .map(questionConverter::toResponseDTO);
     }
 
     /**
@@ -84,7 +82,7 @@ public abstract class BaseQuestionService {
         return questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(
                 getParentType(), lessonId)
                 .stream()
-                .map(conversionService::convertToDTO)
+                .map(questionConverter::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
@@ -99,7 +97,7 @@ public abstract class BaseQuestionService {
             throw new RuntimeException("Câu hỏi không thuộc module " + getParentType());
         }
 
-        return conversionService.convertToDTO(question);
+        return questionConverter.toResponseDTO(question);
     }
 
     /**
@@ -144,19 +142,18 @@ public abstract class BaseQuestionService {
                     opt.getText(), opt.getIsCorrect(), opt.getOrder()));
         }
 
-        Question question = dtoFactory.createEntity(createDTO);
+        Question question = questionConverter.toEntity(createDTO);
         log.info("Built metadata: {}", question.getMetadata());
+        question.setParentType(getParentType());
+        question.setParentId(createDTO.getParentId());
         Question savedQuestion = questionRepository.save(question);
 
         log.info("Created {} question: {} (id={})",
                 getParentType(), savedQuestion.getQuestionText(), savedQuestion.getId());
 
-        return conversionService.convertToDTO(savedQuestion);
+        return questionConverter.toResponseDTO(savedQuestion);
     }
 
-    /**
-     * Create multiple questions in bulk
-     */
     /**
      * Create multiple questions in bulk
      * Optimized: Only queries DB once for nextOrderIndex
@@ -188,24 +185,24 @@ public abstract class BaseQuestionService {
                         dto.setOrderIndex(currentOrder.getAndIncrement());
                     }
 
-                    return dtoFactory.createEntity(dto);
+                    return questionConverter.toEntity(dto);
                 })
                 .collect(Collectors.toList());
 
         // Batch save all questions
         List<Question> savedQuestions = questionRepository.saveAll(questions);
 
-        log.info("✅ Created {} questions in bulk for {} lesson {} (orderIndex: {} to {})",
+        log.info("Created {} questions in bulk for {} lesson {} (orderIndex: {} to {})",
                 savedQuestions.size(), getParentType(), lessonId,
                 nextOrder, nextOrder + savedQuestions.size() - 1);
 
         return savedQuestions.stream()
-                .map(conversionService::convertToDTO)
+                .map(questionConverter::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 🔄 UPDATE OPERATIONS
+    // UPDATE OPERATIONS
     // ═══════════════════════════════════════════════════════════
 
     /**
@@ -231,7 +228,7 @@ public abstract class BaseQuestionService {
         Question savedQuestion = questionRepository.save(question);
 
         log.info("Updated {} question id={}", getParentType(), id);
-        return conversionService.convertToDTO(savedQuestion);
+        return questionConverter.toResponseDTO(savedQuestion);
     }
 
     /**
@@ -240,7 +237,6 @@ public abstract class BaseQuestionService {
     private void updateQuestionFromCreateDTO(Question question, CreateQuestionDTO dto) {
         question.setQuestionText(dto.getQuestionText());
         question.setQuestionType(dto.getQuestionType());
-        question.setExplanation(dto.getExplanation());
 
         if (dto.getPoints() != null) {
             question.setPoints(dto.getPoints());
@@ -250,8 +246,8 @@ public abstract class BaseQuestionService {
             question.setOrderIndex(dto.getOrderIndex());
         }
 
-        // Rebuild metadata
-        Map<String, Object> newMetadata = dtoFactory.buildMetadata(dto);
+        // Rebuild metadata using QuestionConverter
+        Map<String, Object> newMetadata = questionConverter.buildMetadata(dto);
         question.setMetadata(newMetadata);
     }
 
@@ -261,7 +257,6 @@ public abstract class BaseQuestionService {
     private void updateQuestionFromResponseDTO(Question question, QuestionResponseDTO dto) {
         question.setQuestionText(dto.getQuestionText());
         question.setQuestionType(dto.getQuestionType());
-        question.setExplanation(dto.getExplanation());
 
         if (dto.getPoints() != null) {
             question.setPoints(dto.getPoints());
@@ -391,7 +386,6 @@ public abstract class BaseQuestionService {
         copy.setParentId(newLessonId);
         copy.setQuestionText(source.getQuestionText());
         copy.setQuestionType(source.getQuestionType());
-        copy.setExplanation(source.getExplanation());
         copy.setPoints(source.getPoints());
         copy.setOrderIndex(newOrderIndex);
         Object sourceMetadata = source.getMetadata();

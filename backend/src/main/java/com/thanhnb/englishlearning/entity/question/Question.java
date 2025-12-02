@@ -42,9 +42,6 @@ public class Question {
     @Column(name = "question_type", nullable = false, length = 50)
     private QuestionType questionType;
 
-    @Column(name = "explanation", columnDefinition = "TEXT")
-    private String explanation;
-
     @Column(name = "points", nullable = false)
     private Integer points;
 

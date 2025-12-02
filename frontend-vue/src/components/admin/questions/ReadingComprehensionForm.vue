@@ -1,255 +1,126 @@
-<!-- src/components/admin/questions/ReadingComprehensionForm.vue -->
 <template>
   <div class="reading-comprehension-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
-    </el-form-item>
+    <el-tabs type="border-card" class="mb-4">
+      <el-tab-pane label="Nội dung bài đọc">
+        <el-alert title="Lưu ý" type="info" :closable="false" class="mb-2">
+          Nội dung bài đọc chính nên nhập ở Bước 1 ("Nội dung câu hỏi").
+          Nếu bài đọc quá dài hoặc muốn tách biệt, bạn có thể nhập thêm vào đây.
+        </el-alert>
 
-    <!-- Passage -->
-    <el-form-item label="Reading Passage" required>
-      <el-input
-        v-model="localMetadata.passage"
-        type="textarea"
-        :rows="6"
-        placeholder="Enter the reading passage with ___ for blanks (e.g., The cat ___ on the mat.)"
-        @input="emitUpdate"
-      />
-      <template #extra>
-        <el-text size="small" type="info">
-          Use "___" to mark where blanks should be. Each ___ will be numbered automatically.
-        </el-text>
-      </template>
-    </el-form-item>
+        <el-input v-model="localMetadata.passage" type="textarea" :rows="10"
+          placeholder="Paste nội dung bài đọc vào đây..." @input="emitUpdate" />
+      </el-tab-pane>
 
-    <!-- Blanks Count Info -->
-    <el-alert
-      v-if="blankCount > 0"
-      :title="`Found ${blankCount} blank(s) in passage`"
-      type="success"
-      :closable="false"
-      style="margin-bottom: 16px"
-    />
+      <el-tab-pane label="Câu hỏi phụ (Sub-questions)">
+        <div class="sub-questions-container">
+          <div v-for="(question, qIndex) in localMetadata.subQuestions" :key="qIndex" class="sub-question-item mb-4">
+            <el-card shadow="hover">
+              <template #header>
+                <div class="flex justify-between items-center">
+                  <span class="font-bold">Câu hỏi #{{ qIndex + 1 }}</span>
+                  <el-button type="danger" icon="Delete" circle size="small" @click="removeSubQuestion(qIndex)" />
+                </div>
+              </template>
 
-    <!-- Blanks Configuration -->
-    <el-form-item label="Blank Options & Answers" required>
-      <el-space direction="vertical" fill style="width: 100%">
-        <div
-          v-for="(blank, index) in localMetadata.blanks"
-          :key="index"
-          class="blank-item"
-        >
-          <el-card shadow="hover" :body-style="{ padding: '12px' }">
-            <div class="blank-header">
-              <el-text tag="b">Blank {{ index + 1 }}</el-text>
-              <el-button
-                type="danger"
-                size="small"
-                :icon="Delete"
-                circle
-                @click="removeBlank(index)"
-              />
-            </div>
+              <el-input v-model="question.questionText" placeholder="Nội dung câu hỏi..." class="mb-2"
+                @input="emitUpdate" />
 
-            <!-- Options -->
-            <el-input
-              v-model="blank.optionsInput"
-              placeholder="Enter options separated by commas (e.g., is, was, are)"
-              style="margin-top: 8px"
-              @input="() => handleBlankOptionsInput(index)"
-            />
+              <div class="options-list pl-4 border-l-2 border-gray-200">
+                <div v-for="(opt, oIndex) in question.options" :key="oIndex" class="flex gap-2 mb-2 items-center">
+                  <el-radio v-model="question.correctAnswerIndex" :label="oIndex" @change="emitUpdate">
+                    {{ String.fromCharCode(65 + oIndex) }}
+                  </el-radio>
+                  <el-input v-model="opt.text" placeholder="Đáp án..." size="small" @input="emitUpdate" />
+                </div>
+              </div>
+            </el-card>
+          </div>
 
-            <!-- Options Preview -->
-            <el-space wrap style="margin-top: 8px" v-if="blank.options && blank.options.length > 0">
-              <el-tag
-                v-for="(option, optIdx) in blank.options"
-                :key="optIdx"
-                size="small"
-              >
-                {{ option }}
-              </el-tag>
-            </el-space>
-
-            <!-- Correct Answer -->
-            <el-select
-              v-model="blank.correctAnswer"
-              placeholder="Select correct answer"
-              style="width: 100%; margin-top: 8px"
-              @change="emitUpdate"
-            >
-              <el-option
-                v-for="option in blank.options"
-                :key="option"
-                :label="option"
-                :value="option"
-              />
-            </el-select>
-          </el-card>
+          <el-button type="primary" plain class="w-full" icon="Plus" @click="addSubQuestion">Thêm câu hỏi
+            phụ</el-button>
         </div>
-
-        <!-- Add Blank Button -->
-        <el-button
-          type="primary"
-          :icon="Plus"
-          @click="addBlank"
-          style="width: 100%"
-        >
-          Add Blank
-        </el-button>
-      </el-space>
-    </el-form-item>
-
-    <!-- Validation Info -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 12px"
-    />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { ref, watch } from 'vue'
 
-const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
-})
-
+const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  passage: props.metadata.passage || '',
-  blanks: props.metadata.blanks || [],
+  passage: props.metadata?.passage || '',
+  subQuestions: props.metadata?.subQuestions || []
 })
 
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        passage: newVal.passage || '',
-        blanks: (newVal.blanks || []).map((blank) => ({
-          ...blank,
-          optionsInput: blank.options ? blank.options.join(', ') : '',
-        })),
-      }
-    }
-  },
-  { deep: true }
-)
-
-const blankCount = computed(() => {
-  return (localMetadata.value.passage.match(/___/g) || []).length
-})
-
-const validationError = computed(() => {
-  if (!localMetadata.value.passage || localMetadata.value.passage.trim() === '') {
-    return 'Passage is required'
+watch(() => props.metadata, (newVal) => {
+  if (newVal) {
+    localMetadata.value.passage = newVal.passage || ''
+    localMetadata.value.subQuestions = newVal.subQuestions || []
   }
+}, { deep: true })
 
-  if (!localMetadata.value.passage.includes('___')) {
-    return 'Passage must include at least one "___" for blanks'
-  }
-
-  if (localMetadata.value.blanks.length === 0) {
-    return 'Need at least 1 blank configuration'
-  }
-
-  const hasEmptyOptions = localMetadata.value.blanks.some(
-    (b) => !b.options || b.options.length < 2
-  )
-  if (hasEmptyOptions) {
-    return 'Each blank must have at least 2 options'
-  }
-
-  const hasEmptyAnswer = localMetadata.value.blanks.some(
-    (b) => !b.correctAnswer || b.correctAnswer.trim() === ''
-  )
-  if (hasEmptyAnswer) {
-    return 'Each blank must have a correct answer'
-  }
-
-  return null
-})
-
-const addBlank = () => {
-  const nextPosition = localMetadata.value.blanks.length + 1
-  localMetadata.value.blanks.push({
-    position: nextPosition,
-    options: [],
-    optionsInput: '',
-    correctAnswer: '',
+const addSubQuestion = () => {
+  localMetadata.value.subQuestions.push({
+    questionText: '',
+    options: [{ text: '' }, { text: '' }, { text: '' }, { text: '' }],
+    correctAnswerIndex: 0
   })
   emitUpdate()
 }
 
-const removeBlank = (index) => {
-  localMetadata.value.blanks.splice(index, 1)
-
-  // Re-index positions
-  localMetadata.value.blanks.forEach((blank, idx) => {
-    blank.position = idx + 1
-  })
-
+const removeSubQuestion = (index) => {
+  localMetadata.value.subQuestions.splice(index, 1)
   emitUpdate()
 }
 
-const handleBlankOptionsInput = (index) => {
-  const blank = localMetadata.value.blanks[index]
-  const options = blank.optionsInput
-    .split(',')
-    .map((o) => o.trim())
-    .filter((o) => o.length > 0)
-
-  blank.options = options
-  emitUpdate()
-}
-
-const emitUpdate = () => {
-  // Clean data before emit
-  const cleanedBlanks = localMetadata.value.blanks.map((blank) => ({
-    position: blank.position,
-    options: blank.options,
-    correctAnswer: blank.correctAnswer,
-  }))
-
-  emit('update:metadata', {
-    hint: localMetadata.value.hint,
-    passage: localMetadata.value.passage,
-    blanks: cleanedBlanks,
-  })
-}
+const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
 
 <style scoped>
 .reading-comprehension-form {
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
-.blank-item {
+.w-full {
   width: 100%;
 }
 
-.blank-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.mb-2 {
   margin-bottom: 8px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
+}
+
+.pl-4 {
+  padding-left: 16px;
+}
+
+.border-l-2 {
+  border-left-width: 2px;
+}
+
+.flex {
+  display: flex;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.font-bold {
+  font-weight: bold;
 }
 </style>

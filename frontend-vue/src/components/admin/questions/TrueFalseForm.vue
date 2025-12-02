@@ -1,121 +1,93 @@
 <template>
   <div class="true-false-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
+    <el-form-item label="Đáp án đúng là gì?">
+      <div class="tf-selector">
+        <el-radio-group v-model="localMetadata.correctAnswer" size="large" @change="emitUpdate">
+          <el-radio :label="true" border class="tf-radio true-radio">
+            <el-icon class="mr-1">
+              <Check />
+            </el-icon> TRUE (Đúng)
+          </el-radio>
+
+          <el-radio :label="false" border class="tf-radio false-radio">
+            <el-icon class="mr-1">
+              <Close />
+            </el-icon> FALSE (Sai)
+          </el-radio>
+        </el-radio-group>
+      </div>
     </el-form-item>
 
-    <!-- Correct Answer -->
-    <el-form-item label="Correct Answer" required>
-      <el-radio-group v-model="correctAnswerValue" @change="handleAnswerChange">
-        <el-radio :value="true">
-          <el-text tag="b">True</el-text>
-        </el-radio>
-        <el-radio :value="false">
-          <el-text tag="b">False</el-text>
-        </el-radio>
-      </el-radio-group>
+    <el-form-item label="Gợi ý / Giải thích nhanh (Optional)">
+      <el-input v-model="localMetadata.explanation" placeholder="Nhập giải thích ngắn gọn..." @input="emitUpdate" />
     </el-form-item>
-
-    <!-- Preview -->
-    <el-alert
-      v-if="correctAnswerValue !== null"
-      :title="`Correct Answer: ${correctAnswerValue ? 'True' : 'False'}`"
-      type="success"
-      :closable="false"
-    />
-
-    <!-- Validation -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 12px"
-    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
+import { Check, Close } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
+  metadata: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['update:metadata'])
 
-// Extract correctAnswer từ options (nếu có)
-const getCorrectAnswerFromOptions = (options) => {
-  if (!options || options.length === 0) return null
-  const trueOption = options.find(opt => opt.text === 'True')
-  return trueOption ? trueOption.isCorrect : null
-}
-
-// State: correctAnswerValue (boolean hoặc null)
-const correctAnswerValue = ref(
-  props.metadata.correctAnswer !== null && props.metadata.correctAnswer !== undefined
-    ? props.metadata.correctAnswer
-    : getCorrectAnswerFromOptions(props.metadata.options)
-)
-
+// Default is TRUE
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
+  correctAnswer: props.metadata?.correctAnswer ?? true,
+  explanation: props.metadata?.explanation || ''
 })
 
-// Watch props.metadata changes
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value.hint = newVal.hint || ''
-
-      // Extract correctAnswer từ options hoặc correctAnswer field
-      const extracted = newVal.correctAnswer !== null && newVal.correctAnswer !== undefined
-        ? newVal.correctAnswer
-        : getCorrectAnswerFromOptions(newVal.options)
-
-      correctAnswerValue.value = extracted
-    }
-  },
-  { deep: true }
-)
-
-// Validation
-const validationError = computed(() => {
-  if (correctAnswerValue.value === null || correctAnswerValue.value === undefined) {
-    return 'Please select True or False'
+watch(() => props.metadata, (newVal) => {
+  if (newVal) {
+    localMetadata.value.correctAnswer = newVal.correctAnswer ?? true
+    localMetadata.value.explanation = newVal.explanation || ''
   }
-  return null
-})
+}, { deep: true })
 
-// Handle answer change
-const handleAnswerChange = () => {
-  emitUpdate()
-}
-
-// Emit metadata với cấu trúc correctAnswer (backend sẽ convert sang options)
 const emitUpdate = () => {
-  emit('update:metadata', {
-    hint: localMetadata.value.hint,
-    correctAnswer: correctAnswerValue.value, // ← Gửi correctAnswer
-  })
+  emit('update:metadata', { ...localMetadata.value })
 }
 </script>
 
 <style scoped>
-.true-false-form {
-  padding: 8px 0;
+.tf-selector {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+.tf-radio {
+  flex: 1;
+  margin-right: 0 !important;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+/* Custom colors for True/False */
+:deep(.true-radio.is-checked) {
+  background-color: #f0f9eb;
+  border-color: #67c23a;
+}
+
+:deep(.true-radio.is-checked .el-radio__label) {
+  color: #67c23a;
+  font-weight: bold;
+}
+
+:deep(.false-radio.is-checked) {
+  background-color: #fef0f0;
+  border-color: #f56c6c;
+}
+
+:deep(.false-radio.is-checked .el-radio__label) {
+  color: #f56c6c;
+  font-weight: bold;
+}
+
+.mr-1 {
+  margin-right: 4px;
 }
 </style>

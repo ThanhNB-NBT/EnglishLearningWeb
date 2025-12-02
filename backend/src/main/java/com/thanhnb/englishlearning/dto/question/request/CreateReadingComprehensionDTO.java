@@ -11,8 +11,6 @@ import java.util.List;
 @Schema(description = "DTO để TẠO MỚI câu hỏi đọc hiểu (READING COMPREHENSION)")
 public class CreateReadingComprehensionDTO extends CreateQuestionDTO {
 
-    private String hint;
-
     @NotBlank
     private String passage;
 

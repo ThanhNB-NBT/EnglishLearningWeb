@@ -11,7 +11,6 @@ import java.util.List;
 @Schema(description = "DTO để TẠO MỚI câu hỏi hội thoại (CONVERSATION)")
 public class CreateConversationDTO extends CreateQuestionDTO {
 
-    private String hint;
     @NotBlank
     private String conversationContext;
 

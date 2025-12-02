@@ -1,41 +1,26 @@
-<!-- TextAnswerForm.vue - Dùng cho FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION -->
 <template>
   <div class="text-answer-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
+    <el-row :gutter="20">
+      <el-col :span="12">
+        <el-form-item label="Số từ tối thiểu">
+          <el-input-number v-model="localMetadata.minWords" :min="0" style="width: 100%" @change="emitUpdate" />
+        </el-form-item>
+      </el-col>
+      <el-col :span="12">
+        <el-form-item label="Số từ tối đa">
+          <el-input-number v-model="localMetadata.maxWords" :min="0" style="width: 100%" @change="emitUpdate" />
+        </el-form-item>
+      </el-col>
+    </el-row>
+
+    <el-form-item label="Bài mẫu tham khảo (Sample Answer)">
+      <el-input v-model="localMetadata.sampleAnswer" type="textarea" :rows="6"
+        placeholder="Nhập bài viết mẫu để người học tham khảo sau khi nộp bài..." @input="emitUpdate" />
     </el-form-item>
 
-    <!-- Correct Answer -->
-    <el-form-item label="Correct Answer" required>
-      <el-input
-        v-model="localMetadata.correctAnswer"
-        placeholder="Enter the correct answer (use | for multiple accepted answers)"
-        @input="emitUpdate"
-      />
-      <template #extra>
-        <el-text size="small" type="info">
-          Use "|" to separate multiple accepted answers. Example: "go|goes"
-        </el-text>
-      </template>
-    </el-form-item>
-
-    <!-- Case Sensitive -->
-    <el-form-item label="Case Sensitive">
-      <el-switch
-        v-model="localMetadata.caseSensitive"
-        active-text="Yes"
-        inactive-text="No"
-        @change="emitUpdate"
-      />
+    <el-form-item label="Tiêu chí chấm điểm (Guideline)">
+      <el-input v-model="localMetadata.gradingCriteria" type="textarea" :rows="3"
+        placeholder="Các tiêu chí để chấm điểm (VD: Ngữ pháp, Từ vựng, Bố cục)..." @input="emitUpdate" />
     </el-form-item>
   </div>
 </template>
@@ -43,42 +28,25 @@
 <script setup>
 import { ref, watch } from 'vue'
 
-const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
-})
-
+const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  correctAnswer: props.metadata.correctAnswer || '',
-  caseSensitive: props.metadata.caseSensitive ?? false,
+  minWords: props.metadata?.minWords || 0,
+  maxWords: props.metadata?.maxWords || 500,
+  sampleAnswer: props.metadata?.sampleAnswer || '',
+  gradingCriteria: props.metadata?.gradingCriteria || ''
 })
 
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        correctAnswer: newVal.correctAnswer || '',
-        caseSensitive: newVal.caseSensitive ?? false,
-      }
-    }
-  },
-  { deep: true }
-)
+watch(() => props.metadata, (newVal) => {
+  if (newVal) localMetadata.value = { ...newVal }
+}, { deep: true })
 
-const emitUpdate = () => {
-  emit('update:metadata', { ...localMetadata.value })
-}
+const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
 
 <style scoped>
 .text-answer-form {
-  padding: 8px 0;
+  padding: 10px 0;
 }
 </style>
