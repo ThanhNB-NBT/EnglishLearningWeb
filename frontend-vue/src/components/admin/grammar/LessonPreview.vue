@@ -1,288 +1,152 @@
-<!-- src/components/admin/grammar/LessonPreview.vue -->
 <template>
   <div class="lesson-preview">
-    <el-card shadow="never" class="preview-card">
-      <!-- Header -->
-      <template #header>
-        <div class="preview-header">
-          <el-text size="large" tag="b">
-            <el-icon>
-              <component :is="lesson.lessonType === 'THEORY' ? Reading : EditPen" />
-            </el-icon>
-            {{ lesson.title }}
-          </el-text>
-          <el-space>
-            <el-tag :type="lesson.lessonType === 'THEORY' ? 'success' : 'warning'">
-              {{ lesson.lessonType === 'THEORY' ? 'Lý thuyết' : 'Thực hành' }}
-            </el-tag>
-            <el-tag :type="lesson.isActive ? 'success' : 'danger'">
-              {{ lesson.isActive ? 'Active' : 'Inactive' }}
-            </el-tag>
-          </el-space>
+    <div class="preview-header">
+      <div class="header-top">
+        <div class="title-section">
+          <span class="order-badge">#{{ lesson.orderIndex }}</span>
+          <h2 class="lesson-title">{{ lesson.title }}</h2>
         </div>
-      </template>
-
-      <!-- Basic Info -->
-      <div class="info-section">
-        <el-descriptions :column="2" border size="default">
-          <el-descriptions-item label="Tiêu đề">
-            {{ lesson.title }}
-          </el-descriptions-item>
-          <el-descriptions-item label="Loại">
-            <el-tag :type="lesson.lessonType === 'THEORY' ? 'success' : 'warning'">
-              {{ lesson.lessonType === 'THEORY' ? 'Lý thuyết' : 'Thực hành' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Thứ tự">
-            <el-tag type="info">{{ lesson.orderIndex }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Điểm thưởng">
-            <el-tag type="warning">{{ lesson.pointsReward }} điểm</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Thời gian ước tính">
-            <el-tag type="info">{{ formatDuration(lesson.estimatedDuration) }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Số câu hỏi">
-            <el-tag type="primary">
-              <el-icon><QuestionFilled /></el-icon>
-              {{ lesson.questionCount || 0 }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Trạng thái">
-            <el-tag :type="lesson.isActive ? 'success' : 'danger'">
-              {{ lesson.isActive ? 'Active' : 'Inactive' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="ID">
-            <el-text type="info">{{ lesson.id }}</el-text>
-          </el-descriptions-item>
-        </el-descriptions>
+        <div class="status-badge">
+          <el-tag :type="lesson.isActive ? 'success' : 'danger'" effect="dark" size="small">
+            {{ lesson.isActive ? 'Active' : 'Inactive' }}
+          </el-tag>
+        </div>
       </div>
 
-      <!-- Description -->
-      <div v-if="lesson.description" class="description-section">
-        <el-divider content-position="left">
-          <el-text tag="b" size="large">Mô tả</el-text>
-        </el-divider>
-        <el-card shadow="never" class="description-card">
-          <div v-html="lesson.description"></div>
-        </el-card>
+      <div class="header-meta">
+        <el-tag :type="lesson.lessonType === 'THEORY' ? 'success' : 'warning'" effect="plain">
+          {{ lesson.lessonType === 'THEORY' ? 'Lý thuyết' : 'Bài tập' }}
+        </el-tag>
+        <span class="created-at">Tạo ngày: {{ formatDate(lesson.createdAt) }}</span>
+      </div>
+    </div>
+
+    <div class="preview-body">
+      <el-descriptions :column="2" border class="mb-4">
+        <el-descriptions-item label="Thời gian ước tính">
+          <el-icon class="mr-1"><Timer /></el-icon>
+          {{ formatTime(lesson.estimatedDuration) }}
+        </el-descriptions-item>
+
+        <el-descriptions-item label="Điểm thưởng">
+          <el-icon class="mr-1 text-warning"><Trophy /></el-icon>
+          <span class="text-warning font-bold">+{{ lesson.pointsReward }}</span>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="Topic ID">{{ lesson.topicId }}</el-descriptions-item>
+        <el-descriptions-item label="Số câu hỏi">{{ lesson.questionCount || 0 }}</el-descriptions-item>
+      </el-descriptions>
+
+      <div class="content-section" v-if="lesson.content">
+        <h4 class="section-title">Nội dung bài học:</h4>
+        <div class="rich-text-content ql-editor" v-html="lesson.content"></div>
       </div>
 
-      <!-- Content (Theory lessons) -->
-      <div v-if="lesson.lessonType === 'THEORY' && lesson.content" class="content-section">
-        <el-divider content-position="left">
-          <el-text tag="b" size="large">Nội dung bài học</el-text>
-        </el-divider>
-        <el-card shadow="never" class="content-card">
-          <div v-html="lesson.content" class="lesson-content"></div>
-        </el-card>
-      </div>
-
-      <!-- Objectives -->
-      <div v-if="lesson.objectives && lesson.objectives.length > 0" class="objectives-section">
-        <el-divider content-position="left">
-          <el-text tag="b" size="large">Mục tiêu học tập</el-text>
-        </el-divider>
-        <el-card shadow="never" class="objectives-card">
-          <ul class="objectives-list">
-            <li v-for="(objective, index) in lesson.objectives" :key="index">
-              <el-icon color="#67C23A"><Select /></el-icon>
-              {{ objective }}
-            </li>
-          </ul>
-        </el-card>
-      </div>
-
-      <!-- Practice Info (Practice lessons) -->
-      <div v-if="lesson.lessonType === 'PRACTICE'" class="practice-section">
-        <el-divider content-position="left">
-          <el-text tag="b" size="large">Thông tin thực hành</el-text>
-        </el-divider>
-        <el-alert
-          title="Bài tập thực hành"
-          type="info"
-          :closable="false"
-          show-icon
-        >
-          <template #default>
-            <p>Lesson này chứa {{ lesson.questionCount || 0 }} câu hỏi thực hành.</p>
-            <p v-if="lesson.estimatedDuration">
-              Thời gian ước tính: {{ formatDuration(lesson.estimatedDuration) }}
-            </p>
-          </template>
-        </el-alert>
-      </div>
-
-      <!-- Timestamps -->
-      <div class="timestamps-section">
-        <el-divider content-position="left">
-          <el-text tag="b" size="large">Thông tin khác</el-text>
-        </el-divider>
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="Ngày tạo">
-            {{ formatDate(lesson.createdAt) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="Cập nhật lần cuối">
-            {{ formatDate(lesson.updatedAt) }}
-          </el-descriptions-item>
-        </el-descriptions>
-      </div>
-    </el-card>
+      <el-empty v-else description="Chưa có nội dung chi tiết" :image-size="100" />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { Reading, EditPen, QuestionFilled, Select } from '@element-plus/icons-vue'
+import { Timer, Trophy } from '@element-plus/icons-vue'
+// Import CSS của Quill để hiển thị content HTML đẹp (giống editor)
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
-const props = defineProps({
-  lesson: {
-    type: Object,
-    required: true
-  }
+defineProps({
+  lesson: { type: Object, required: true }
 })
 
-const formatDuration = (seconds) => {
-  if (!seconds) return '0 giây'
-  const minutes = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  if (minutes > 0) {
-    return secs > 0 ? `${minutes} phút ${secs} giây` : `${minutes} phút`
-  }
-  return `${secs} giây`
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('vi-VN')
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+const formatTime = (seconds) => {
+  if (!seconds) return '0s'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m} phút ${s} giây` : `${s} giây`
 }
 </script>
 
 <style scoped>
 .lesson-preview {
-  padding: 0;
+  padding: 0 10px;
 }
 
-.preview-card {
-  border: 2px solid var(--el-border-color);
-}
-
+/* Header */
 .preview-header {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.header-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.info-section,
-.description-section,
-.content-section,
-.objectives-section,
-.practice-section,
-.timestamps-section {
-  margin-bottom: 24px;
-}
-
-.description-card,
-.content-card,
-.objectives-card {
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-}
-
-.description-card {
-  padding: 16px;
-  line-height: 1.8;
-}
-
-.content-card {
-  padding: 20px;
-}
-
-.lesson-content {
-  line-height: 1.8;
-  font-size: 15px;
-}
-
-.lesson-content :deep(h1),
-.lesson-content :deep(h2),
-.lesson-content :deep(h3) {
-  margin-top: 20px;
-  margin-bottom: 12px;
-  color: var(--el-text-color-primary);
-}
-
-.lesson-content :deep(p) {
-  margin-bottom: 12px;
-}
-
-.lesson-content :deep(ul),
-.lesson-content :deep(ol) {
-  margin: 12px 0;
-  padding-left: 24px;
-}
-
-.lesson-content :deep(li) {
+  align-items: flex-start;
   margin-bottom: 8px;
 }
 
-.lesson-content :deep(code) {
-  background: var(--el-fill-color);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-}
-
-.lesson-content :deep(pre) {
-  background: var(--el-fill-color);
-  padding: 12px;
-  border-radius: 4px;
-  overflow-x: auto;
-}
-
-.objectives-card {
-  padding: 16px;
-}
-
-.objectives-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.objectives-list li {
+.title-section {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+}
+
+.order-badge {
+  background: var(--el-fill-color-dark);
+  color: var(--el-text-color-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.lesson-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--el-text-color-primary);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.created-at {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* Body */
+.mb-4 { margin-bottom: 16px; }
+.mr-1 { margin-right: 4px; }
+.text-warning { color: #e6a23c; }
+.font-bold { font-weight: 600; }
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
   margin-bottom: 12px;
+  color: var(--el-text-color-regular);
+  border-left: 3px solid var(--el-color-primary);
+  padding-left: 8px;
+}
+
+/* Content Area - Giả lập style của Quill Editor */
+.rich-text-content {
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  min-height: 100px;
   line-height: 1.6;
 }
 
-.objectives-list li .el-icon {
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.practice-section p {
-  margin: 8px 0;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .preview-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  :deep(.el-descriptions) {
-    font-size: 12px;
-  }
+/* Dark mode overrides */
+html.dark .rich-text-content {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-darker);
 }
 </style>

@@ -41,7 +41,7 @@ services:
         condition: service_started
     environment:
       # ===== SPRING PROFILE =====
-      SPRING_PROFILES_ACTIVE: docker
+      SPRING_PROFILES_ACTIVE: dev
       
       # ===== DATABASE =====
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
@@ -88,6 +88,8 @@ services:
       CLEANUP_ENABLED: "true"
       CLEANUP_HOURS: 24
       CLEANUP_CRON: "0 0 2 * * *"
+
+    command: ./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
       
     volumes:
       - ./backend/src:/workspace/src

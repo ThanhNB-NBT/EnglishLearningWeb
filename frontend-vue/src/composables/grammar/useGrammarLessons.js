@@ -18,7 +18,6 @@ export function useGrammarLessonForm() {
     pointsReward: 10,
     estimatedDuration: 180,
     isActive: true,
-    metadata: null,
   })
 
   const formRules = {
@@ -74,7 +73,6 @@ export function useGrammarLessonForm() {
       pointsReward: 10,
       estimatedDuration: 180,
       isActive: true,
-      metadata: null,
     }
     dialogVisible.value = true
   }
@@ -92,7 +90,6 @@ export function useGrammarLessonForm() {
       pointsReward: lesson.pointsReward || 10,
       estimatedDuration: lesson.estimatedDuration || 180,
       isActive: lesson.isActive ?? true,
-      metadata: lesson.metadata || null,
     }
     dialogVisible.value = true
   }
@@ -138,7 +135,6 @@ export function useGrammarLessonForm() {
       pointsReward: 10,
       estimatedDuration: 180,
       isActive: true,
-      metadata: null,
     }
   }
 

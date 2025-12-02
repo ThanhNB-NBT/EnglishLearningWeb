@@ -1,5 +1,7 @@
 package com.thanhnb.englishlearning.service.question;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
 import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
@@ -17,8 +19,8 @@ import java.util.stream.Collectors;
 /**
  * Service xử lý questions chung cho tất cả module
  * Refactored để tích hợp với:
- * - QuestionConversionService: Convert entity <-> DTO
- * - QuestionValidationService: Validate và check answers
+ * - QuestionConverter: Convert entity <-> DTO (Thay thế Mapper cũ)
+ * - QuestionAnswerProcessor: Validate và check answers
  * - Metadata-based architecture (JSONB)
  */
 @Service
@@ -27,8 +29,9 @@ import java.util.stream.Collectors;
 public class QuestionService {
 
     private final QuestionRepository questionRepository;
-    private final QuestionMapper conversionService;
+    private final QuestionConverter questionConverter;
     private final QuestionAnswerProcessor validationService;
+    private final ObjectMapper objectMapper; // Dùng cho shuffle options (clone metadata)
 
     // ═══════════════════════════════════════════════════════════════
     // LOAD & COUNT OPERATIONS
@@ -57,23 +60,22 @@ public class QuestionService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // CONVERSION OPERATIONS (Delegate to ConversionService)
+    // CONVERSION OPERATIONS (Delegate to Converter)
     // ═══════════════════════════════════════════════════════════════
 
     /**
      * Convert Question entity -> QuestionResponseDTO
      * Tự động shuffle options cho MULTIPLE_CHOICE để tránh gian lận
-     * 
-     * @param question          Question entity
+     * * @param question          Question entity
      * @param shuffleOptions    Có shuffle options không (cho MULTIPLE_CHOICE)
      */
     public QuestionResponseDTO convertToDTO(Question question, boolean shuffleOptions) {
-        QuestionResponseDTO dto = conversionService.convertToDTO(question);
+        QuestionResponseDTO dto = questionConverter.toResponseDTO(question);
         
         // Shuffle options cho MULTIPLE_CHOICE
         if (shuffleOptions && question.getQuestionType() == QuestionType.MULTIPLE_CHOICE) {
             dto.setMetadata(shuffleMultipleChoiceOptions(dto.getMetadata()));
-            log.debug("🔀 Shuffled options for question {}", question.getId());
+            log.debug("Shuffled options for question {}", question.getId());
         }
         
         return dto;
@@ -83,13 +85,14 @@ public class QuestionService {
      * Convert Question entity -> QuestionResponseDTO (no shuffle)
      */
     public QuestionResponseDTO convertToDTO(Question question) {
-        return conversionService.convertToDTO(question);
+        return questionConverter.toResponseDTO(question);
     }
 
     /**
      * Convert list of questions to DTOs
      */
     public List<QuestionResponseDTO> convertToDTOs(List<Question> questions, boolean shuffleOptions) {
+        if (questions == null) return List.of();
         return questions.stream()
                 .map(q -> convertToDTO(q, shuffleOptions))
                 .collect(Collectors.toList());
@@ -99,7 +102,7 @@ public class QuestionService {
      * Convert list of questions to DTOs (no shuffle)
      */
     public List<QuestionResponseDTO> convertToDTOs(List<Question> questions) {
-        return conversionService.convertToDTOs(questions);
+        return questionConverter.toResponseDTOs(questions);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -108,8 +111,7 @@ public class QuestionService {
 
     /**
      * Process answers và trả về kết quả chi tiết
-     * 
-     * @param answers            Danh sách câu trả lời của user
+     * * @param answers            Danh sách câu trả lời của user
      * @param expectedParentType ParentType expected (GRAMMAR/READING/LISTENING)
      * @return Danh sách kết quả chi tiết từng câu
      */
@@ -143,8 +145,7 @@ public class QuestionService {
 
     /**
      * Validate answer count
-     * 
-     * @throws RuntimeException if answer count mismatch
+     * * @throws RuntimeException if answer count mismatch
      */
     public void validateAnswerCount(List<SubmitAnswerRequest> answers,
             ParentType parentType,
@@ -221,15 +222,18 @@ public class QuestionService {
         }
 
         try {
-            // Clone metadata để không modify original
-            Map<String, Object> shuffledMetadata = new HashMap<>(metadata);
+            // Clone metadata để không modify original (Dùng ObjectMapper để deep clone an toàn)
+            // Hoặc clone thủ công nếu map đơn giản
+            String json = objectMapper.writeValueAsString(metadata);
+            Map<String, Object> shuffledMetadata = objectMapper.readValue(json, Map.class);
             
-            List<Map<String, Object>> options = (List<Map<String, Object>>) metadata.get("options");
+            List<Map<String, Object>> options = (List<Map<String, Object>>) shuffledMetadata.get("options");
             if (options != null && options.size() > 1) {
+                // Shuffle copy
                 List<Map<String, Object>> shuffledOptions = new ArrayList<>(options);
                 Collections.shuffle(shuffledOptions);
                 
-                // Re-index after shuffle
+                // Re-index after shuffle (để FE hiển thị A, B, C, D theo thứ tự mới)
                 for (int i = 0; i < shuffledOptions.size(); i++) {
                     shuffledOptions.get(i).put("order", i + 1);
                 }
@@ -238,7 +242,7 @@ public class QuestionService {
             }
             
             return shuffledMetadata;
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.warn("Cannot shuffle options: {}", e.getMessage());
             return metadata;
         }

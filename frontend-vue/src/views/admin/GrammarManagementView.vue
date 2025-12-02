@@ -1,4 +1,4 @@
-<!-- src/views/admin/GrammarManagementView.vue -->
+<!-- src/views/admin/GrammarManagementView.vue - FIXED -->
 <template>
   <div class="grammar-management-view">
     <!-- Tabs -->
@@ -8,7 +8,7 @@
         <template #label>
           <span class="tab-label">
             <el-icon><Collection /></el-icon>
-            Topics
+            <span v-if="!isMobile">Topics</span>
           </span>
         </template>
         <TopicsList
@@ -22,7 +22,7 @@
         <template #label>
           <span class="tab-label">
             <el-icon><Document /></el-icon>
-            Lessons
+            <span v-if="!isMobile">Lessons</span>
           </span>
         </template>
         <LessonsList
@@ -37,7 +37,7 @@
         <template #label>
           <span class="tab-label">
             <el-icon><QuestionFilled /></el-icon>
-            Questions
+            <span v-if="!isMobile">Questions</span>
           </span>
         </template>
         <QuestionList
@@ -51,8 +51,8 @@
         <template #label>
           <span class="tab-label">
             <el-icon><MagicStick /></el-icon>
-            AI Parsing
-            <el-tag size="small" type="success">AI</el-tag>
+            <span v-if="!isMobile">AI Parsing</span>
+            <el-tag v-if="!isMobile" size="small" type="success">AI</el-tag>
           </span>
         </template>
         <el-empty description="Coming soon..." />
@@ -62,31 +62,34 @@
 </template>
 
 <script setup>
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, computed } from 'vue'
 import { Collection, Document, QuestionFilled, MagicStick } from '@element-plus/icons-vue'
 import TopicsList from '@/components/admin/grammar/TopicList.vue'
 import LessonsList from '@/components/admin/grammar/LessonList.vue'
-import QuestionList from '@/components/admin/grammar/QuestionList.vue' // ✅ NEW IMPORT
+import QuestionList from '@/components/admin/grammar/QuestionList.vue'
+
+// Responsive
+const isMobile = computed(() => window.innerWidth < 768)
 
 // Active tab
 const activeTab = ref('topics')
 const selectedTopicIdForLesson = ref(null)
-const selectedLessonIdForQuestion = ref(null) // ✅ NEW
+const selectedLessonIdForQuestion = ref(null)
 const lessonListRef = ref(null)
-const questionListRef = ref(null) // ✅ NEW
+const questionListRef = ref(null)
 
-// Switch to Lessons tab from Topics
+// ✅ Switch to Lessons tab from Topics
 const handleSwitchToLessons = (topic) => {
-  console.log('Switching to topic', topic)
+  console.log('✅ Switching to lessons for topic:', topic.id, topic.name)
   if (topic && topic.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
   }
 }
 
-// Add lesson from Topics tab
+// ✅ Add lesson from Topics tab
 const handleAddLessonFromTopic = async (topic) => {
-  console.log('Adding lesson for topic:', topic)
+  console.log('✅ Adding lesson for topic:', topic.id)
   if (topic && topic.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
@@ -98,9 +101,9 @@ const handleAddLessonFromTopic = async (topic) => {
   }
 }
 
-// ✅ NEW: Switch to Questions tab from Lessons
+// ✅ NEW: Switch to Questions tab from Lessons (FIXED - Emit instead of router)
 const handleSwitchToQuestions = (lesson) => {
-  console.log('Switching to questions for lesson:', lesson)
+  console.log('✅ Switching to questions for lesson:', lesson.id, lesson.title)
   if (lesson && lesson.id) {
     selectedLessonIdForQuestion.value = lesson.id
     activeTab.value = 'questions'
@@ -147,7 +150,22 @@ const handleSwitchToQuestions = (lesson) => {
   }
 
   :deep(.el-tabs__item) {
-    padding: 0 12px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  :deep(.el-tabs__nav-scroll) {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .tab-label {
+    font-size: 11px;
+  }
+
+  :deep(.el-tabs__item) {
+    padding: 0 6px;
   }
 }
 </style>

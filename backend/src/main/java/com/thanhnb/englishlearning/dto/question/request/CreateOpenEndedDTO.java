@@ -8,8 +8,7 @@ import lombok.*;
 @EqualsAndHashCode(callSuper = true)
 @Schema(description = "DTO để TẠO MỚI câu hỏi mở (OPEN ENDED)")
 public class CreateOpenEndedDTO extends CreateQuestionDTO {
-
-    private String hint;
+    
     private String suggestedAnswer;
     private Integer timeLimitSeconds;
     private Integer minWord;

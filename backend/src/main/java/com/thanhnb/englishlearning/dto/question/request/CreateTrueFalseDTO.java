@@ -10,8 +10,6 @@ import lombok.*;
 @Schema(description = "DTO để TẠO MỚI câu hỏi đúng/sai (TRUE_FALSE)")
 public class CreateTrueFalseDTO extends CreateQuestionDTO {
 
-    private String hint;
-
     @NotNull
     private Boolean correctAnswer;
 

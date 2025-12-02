@@ -1,404 +1,127 @@
 <template>
   <div class="question-preview">
-    <!-- Header -->
     <div class="preview-header">
-      <div class="header-left">
-        <el-icon :size="28" :color="getQuestionTypeColor(question.questionType)">
-          <component :is="getQuestionTypeIcon(question.questionType)" />
-        </el-icon>
-        <el-text size="large" tag="b">
-          {{ getQuestionTypeLabel(question.questionType) }}
-        </el-text>
+      <div class="meta-info">
+        <el-tag :type="typeColor" effect="dark">{{ question.questionType }}</el-tag>
+        <span class="order">Thứ tự: #{{ question.orderIndex }}</span>
+        <span class="points">+{{ question.points }} điểm</span>
       </div>
-      <el-tag :type="getQuestionTypeTagType(question.questionType)" size="large">
-        {{ getQuestionTypeLabel(question.questionType) }}
-      </el-tag>
     </div>
 
-    <el-divider />
+    <div class="preview-body">
+      <div class="label">Câu hỏi:</div>
+      <div class="question-text ql-editor" v-html="question.questionText"></div>
 
-    <!-- Question Info -->
-    <div class="info-section">
-      <el-descriptions :column="3" border size="default">
-        <el-descriptions-item label="Điểm số">
-          <el-tag type="warning" size="large">
-            <el-icon><Trophy /></el-icon>
-            {{ question.points }} điểm
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="Thứ tự">
-          <el-tag type="info" size="large">
-            #{{ question.orderIndex }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="Loại câu hỏi">
-          <el-tag :type="getQuestionTypeTagType(question.questionType)" size="large">
-            {{ getQuestionTypeLabel(question.questionType) }}
-          </el-tag>
-        </el-descriptions-item>
-      </el-descriptions>
-    </div>
+      <div class="answer-section mt-4">
+        <div class="label">Đáp án / Chi tiết:</div>
 
-    <!-- Question Text -->
-    <div class="question-section">
-      <el-card shadow="never" class="question-card">
-        <template #header>
-          <div class="section-header">
-            <el-icon :size="20"><QuestionFilled /></el-icon>
-            <el-text tag="b" size="large">Đề bài</el-text>
+        <div v-if="question.questionType === 'MULTIPLE_CHOICE'" class="options-grid">
+          <div
+            v-for="(opt, idx) in question.metadata.options"
+            :key="idx"
+            class="option-item"
+            :class="{ 'correct': opt.isCorrect }"
+          >
+            <div class="opt-marker">
+              <el-icon v-if="opt.isCorrect"><Check /></el-icon>
+              <span v-else>{{ idx + 1 }}</span>
+            </div>
+            <div class="opt-text">{{ opt.text }}</div>
           </div>
-        </template>
-        <div v-html="question.questionText" class="question-text"></div>
-      </el-card>
-    </div>
-
-    <!-- Correct Answer Section - HIGHLIGHTED -->
-    <div class="correct-answer-section">
-      <el-card shadow="never" class="correct-answer-card">
-        <template #header>
-          <div class="section-header">
-            <el-icon :size="20" color="var(--el-color-success)"><CircleCheckFilled /></el-icon>
-            <el-text tag="b" size="large" type="success">Đáp án đúng</el-text>
-          </div>
-        </template>
-        <div class="correct-answer-display">
-          {{ getCorrectAnswerText(question) }}
         </div>
-      </el-card>
-    </div>
 
-    <!-- Metadata Preview -->
-    <div class="metadata-section">
-      <el-card shadow="never" class="metadata-card">
-        <template #header>
-          <div class="section-header">
-            <el-icon :size="20"><Files /></el-icon>
-            <el-text tag="b" size="large">Chi tiết câu hỏi</el-text>
-          </div>
-        </template>
-        <component
-          :is="getPreviewComponent(question.questionType)"
-          :metadata="question.metadata"
-          :question-text="question.questionText"
-        />
-      </el-card>
-    </div>
+        <div v-else-if="question.questionType === 'TRUE_FALSE'" class="tf-display">
+          <el-alert
+            :title="question.metadata.correctAnswer ? 'ĐÁP ÁN: TRUE' : 'ĐÁP ÁN: FALSE'"
+            :type="question.metadata.correctAnswer ? 'success' : 'error'"
+            :closable="false"
+            show-icon
+          />
+        </div>
 
-    <!-- Explanation -->
-    <div v-if="question.explanation" class="explanation-section">
-      <el-card shadow="never" class="explanation-card">
-        <template #header>
-          <div class="section-header">
-            <el-icon :size="20"><InfoFilled /></el-icon>
-            <el-text tag="b" size="large">Giải thích đáp án</el-text>
-          </div>
-        </template>
-        <el-text class="explanation-text">{{ question.explanation }}</el-text>
-      </el-card>
+        <div v-else-if="question.questionType === 'FILL_BLANK'">
+          <el-table :data="question.metadata.blanks" size="small" border>
+            <el-table-column label="Vị trí" prop="position" width="80" align="center" />
+            <el-table-column label="Đáp án đúng" prop="correctAnswers">
+              <template #default="{ row }">
+                <el-tag v-for="ans in row.correctAnswers" :key="ans" class="mr-1">{{ ans }}</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <div v-else-if="question.questionType === 'MATCHING'">
+          <el-table :data="question.metadata.pairs" size="small" border>
+            <el-table-column label="Vế A" prop="item1" />
+            <el-table-column label="" width="40" align="center"><el-icon><Switch /></el-icon></el-table-column>
+            <el-table-column label="Vế B" prop="item2" />
+          </el-table>
+        </div>
+
+        <div v-else class="json-dump">
+          <pre>{{ JSON.stringify(question.metadata, null, 2) }}</pre>
+        </div>
+      </div>
+
+      <div v-if="question.explanation" class="explanation-section mt-4">
+        <div class="label">Giải thích:</div>
+        <div class="explanation-text" v-html="question.explanation"></div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import {
-  QuestionFilled, Files, InfoFilled, Trophy, CircleCheckFilled,
-  DocumentChecked, Select, Edit, Link,
-  ChatDotSquare, Microphone, Reading, DocumentCopy
-} from '@element-plus/icons-vue'
-
-// Lazy load preview components
-const MultipleChoicePreview = () => import('./question-previews/MultipleChoicePreview.vue')
-const TrueFalsePreview = () => import('./question-previews/TrueFalsePreview.vue')
-const TextAnswerPreview = () => import('./question-previews/TextAnswerPreview.vue')
-const MatchingPreview = () => import('./question-previews/MatchingPreview.vue')
-const SentenceBuildingPreview = () => import('./question-previews/SentenceBuildingPreview.vue')
-const ConversationPreview = () => import('./question-previews/ConversationPreview.vue')
-const PronunciationPreview = () => import('./question-previews/PronunciationPreview.vue')
-const ReadingComprehensionPreview = () => import('./question-previews/ReadingComprehensionPreview.vue')
-const OpenEndedPreview = () => import('./question-previews/OpenEndedPreview.vue')
+import { computed } from 'vue'
+import { Check, Switch } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  question: {
-    type: Object,
-    required: true,
-  },
+  question: { type: Object, required: true }
 })
 
-const getPreviewComponent = (questionType) => {
-  const componentMap = {
-    MULTIPLE_CHOICE: MultipleChoicePreview,
-    TRUE_FALSE: TrueFalsePreview,
-    FILL_BLANK: TextAnswerPreview,
-    SHORT_ANSWER: TextAnswerPreview,
-    VERB_FORM: TextAnswerPreview,
-    ERROR_CORRECTION: TextAnswerPreview,
-    MATCHING: MatchingPreview,
-    SENTENCE_BUILDING: SentenceBuildingPreview,
-    COMPLETE_CONVERSATION: ConversationPreview,
-    PRONUNCIATION: PronunciationPreview,
-    READING_COMPREHENSION: ReadingComprehensionPreview,
-    OPEN_ENDED: OpenEndedPreview,
+const typeColor = computed(() => {
+  const map = {
+    'MULTIPLE_CHOICE': 'primary',
+    'TRUE_FALSE': 'warning',
+    'FILL_BLANK': 'success',
+    'MATCHING': 'info',
+    'ERROR_CORRECTION': 'danger'
   }
-  return componentMap[questionType] || null
-}
-
-// Extract correct answer based on question type
-const getCorrectAnswerText = (question) => {
-  const metadata = question.metadata
-  const type = question.questionType
-
-  switch (type) {
-    case 'MULTIPLE_CHOICE': {
-      const correctOption = metadata.options?.find(o => o.isCorrect)
-      return correctOption ? correctOption.text : 'N/A'
-    }
-
-    case 'TRUE_FALSE':
-      return metadata.correctAnswer ? 'TRUE ' : 'FALSE '
-
-    case 'FILL_BLANK':
-    case 'SHORT_ANSWER':
-    case 'VERB_FORM':
-    case 'ERROR_CORRECTION':
-      return metadata.correctAnswer || 'N/A'
-    case 'MATCHING': {
-      const pairCount = metadata.pairs?.length || 0
-      return `${pairCount} cặp ghép đúng (xem chi tiết bên dưới)`
-    }
-
-    case 'SENTENCE_BUILDING':
-      return metadata.correctSentence || 'N/A'
-
-    case 'COMPLETE_CONVERSATION':
-    case 'PRONUNCIATION': {
-      const classCount = metadata.classifications?.length || 0
-      return `${classCount} từ phân loại đúng (xem chi tiết bên dưới)`
-    }
-    case 'READING_COMPREHENSION': {
-      const blankCount = metadata.blanks?.length || 0
-      return `${blankCount} chỗ trống (xem chi tiết bên dưới)`
-    }
-
-    case 'OPEN_ENDED':
-      return metadata.suggestedAnswer || 'Câu trả lời tự do (cần đánh giá)'
-
-    default:
-      return 'N/A'
-  }
-}
-
-const questionTypeLabels = {
-  MULTIPLE_CHOICE: 'Trắc nghiệm',
-  TRUE_FALSE: 'Đúng/Sai',
-  FILL_BLANK: 'Điền từ',
-  SHORT_ANSWER: 'Trả lời ngắn',
-  VERB_FORM: 'Dạng động từ',
-  ERROR_CORRECTION: 'Sửa lỗi',
-  MATCHING: 'Nối câu',
-  SENTENCE_BUILDING: 'Sắp xếp câu',
-  COMPLETE_CONVERSATION: 'Hoàn thành hội thoại',
-  PRONUNCIATION: 'Phát âm',
-  READING_COMPREHENSION: 'Đọc hiểu',
-  OPEN_ENDED: 'Tự luận',
-}
-
-const getQuestionTypeLabel = (type) => {
-  return questionTypeLabels[type] || type
-}
-
-const getQuestionTypeTagType = (type) => {
-  const typeMap = {
-    MULTIPLE_CHOICE: 'primary',
-    TRUE_FALSE: 'success',
-    FILL_BLANK: 'warning',
-    SHORT_ANSWER: 'info',
-    VERB_FORM: 'info',
-    ERROR_CORRECTION: 'danger',
-    MATCHING: 'danger',
-    SENTENCE_BUILDING: '',
-    COMPLETE_CONVERSATION: 'warning',
-    PRONUNCIATION: 'success',
-    READING_COMPREHENSION: 'primary',
-    OPEN_ENDED: 'info',
-  }
-  return typeMap[type] || 'info'
-}
-
-const getQuestionTypeColor = (type) => {
-  const colorMap = {
-    MULTIPLE_CHOICE: '#409EFF',
-    TRUE_FALSE: '#67C23A',
-    FILL_BLANK: '#E6A23C',
-    SHORT_ANSWER: '#909399',
-    VERB_FORM: '#909399',
-    ERROR_CORRECTION: '#F56C6C',
-    MATCHING: '#F56C6C',
-    SENTENCE_BUILDING: '#409EFF',
-    COMPLETE_CONVERSATION: '#E6A23C',
-    PRONUNCIATION: '#67C23A',
-    READING_COMPREHENSION: '#409EFF',
-    OPEN_ENDED: '#909399',
-  }
-  return colorMap[type] || '#909399'
-}
-
-const getQuestionTypeIcon = (type) => {
-  const iconMap = {
-    MULTIPLE_CHOICE: DocumentChecked,
-    TRUE_FALSE: Select,
-    FILL_BLANK: Edit,
-    SHORT_ANSWER: Edit,
-    VERB_FORM: Edit,
-    ERROR_CORRECTION: DocumentCopy,
-    MATCHING: Link,
-    SENTENCE_BUILDING: DocumentCopy,
-    COMPLETE_CONVERSATION: ChatDotSquare,
-    PRONUNCIATION: Microphone,
-    READING_COMPREHENSION: Reading,
-    OPEN_ENDED: DocumentCopy,
-  }
-  return iconMap[type] || QuestionFilled
-}
+  return map[props.question.questionType] || 'info'
+})
 </script>
 
 <style scoped>
-.question-preview {
-  padding: 0;
-}
+.question-preview { padding: 0 10px; }
+.preview-header { border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 16px; }
+.meta-info { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #666; }
+.points { font-weight: bold; color: #e6a23c; }
 
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-  flex-wrap: wrap;
-  gap: 12px;
-}
+.label { font-weight: 600; margin-bottom: 8px; color: #303133; font-size: 14px; }
+.mt-4 { margin-top: 16px; }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.info-section,
-.question-section,
-.correct-answer-section,
-.metadata-section,
-.explanation-section {
-  margin-bottom: 20px;
-}
-
-.question-card,
-.correct-answer-card,
-.metadata-card,
-.explanation-card {
-  border: 2px solid var(--el-border-color);
-  border-radius: 8px;
-}
-
-.question-card {
-  border-color: var(--el-color-primary-light-5);
-  background: var(--el-color-primary-light-9);
-}
-
-.correct-answer-card {
-  border-color: var(--el-color-success);
-  background: linear-gradient(135deg, var(--el-color-success-light-9) 0%, #f0f9ff 100%);
-  box-shadow: 0 2px 8px rgba(103, 194, 58, 0.15);
-}
-
-.metadata-card {
-  border-color: var(--el-color-info-light-5);
-  background: var(--el-fill-color-lighter);
-}
-
-.explanation-card {
-  border-color: var(--el-color-warning-light-5);
-  background: var(--el-color-warning-light-9);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+/* Question Text Style */
 .question-text {
-  line-height: 1.8;
-  font-size: 16px;
-  color: var(--el-text-color-primary);
-  padding: 8px 0;
+  background: #f9faFc; padding: 12px; border-radius: 6px; border: 1px solid #e4e7ed; font-size: 15px;
 }
 
-.question-text :deep(p) {
-  margin-bottom: 12px;
+/* Options Grid */
+.options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.option-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border: 1px solid #dcdfe6; border-radius: 6px;
 }
-
-.question-text :deep(ul),
-.question-text :deep(ol) {
-  margin: 12px 0;
-  padding-left: 24px;
+.option-item.correct {
+  background-color: #f0f9eb; border-color: #67c23a; color: #67c23a; font-weight: 500;
 }
-
-.question-text :deep(li) {
-  margin-bottom: 8px;
+.opt-marker {
+  width: 24px; height: 24px; border-radius: 50%; background: #eee;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
 }
+.option-item.correct .opt-marker { background: #67c23a; color: white; }
 
-.question-text :deep(strong) {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+.explanation-section {
+  background: #fff6f6; padding: 12px; border-left: 3px solid #f56c6c; border-radius: 4px;
 }
-
-.question-text :deep(em) {
-  font-style: italic;
-}
-
-.question-text :deep(code) {
-  background: var(--el-fill-color);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-}
-
-.correct-answer-display {
-  padding: 20px;
-  background: white;
-  border-radius: 6px;
-  border-left: 4px solid var(--el-color-success);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--el-color-success);
-  line-height: 1.6;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-.explanation-text {
-  line-height: 1.8;
-  font-size: 15px;
-  display: block;
-  padding: 8px 0;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .preview-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  :deep(.el-descriptions) {
-    font-size: 13px;
-  }
-
-  .question-text {
-    font-size: 15px;
-  }
-
-  .correct-answer-display {
-    font-size: 15px;
-    padding: 16px;
-  }
-}
+.json-dump { background: #f4f4f5; padding: 10px; border-radius: 4px; font-size: 12px; }
 </style>

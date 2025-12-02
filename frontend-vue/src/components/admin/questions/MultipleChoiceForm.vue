@@ -1,179 +1,124 @@
 <template>
   <div class="multiple-choice-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
+    <el-form-item label="Gợi ý (Không bắt buộc)">
+      <el-input v-model="localMetadata.hint" type="textarea" :rows="2"
+        placeholder="Nhập gợi ý giúp người học trả lời câu hỏi..." maxlength="200" show-word-limit
+        @input="emitUpdate" />
     </el-form-item>
 
-    <!-- Options -->
-    <el-form-item label="Options" required>
-      <el-space direction="vertical" fill style="width: 100%">
-        <div
-          v-for="(option, index) in localMetadata.options"
-          :key="index"
-          class="option-item"
-        >
-          <el-card shadow="hover" :body-style="{ padding: '12px' }">
-            <div class="option-header">
-              <el-text tag="b">Option {{ index + 1 }}</el-text>
-              <el-button
-                type="danger"
-                size="small"
-                :icon="Delete"
-                circle
-                @click="removeOption(index)"
-                :disabled="localMetadata.options.length <= 2"
-              />
-            </div>
+    <el-form-item label="Danh sách đáp án" required class="mb-0">
+      <div class="options-container">
+        <transition-group name="list">
+          <div v-for="(option, index) in localMetadata.options" :key="index" class="option-item mb-3">
+            <el-card shadow="hover" :body-style="{ padding: '12px' }" class="option-card">
+              <div class="option-row">
+                <div class="option-index">
+                  <el-tag effect="plain" size="small" type="info">{{ String.fromCharCode(65 + index) }}</el-tag>
+                </div>
 
-            <el-row :gutter="12" style="margin-top: 8px">
-              <!-- Option Text -->
-              <el-col :span="16">
-                <el-input
-                  v-model="option.text"
-                  placeholder="Enter option text..."
-                  @input="emitUpdate"
-                />
-              </el-col>
+                <div class="option-content">
+                  <el-input v-model="option.text" placeholder="Nhập nội dung đáp án..." @input="emitUpdate">
+                    <template #prefix>
+                      <el-icon class="text-gray-400">
+                        <EditPen />
+                      </el-icon>
+                    </template>
+                  </el-input>
+                </div>
 
-              <!-- Is Correct -->
-              <el-col :span="4">
-                <el-checkbox
-                  v-model="option.isCorrect"
-                  label="Correct"
-                  @change="handleCorrectChange(index)"
-                />
-              </el-col>
+                <div class="option-actions">
+                  <el-tooltip content="Đánh dấu là đáp án đúng" placement="top">
+                    <el-checkbox v-model="option.isCorrect" label="Đúng" border
+                      :class="{ 'is-checked-success': option.isCorrect }" @change="handleCorrectChange(index)" />
+                  </el-tooltip>
 
-              <!-- Order -->
-              <el-col :span="4">
-                <el-input-number
-                  v-model="option.order"
-                  :min="1"
-                  :max="localMetadata.options.length"
-                  controls-position="right"
-                  style="width: 100%"
-                  @change="emitUpdate"
-                />
-              </el-col>
-            </el-row>
-          </el-card>
-        </div>
+                  <el-tooltip content="Xóa đáp án" placement="top">
+                    <el-button type="danger" plain :icon="Delete" circle @click="removeOption(index)"
+                      :disabled="localMetadata.options.length <= 2" />
+                  </el-tooltip>
+                </div>
+              </div>
+            </el-card>
+          </div>
+        </transition-group>
 
-        <!-- Add Option Button -->
-        <el-button type="primary" :icon="Plus" @click="addOption" style="width: 100%">
-          Add Option
+        <el-button type="primary" plain :icon="Plus" @click="addOption" class="w-full mt-2 dashed-btn">
+          Thêm đáp án khác
         </el-button>
-      </el-space>
+      </div>
     </el-form-item>
 
-    <!-- Validation Info -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 12px"
-    />
+    <transition name="el-fade-in">
+      <el-alert v-if="validationError" :title="validationError" type="error" show-icon :closable="false" class="mt-4" />
+    </transition>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, EditPen } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
+  metadata: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['update:metadata'])
 
+// Init data
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  options: props.metadata.options || [
-    { text: '', isCorrect: false, order: 1 },
+  hint: props.metadata?.hint || '',
+  options: props.metadata?.options?.length > 0 ? props.metadata.options : [
+    { text: '', isCorrect: true, order: 1 }, // Default cái đầu đúng cho nhanh
     { text: '', isCorrect: false, order: 2 },
+    { text: '', isCorrect: false, order: 3 },
+    { text: '', isCorrect: false, order: 4 },
   ],
 })
 
-// Watch props.metadata changes
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        options: newVal.options || localMetadata.value.options,
-      }
+watch(() => props.metadata, (newVal) => {
+  if (newVal && Object.keys(newVal).length > 0) {
+    localMetadata.value = {
+      hint: newVal.hint || '',
+      options: newVal.options || localMetadata.value.options,
     }
-  },
-  { deep: true }
-)
+  }
+}, { deep: true })
 
+// Validation Logic
 const validationError = computed(() => {
-  if (!localMetadata.value.options || localMetadata.value.options.length < 2) {
-    return 'Need at least 2 options'
-  }
-
-  const hasCorrect = localMetadata.value.options.some((opt) => opt.isCorrect)
-  if (!hasCorrect) {
-    return 'At least one option must be marked as correct'
-  }
-
-  const hasEmptyText = localMetadata.value.options.some((opt) => !opt.text || opt.text.trim() === '')
-  if (hasEmptyText) {
-    return 'All options must have text'
-  }
-
+  const options = localMetadata.value.options
+  if (!options || options.length < 2) return 'Cần ít nhất 2 đáp án.'
+  if (!options.some(opt => opt.isCorrect)) return 'Phải chọn ít nhất một đáp án đúng.'
+  if (options.some(opt => !opt.text || opt.text.trim() === '')) return 'Nội dung đáp án không được để trống.'
   return null
 })
 
+// Actions
 const addOption = () => {
-  const nextOrder = localMetadata.value.options.length + 1
   localMetadata.value.options.push({
     text: '',
     isCorrect: false,
-    order: nextOrder,
+    order: localMetadata.value.options.length + 1,
   })
   emitUpdate()
 }
 
 const removeOption = (index) => {
   if (localMetadata.value.options.length <= 2) return
-
   localMetadata.value.options.splice(index, 1)
-
-  // Reorder
-  localMetadata.value.options.forEach((opt, idx) => {
-    opt.order = idx + 1
-  })
-
+  // Re-index order
+  localMetadata.value.options.forEach((opt, idx) => opt.order = idx + 1)
   emitUpdate()
 }
 
 const handleCorrectChange = (index) => {
-  // For multiple choice, only one can be correct
-  const clickedOption = localMetadata.value.options[index]
-
-  if (clickedOption.isCorrect) {
+  // Logic Radio: Chỉ 1 đáp án đúng
+  const clicked = localMetadata.value.options[index]
+  if (clicked.isCorrect) {
     localMetadata.value.options.forEach((opt, idx) => {
-      if (idx !== index) {
-        opt.isCorrect = false
-      }
+      if (idx !== index) opt.isCorrect = false
     })
   }
-
   emitUpdate()
 }
 
@@ -184,17 +129,65 @@ const emitUpdate = () => {
 
 <style scoped>
 .multiple-choice-form {
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
-.option-item {
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.option-content {
+  flex: 1;
+}
+
+.option-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.w-full {
   width: 100%;
 }
 
-.option-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+.mt-2 {
+  margin-top: 8px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+.mb-3 {
+  margin-bottom: 12px;
+}
+
+/* Custom Checkbox Style for Correct Answer */
+:deep(.is-checked-success .el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: #67c23a;
+  border-color: #67c23a;
+}
+
+:deep(.is-checked-success .el-checkbox__label) {
+  color: #67c23a;
+  font-weight: bold;
+}
+
+.dashed-btn {
+  border-style: dashed;
+}
+
+/* Animation List */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
 }
 </style>

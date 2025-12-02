@@ -1,243 +1,112 @@
 <template>
   <div class="lesson-list-container">
-    <!-- Header Actions -->
     <div class="header-actions">
       <div class="left-actions">
-        <!-- Topic Selector -->
-        <el-select
-          v-model="selectedTopicId"
-          placeholder="Chọn Topic"
-          clearable
-          filterable
-          @change="handleTopicChange"
-          style="width: 300px"
-        >
-          <el-option
-            v-for="topic in topics"
-            :key="topic.id"
-            :label="`${topic.name} (${topic.levelRequired})`"
-            :value="topic.id"
-          >
+        <el-select v-model="selectedTopicId" placeholder="Chọn Topic..." filterable class="topic-select"
+          @change="handleTopicChange">
+          <el-option v-for="topic in topics" :key="topic.id" :label="topic.name" :value="topic.id">
             <span style="float: left">{{ topic.name }}</span>
-            <el-tag :type="getLevelColor(topic.levelRequired)" size="small" style="float: right; margin-left: 10px">
+            <el-tag size="small" type="info" style="float: right; margin-left: 10px">
               {{ topic.levelRequired }}
             </el-tag>
           </el-option>
         </el-select>
 
-        <!-- Search Input -->
-        <el-input
-          v-model="searchQuery"
-          placeholder="Tìm kiếm tiêu đề lesson..."
-          :prefix-icon="Search"
-          clearable
-          style="width: 300px"
-          @input="handleSearch"
-        />
+        <el-input v-model="searchQuery" placeholder="Tìm bài học..." :prefix-icon="Search" clearable
+          class="search-input" />
 
-        <!-- Filter by Type -->
-        <el-select
-          v-model="filterType"
-          placeholder="Lọc theo loại"
-          clearable
-          style="width: 150px"
-          @change="handleFilter"
-        >
+        <el-select v-model="filterType" placeholder="Loại" clearable class="filter-select">
           <el-option label="Tất cả" value="" />
           <el-option label="Lý thuyết" value="THEORY" />
           <el-option label="Thực hành" value="PRACTICE" />
         </el-select>
-
-        <!-- Stats -->
-        <div v-if="selectedTopicId" class="stats">
-          <el-tag type="info" size="small">
-            <el-icon><Document /></el-icon>
-            {{ lessonsPagination.totalElements }}
-          </el-tag>
-          <el-tag type="success" size="small">
-            <el-icon><Reading /></el-icon>
-            {{ theoryCount }}
-          </el-tag>
-          <el-tag type="warning" size="small">
-            <el-icon><EditPen /></el-icon>
-            {{ practiceCount }}
-          </el-tag>
-        </div>
       </div>
 
       <div class="right-actions">
-        <el-button type="primary" :icon="Plus" @click="handleCreate" :disabled="!selectedTopicId" size="small">
-          Tạo Lesson
+        <el-button type="primary" :icon="Plus" @click="handleCreate" :disabled="!selectedTopicId">
+          Tạo Mới
         </el-button>
-
-        <el-button :icon="Refresh" @click="handleRefresh" :disabled="!selectedTopicId" size="small">
-          Làm mới
-        </el-button>
-
-        <el-button :icon="Tools" @click="handleValidateOrder" :disabled="!selectedTopicId" size="small">
-          Validate
-        </el-button>
+        <el-button :icon="Refresh" @click="handleRefresh" :disabled="!selectedTopicId" circle />
+        <el-button :icon="Tools" @click="handleValidateOrder" :disabled="!selectedTopicId" circle />
       </div>
     </div>
 
-    <!-- Empty State -->
-    <el-empty v-if="!selectedTopicId" description="Vui lòng chọn Topic để xem Lessons" :image-size="150">
-      <template #image>
-        <el-icon :size="80" color="#909399">
-          <FolderOpened />
-        </el-icon>
-      </template>
-    </el-empty>
+    <el-empty v-if="!selectedTopicId" description="Chọn Topic để xem danh sách" />
 
-    <!-- Lessons Table -->
-    <div v-else>
-      <el-table
-        :data="paginatedLessons"
-        v-loading="lessonsLoading"
-        border
-        stripe
-        style="width: 100%"
-        @sort-change="handleSortChange"
-        @row-click="handleViewLesson"
-        empty-text="Chưa có lesson nào"
-        size="small"
-        :header-cell-style="{ background: '#f5f7fa', fontWeight: 'bold' }"
-        :row-style="{ cursor: 'pointer' }"
-        class="custom-table"
-      >
-        <!-- Order Index -->
-        <el-table-column prop="orderIndex" label="STT" width="70" sortable="custom" align="center">
+    <div v-else class="table-wrapper">
+      <el-table :data="paginatedLessons" v-loading="lessonsLoading" style="width: 100%" row-key="id" border stripe
+        highlight-current-row @row-click="handleViewDetail" row-class-name="clickable-row" class="custom-table">
+        <el-table-column label="STT" width="50" align="center" fixed="left">
           <template #default="{ row }">
-            <el-tag type="info" size="small">{{ row.orderIndex }}</el-tag>
+            <span class="order-badge">{{ row.orderIndex }}</span>
           </template>
         </el-table-column>
 
-        <!-- Type Icon -->
-        <el-table-column label="Type" width="70" align="center">
+        <el-table-column label="Bài học" min-width="200">
           <template #default="{ row }">
-            <el-tooltip :content="getLessonTypeLabel(row.lessonType)">
-              <el-icon :size="20" :color="getLessonTypeColor(row.lessonType)">
-                <Reading v-if="row.lessonType === 'THEORY'" />
-                <EditPen v-else />
-              </el-icon>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-
-        <!-- Title -->
-        <el-table-column prop="title" label="Tiêu đề" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="lesson-title">
-              <span class="title-text">{{ row.title }}</span>
-              <el-tag v-if="!row.isActive" type="danger" size="small" style="margin-left: 8px">
-                Inactive
-              </el-tag>
+            <div class="lesson-info">
+              <span class="lesson-title">{{ row.title }}</span>
+              <div class="lesson-meta">
+                <el-tag size="small" :type="row.lessonType === 'THEORY' ? 'success' : 'warning'" effect="plain">
+                  {{ row.lessonType === 'THEORY' ? 'Lý thuyết' : 'Bài tập' }}
+                </el-tag>
+                <span class="meta-item">
+                  <el-icon>
+                    <Timer />
+                  </el-icon> {{ formatTime(row.estimatedDuration) }}
+                </span>
+              </div>
             </div>
           </template>
         </el-table-column>
 
-        <!-- Lesson Type -->
-        <el-table-column prop="lessonType" label="Loại" width="100" align="center">
+        <el-table-column label="Câu hỏi" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.lessonType === 'THEORY' ? 'success' : 'warning'" size="small">
-              {{ getLessonTypeLabel(row.lessonType) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <!-- Question Count -->
-        <el-table-column label="Câu hỏi" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag type="primary" size="small">
-              <el-icon><QuestionFilled /></el-icon>
+            <span class="font-bold" :class="row.questionCount > 0 ? 'text-primary' : 'text-gray'">
               {{ row.questionCount || 0 }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
 
-        <!-- Points -->
-        <el-table-column prop="pointsReward" label="Điểm" width="80" align="center">
+        <el-table-column label="Active" width="80" align="center">
           <template #default="{ row }">
-            <el-tag type="warning" size="small">
-              {{ row.pointsReward }}
-            </el-tag>
+            <el-switch v-model="row.isActive" size="small" @change="handleToggleActive(row)" @click.stop />
           </template>
         </el-table-column>
 
-        <!-- Duration -->
-        <el-table-column prop="estimatedDuration" label="Thời gian" width="100" align="center">
+        <el-table-column label="Thao tác" width="140" align="center" fixed="right" class-name="actions-col">
           <template #default="{ row }">
-            <el-tag type="info" size="small">
-              {{ formatDuration(row.estimatedDuration) }}
-            </el-tag>
-          </template>
-        </el-table-column>
+            <div class="action-buttons">
+              <el-tooltip content="Câu hỏi" placement="top" :hide-after="0">
+                <el-button :icon="QuestionFilled" size="small" type="primary" plain class="square-btn"
+                  @click.stop="handleViewQuestions(row)" />
+              </el-tooltip>
 
-        <!-- Status -->
-        <el-table-column prop="isActive" label="Active" width="90" align="center">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.isActive"
-              size="small"
-              @change="handleToggleActive(row)"
-              :loading="row.statusLoading"
-              @click.stop
-            />
-          </template>
-        </el-table-column>
+              <el-tooltip content="Sửa" placement="top" :hide-after="0">
+                <el-button :icon="Edit" size="small" type="warning" plain class="square-btn"
+                  @click.stop="handleEdit(row)" />
+              </el-tooltip>
 
-        <!-- Actions -->
-        <el-table-column label="Thao tác" width="280" fixed="right">
-          <template #default="{ row }">
-            <el-button-group size="small">
-              <el-button
-                :icon="QuestionFilled"
-                @click.stop="handleViewQuestions(row)"
-                :type="row.questionCount > 0 ? 'primary' : 'default'"
-              >
-                Questions ({{ row.questionCount || 0 }})
-              </el-button>
-
-              <el-button :icon="Edit" @click.stop="handleEdit(row)">Sửa</el-button>
-              <el-button :icon="Delete" type="danger" @click.stop="handleDelete(row)">Xóa</el-button>
-            </el-button-group>
+              <el-tooltip content="Xóa" placement="top" :hide-after="0">
+                <el-button :icon="Delete" size="small" type="danger" plain class="square-btn"
+                  @click.stop="handleDelete(row)" />
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- Pagination -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50]"
-          :total="lessonsPagination.totalElements"
-          layout="total, sizes, prev, pager, next"
-          size="small"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
+      <div class="pagination-wrapper">
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
+          :total="filteredLessons.length" layout="total, sizes, prev, pager, next" @size-change="handleSizeChange"
+          @current-change="handlePageChange" />
       </div>
     </div>
 
-    <!-- Lesson Form Dialog -->
-    <LessonFormDialog
-      :visible="dialogVisible"
-      :mode="dialogMode"
-      :form-data="formData"
-      :topic-id="selectedTopicId"
-      @close="handleCloseDialog"
-      @success="handleFormSuccess"
-    />
+    <LessonFormDialog ref="lessonFormRef" :topic-id="selectedTopicId" @success="handleFormSuccess" />
 
-    <!-- Lesson Preview Dialog -->
-    <el-dialog
-      v-model="previewDialogVisible"
-      title="Chi tiết Lesson"
-      width="800px"
-      destroy-on-close
-    >
-      <LessonPreview v-if="selectedLesson" :lesson="selectedLesson" />
+    <el-dialog v-model="previewVisible" title="Chi tiết bài học" width="800px" align-center destroy-on-close>
+      <LessonPreview v-if="previewLesson" :lesson="previewLesson" />
     </el-dialog>
   </div>
 </template>
@@ -245,248 +114,121 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useGrammarStore } from '@/stores/grammar'
-import { useGrammarLessonForm } from '@/composables/grammar/useGrammarLessons'
-import { getLevelColor } from '@/types/grammar.types'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import {
   Plus, Refresh, Tools, Edit, Delete,
-  Document, Reading, EditPen, QuestionFilled, FolderOpened, Search
+  Timer, QuestionFilled, Search
 } from '@element-plus/icons-vue'
 import LessonFormDialog from './LessonFormDialog.vue'
 import LessonPreview from './LessonPreview.vue'
 
-const props = defineProps({
-  initTopicId: {
-    type: Number,
-    default: null,
-  },
-})
+const props = defineProps({ initTopicId: Number })
+const emit = defineEmits(['view-questions'])
+const store = useGrammarStore()
 
-const grammarStore = useGrammarStore()
-const {
-  dialogVisible,
-  dialogMode,
-  formData,
-  openCreateDialog,
-  openEditDialog,
-  closeDialog,
-} = useGrammarLessonForm()
-
+// State
+const lessonFormRef = ref(null)
 const selectedTopicId = ref(null)
 const currentPage = ref(1)
 const pageSize = ref(10)
-const previewDialogVisible = ref(false)
-const selectedLesson = ref(null)
 const searchQuery = ref('')
 const filterType = ref('')
+const previewVisible = ref(false)
+const previewLesson = ref(null)
 
-const topics = computed(() => grammarStore.topics)
-const lessons = computed(() => grammarStore.lessons)
+// Computed
+const topics = computed(() => store.topics)
+const lessonsLoading = computed(() => store.lessonsLoading)
 
-// CLIENT-SIDE FILTERING (like TopicList)
 const filteredLessons = computed(() => {
-  let result = [...lessons.value]
-
-  // Filter by search query
+  let result = [...store.lessons]
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(lesson =>
-      lesson.title.toLowerCase().includes(query)
-    )
+    result = result.filter(l => l.title.toLowerCase().includes(searchQuery.value.toLowerCase()))
   }
-
-  // Filter by type
   if (filterType.value) {
-    result = result.filter(lesson => lesson.lessonType === filterType.value)
+    result = result.filter(l => l.lessonType === filterType.value)
   }
-
   return result
 })
 
-// CLIENT-SIDE PAGINATION
 const paginatedLessons = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredLessons.value.slice(start, end)
+  return filteredLessons.value.slice(start, start + pageSize.value)
 })
 
-// Update pagination based on filtered results
-const lessonsPagination = computed(() => ({
-  totalElements: filteredLessons.value.length,
-  totalPages: Math.ceil(filteredLessons.value.length / pageSize.value),
-  currentPage: currentPage.value,
-  pageSize: pageSize.value
-}))
-const lessonsLoading = computed(() => grammarStore.lessonsLoading)
+// Actions
+const handleCreate = () => lessonFormRef.value?.openCreate()
+const handleEdit = (lesson) => lessonFormRef.value?.openEdit(lesson)
 
-const theoryCount = computed(() => filteredLessons.value.filter(l => l.lessonType === 'THEORY').length)
-const practiceCount = computed(() => filteredLessons.value.filter(l => l.lessonType === 'PRACTICE').length)
-
-const loadLessons = async () => {
-  if (!selectedTopicId.value || typeof selectedTopicId.value !== 'number') {
-    return
-  }
-
-  // Load ALL lessons without filtering (let client-side handle it)
-  await grammarStore.fetchLessons(selectedTopicId.value, {
-    page: 0,
-    size: 1000, // Load all lessons
-    sort: 'orderIndex,asc',
-  })
+const handleViewDetail = async (row) => {
+  const fullLesson = await store.fetchLessonById(row.id)
+  previewLesson.value = fullLesson
+  previewVisible.value = true
 }
 
-const handleTopicChange = async (topicId) => {
-  if (!topicId) {
-    grammarStore.clearLessons()
-    return
-  }
-  selectedTopicId.value = topicId
-  currentPage.value = 1
+const handleFormSuccess = async () => {
   await loadLessons()
 }
 
-watch(() => props.initTopicId, async (newTopicId) => {
-  if (newTopicId) {
-    selectedTopicId.value = newTopicId
-    await handleTopicChange(newTopicId)
-  }
-}, { immediate: true })
-
-const handleCreate = async () => {
-  if (!selectedTopicId.value) {
-    ElMessage.warning('Vui lòng chọn Topic trước')
-    return
-  }
-  await openCreateDialog(selectedTopicId.value)
-}
-
-defineExpose({ openCreateDialog: handleCreate })
-
-const handleViewLesson = async (lesson) => {
-  try {
-    const fullLesson = await grammarStore.fetchLessonById(lesson.id)
-    selectedLesson.value = fullLesson
-    previewDialogVisible.value = true
-  } catch (error) {
-    console.error('Failed to load lesson:', error)
-    ElMessage.error('Không thể tải chi tiết lesson')
-  }
-}
-
-const handleEdit = async (lesson) => {
-  try {
-    const fullLesson = await grammarStore.fetchLessonById(lesson.id)
-    openEditDialog(fullLesson)
-  } catch (error) {
-    console.error('Failed to load lesson:', error)
-  }
-}
-
 const handleDelete = async (lesson) => {
-  const cascade = lesson.lessonType === 'PRACTICE'
   try {
-    await ElMessageBox.confirm(
-      `Xóa lesson "${lesson.title}"?` + (lesson.questionCount > 0 ? ` (${lesson.questionCount} câu hỏi sẽ bị xóa)` : ''),
-      'Xác nhận',
-      { type: 'warning' }
-    )
-    await grammarStore.deleteLesson(lesson.id, cascade)
+    await ElMessageBox.confirm(`Xóa "${lesson.title}"?`, 'Warning', { type: 'warning' })
+    await store.deleteLesson(lesson.id)
+    ElMessage.success('Đã xóa')
     await loadLessons()
-  } catch (error) {
-    if (error !== 'cancel') console.error('Delete error:', error)
+  } catch (e) {
+    ElMessage.error('Xóa bài học thất bại.')
+    console.error(e)
   }
 }
 
 const handleToggleActive = async (lesson) => {
   try {
-    lesson.statusLoading = true
-    if (lesson.isActive) {
-      await grammarStore.updateLesson(lesson.id, { ...lesson, isActive: true })
-    } else {
-      await grammarStore.deactivateLesson(lesson.id)
-    }
-  } catch (error) {
-    console.error('Toggle active error:', error)
+    await store.updateLesson(lesson.id, { ...lesson, isActive: lesson.isActive })
+    ElMessage.success('Đã cập nhật trạng thái')
+  } catch (e) {
     lesson.isActive = !lesson.isActive
-  } finally {
-    lesson.statusLoading = false
+    ElMessage.error('Cập nhật trạng thái thất bại.')
+    console.error(e)
   }
 }
 
-const emit = defineEmits(['view-questions'])
-
-const handleViewQuestions = (lesson) => {
-  console.log('Viewing questions for lesson:', lesson)
-  emit('view-questions', lesson)
+const loadLessons = async () => {
+  if (selectedTopicId.value) await store.fetchLessons(selectedTopicId.value, { size: 1000 })
 }
 
-const handleRefresh = async () => {
-  currentPage.value = 1
-  await loadLessons()
+const handleTopicChange = (val) => {
+  selectedTopicId.value = val
+  if (val) loadLessons()
+  else store.clearLessons()
 }
 
-const handleSearch = async () => {
-  currentPage.value = 1
-  await loadLessons()
+const formatTime = (seconds) => {
+  if (!seconds) return '0s'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m}p ${s > 0 ? s + 's' : ''}` : `${s}s`
 }
 
-const handleFilter = async () => {
-  currentPage.value = 1
-  await loadLessons()
-}
+const handleRefresh = () => loadLessons()
+const handleValidateOrder = () => store.validateLessonsOrder(selectedTopicId.value)
+const handleViewQuestions = (row) => emit('view-questions', row)
 
-const handleValidateOrder = async () => {
-  try {
-    await grammarStore.validateLessonsOrder(selectedTopicId.value)
-  } catch (error) {
-    console.error('Validate error:', error)
-  }
-}
-
-const handlePageChange = (page) => {
-  currentPage.value = page
-}
-
-const handleSizeChange = (size) => {
-  pageSize.value = size
+// Handlers cho Pagination
+const handleSizeChange = (val) => {
+  pageSize.value = val
   currentPage.value = 1
 }
-
-const handleSortChange = async ({ prop, order }) => {
-  const sortOrder = order === 'ascending' ? 'asc' : 'desc'
-  const params = {
-    page: currentPage.value - 1,
-    size: pageSize.value,
-    sort: `${prop},${sortOrder}`,
-  }
-
-  // TODO: Backend chưa hỗ trợ search/filter
-  // if (searchQuery.value.trim()) {
-  //   params.search = searchQuery.value.trim()
-  // }
-
-  // if (filterType.value) {
-  //   params.lessonType = filterType.value
-  // }
-
-  await grammarStore.fetchLessons(selectedTopicId.value, params)
+const handlePageChange = (val) => {
+  currentPage.value = val
 }
 
-const handleCloseDialog = () => closeDialog()
-const handleFormSuccess = async () => await loadLessons()
-
-const getLessonTypeLabel = (type) => type === 'THEORY' ? 'Lý thuyết' : 'Thực hành'
-const getLessonTypeColor = (type) => type === 'THEORY' ? '#67C23A' : '#E6A23C'
-const formatDuration = (s) => {
-  if (!s) return '0s'
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m` : `${s}s`
-}
+watch(() => props.initTopicId, (val) => {
+  if (val) { selectedTopicId.value = val; loadLessons() }
+}, { immediate: true })
 
 onMounted(async () => {
-  if (grammarStore.topics.length === 0) {
-    await grammarStore.fetchTopics({ size: 100 })
-  }
+  if (store.topics.length === 0) await store.fetchTopics({ size: 100 })
 })
 </script>
 
@@ -495,98 +237,144 @@ onMounted(async () => {
   padding: 16px;
 }
 
+/* Header & Filter Styles */
 .header-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 16px;
 }
 
 .left-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
   flex: 1;
 }
 
-.right-actions {
-  display: flex;
-  gap: 8px;
+.topic-select {
+  min-width: 180px;
 }
 
-.stats {
+.search-input {
+  min-width: 150px;
+  flex: 1;
+}
+
+.filter-select {
+  width: 110px;
+}
+
+/* Table Info Styles */
+.lesson-info {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .lesson-title {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.lesson-meta {
   display: flex;
+  gap: 8px;
+  margin-top: 2px;
   align-items: center;
 }
 
-.title-text {
-  font-weight: 500;
+.meta-item {
+  font-size: 11px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.pagination-container {
+.order-badge {
+  font-weight: bold;
+  color: #909399;
+  font-size: 12px;
+}
+
+.text-primary {
+  color: #409eff;
+}
+
+.text-gray {
+  color: #c0c4cc;
+}
+
+/* Actions Column Style */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 0px;
+}
+
+.square-btn {
+  border-radius: 4px;
+  padding: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.clickable-row) {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+:deep(.clickable-row:hover) {
+  background-color: var(--el-fill-color-light) !important;
+}
+
+/* --- FIX LỖI VIỀN (QUAN TRỌNG) --- */
+
+/* 1. Ép viền trái cho header của cột fixed-right */
+:deep(.el-table .el-table__fixed-right th.el-table__cell) {
+  border-left: 1px solid var(--el-table-border-color) !important;
+}
+
+/* 2. Ép viền trái cho các ô dữ liệu của cột fixed-right */
+:deep(.el-table .el-table__fixed-right td.el-table__cell) {
+  border-left: 1px solid var(--el-table-border-color) !important;
+}
+
+/* 3. (Tuỳ chọn) Luôn hiển thị bóng đổ nhẹ để tách biệt rõ ràng hơn */
+:deep(.el-table__fixed-right) {
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05) !important;
+}
+
+.pagination-wrapper {
   margin-top: 16px;
   display: flex;
   justify-content: center;
 }
 
-/* Đảm bảo cột Actions có border đầy đủ - CSS mạnh hơn */
-.custom-table {
-  border: 1px solid var(--el-table-border-color);
-}
-
-.custom-table :deep(.el-table__inner-wrapper) {
-  border: 1px solid var(--el-table-border-color);
-}
-
-.custom-table :deep(.el-table__cell) {
-  border-right: 1px solid var(--el-table-border-color) !important;
-  padding: 12px 8px;
-}
-
-.custom-table :deep(.el-table__header-wrapper .el-table__cell) {
-  background: var(--el-fill-color-light) !important;
-  color: var(--el-text-color-primary) !important;
-  font-weight: bold;
-}
-
-/* Force border cho fixed column */
-.custom-table :deep(.el-table__fixed-right) {
-  border-left: 2px solid var(--el-table-border-color) !important;
-}
-
-.custom-table :deep(.el-table__fixed-right .el-table__cell) {
-  border-left: 2px solid var(--el-table-border-color) !important;
-}
-
-.custom-table :deep(.el-table__body-wrapper .el-table__row .el-table__cell:last-child) {
-  border-left: 2px solid var(--el-table-border-color) !important;
-}
-
-.custom-table :deep(.el-table__row:hover) {
-  background-color: var(--el-fill-color-light);
-  cursor: pointer;
-}
-
 @media (max-width: 768px) {
   .lesson-list-container {
-    padding: 12px;
+    padding: 8px;
   }
 
-  .header-actions {
-    flex-direction: column;
-    align-items: stretch;
+  .left-actions {
+    width: 100%;
   }
 
-  .left-actions,
   .right-actions {
     width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+
+  :deep(.el-table .cell) {
+    padding: 0 4px;
   }
 }
 </style>

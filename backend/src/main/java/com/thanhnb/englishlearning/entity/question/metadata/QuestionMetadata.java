@@ -5,6 +5,6 @@ import lombok.*;
 // Base metadata
 @Data
 public abstract class QuestionMetadata {
-    private String hint;
+    private String explanation;
 }
 

@@ -1,154 +1,93 @@
-<!-- src/components/admin/questions/MatchingForm.vue -->
 <template>
   <div class="matching-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
-    </el-form-item>
+    <el-alert title="Lưu ý: Hệ thống sẽ tự động xáo trộn vị trí khi hiển thị cho người dùng." type="warning"
+      :closable="false" class="mb-4" show-icon />
 
-    <!-- Pairs -->
-    <el-form-item label="Matching Pairs" required>
-      <el-space direction="vertical" fill style="width: 100%">
-        <div
-          v-for="(pair, index) in localMetadata.pairs"
-          :key="index"
-          class="pair-item"
-        >
-          <el-card shadow="hover" :body-style="{ padding: '12px' }">
-            <div class="pair-header">
-              <el-text tag="b">Pair {{ index + 1 }}</el-text>
-              <el-button
-                type="danger"
-                size="small"
-                :icon="Delete"
-                circle
-                @click="removePair(index)"
-                :disabled="localMetadata.pairs.length <= 2"
-              />
-            </div>
+    <el-form-item label="Các cặp từ nối" required>
+      <div class="pairs-container">
+        <transition-group name="list">
+          <div v-for="(pair, index) in localMetadata.pairs" :key="index" class="pair-item mb-3">
+            <el-card shadow="hover" :body-style="{ padding: '12px' }">
+              <div class="pair-row">
+                <div class="pair-index">
+                  <el-tag type="info" size="small">{{ index + 1 }}</el-tag>
+                </div>
 
-            <el-row :gutter="12" style="margin-top: 8px">
-              <!-- Left Side -->
-              <el-col :span="11">
-                <el-input
-                  v-model="pair.left"
-                  placeholder="Left side (e.g., word)"
-                  @input="emitUpdate"
-                />
-              </el-col>
+                <div class="pair-col">
+                  <el-input v-model="pair.item1" placeholder="Vế A (VD: Hello)" @input="emitUpdate">
+                    <template #prepend>A</template>
+                  </el-input>
+                </div>
 
-              <!-- Arrow Icon -->
-              <el-col :span="2" style="text-align: center; line-height: 32px">
-                <el-icon size="20"><Right /></el-icon>
-              </el-col>
+                <div class="pair-icon">
+                  <el-icon>
+                    <Switch />
+                  </el-icon>
+                </div>
 
-              <!-- Right Side -->
-              <el-col :span="11">
-                <el-input
-                  v-model="pair.right"
-                  placeholder="Right side (e.g., definition)"
-                  @input="emitUpdate"
-                />
-              </el-col>
-            </el-row>
-          </el-card>
-        </div>
+                <div class="pair-col">
+                  <el-input v-model="pair.item2" placeholder="Vế B (VD: Xin chào)" @input="emitUpdate">
+                    <template #prepend>B</template>
+                  </el-input>
+                </div>
 
-        <!-- Add Pair Button -->
-        <el-button type="primary" :icon="Plus" @click="addPair" style="width: 100%">
-          Add Pair
+                <el-button type="danger" icon="Delete" circle plain size="small" @click="removePair(index)"
+                  :disabled="localMetadata.pairs.length <= 2" />
+              </div>
+            </el-card>
+          </div>
+        </transition-group>
+
+        <el-button type="primary" plain :icon="Plus" class="w-full mt-2 dashed-btn" @click="addPair">
+          Thêm cặp mới
         </el-button>
-      </el-space>
+      </div>
     </el-form-item>
 
-    <!-- Validation Info -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 12px"
-    />
+    <el-alert v-if="validationError" :title="validationError" type="error" show-icon :closable="false" class="mt-4" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Plus, Delete, Right } from '@element-plus/icons-vue'
+import { Plus, Switch } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
+  metadata: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['update:metadata'])
 
+// Init data: Mặc định 2 cặp
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  pairs: props.metadata.pairs || [
-    { left: '', right: '', order: 1 },
-    { left: '', right: '', order: 2 },
-  ],
+  pairs: props.metadata?.pairs || [
+    { item1: '', item2: '' },
+    { item1: '', item2: '' }
+  ]
 })
 
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        pairs: newVal.pairs || localMetadata.value.pairs,
-      }
-    }
-  },
-  { deep: true }
-)
+watch(() => props.metadata, (newVal) => {
+  if (newVal && newVal.pairs) {
+    localMetadata.value.pairs = newVal.pairs
+  }
+}, { deep: true })
 
 const validationError = computed(() => {
-  if (!localMetadata.value.pairs || localMetadata.value.pairs.length < 2) {
-    return 'Need at least 2 pairs'
-  }
-
-  const hasEmptyLeft = localMetadata.value.pairs.some((p) => !p.left || p.left.trim() === '')
-  const hasEmptyRight = localMetadata.value.pairs.some((p) => !p.right || p.right.trim() === '')
-
-  if (hasEmptyLeft || hasEmptyRight) {
-    return 'All pairs must have both left and right values'
-  }
-
+  if (localMetadata.value.pairs.length < 2) return 'Cần ít nhất 2 cặp để nối.'
+  const empty = localMetadata.value.pairs.some(p => !p.item1.trim() || !p.item2.trim())
+  if (empty) return 'Vui lòng điền đầy đủ thông tin cho cả 2 vế.'
   return null
 })
 
+// Actions
 const addPair = () => {
-  const nextOrder = localMetadata.value.pairs.length + 1
-  localMetadata.value.pairs.push({
-    left: '',
-    right: '',
-    order: nextOrder,
-  })
+  localMetadata.value.pairs.push({ item1: '', item2: '' })
   emitUpdate()
 }
 
 const removePair = (index) => {
   if (localMetadata.value.pairs.length <= 2) return
-
   localMetadata.value.pairs.splice(index, 1)
-
-  // Reorder
-  localMetadata.value.pairs.forEach((pair, idx) => {
-    pair.order = idx + 1
-  })
-
   emitUpdate()
 }
 
@@ -159,17 +98,76 @@ const emitUpdate = () => {
 
 <style scoped>
 .matching-form {
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
-.pair-item {
+.pair-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pair-col {
+  flex: 1;
+}
+
+.pair-icon {
+  color: #909399;
+  display: flex;
+  align-items: center;
+}
+
+.w-full {
   width: 100%;
 }
 
-.pair-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+.dashed-btn {
+  border-style: dashed;
+}
+
+.mb-3 {
+  margin-bottom: 12px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+/* Transition */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+@media (max-width: 600px) {
+  .pair-row {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+    position: relative;
+  }
+
+  .pair-icon {
+    transform: rotate(90deg);
+    justify-content: center;
+    margin: 4px 0;
+  }
+
+  .pair-index {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+  }
+
+  .el-button {
+    align-self: flex-end;
+  }
 }
 </style>

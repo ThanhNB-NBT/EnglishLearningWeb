@@ -1,286 +1,201 @@
 <template>
   <el-card
     class="topic-card"
-    :class="{ 'inactive': !topic.isActive }"
+    :body-style="{ padding: '0px', height: '100%', display: 'flex', flexDirection: 'column' }"
     shadow="hover"
   >
-    <!-- Header -->
-    <template #header>
-      <div class="card-header">
-        <div class="topic-info">
-          <el-tag
-            :type="getLevelColor(topic.levelRequired)"
-            size="small"
-            class="level-tag"
-          >
-            {{ topic.levelRequired }}
-          </el-tag>
-          <span class="order-badge">#{{ topic.orderIndex }}</span>
-        </div>
+    <div class="topic-header" :class="getLevelClass(topic.levelRequired)">
+      <div class="header-content">
+        <span class="topic-level-badge">{{ topic.levelRequired }}</span>
+      </div>
 
-        <div class="actions">
-          <el-button
-            type="primary"
-            size="small"
-            :icon="Edit"
-            circle
-            @click.stop="handleEdit"
-          />
-          <el-button
-            type="danger"
-            size="small"
-            :icon="Delete"
-            circle
-            @click.stop="handleDelete"
-          />
+      <div class="header-switch" @click.stop>
+        <el-tooltip :content="topic.isActive ? 'Đang hoạt động' : 'Đã tắt'" placement="top">
           <el-switch
-            v-model="isActive"
-            active-text="Active"
-            inactive-text="Inactive"
-            @click.stop
+            v-model="localActive"
+            size="small"
+            style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
             @change="handleToggleActive"
           />
-        </div>
-      </div>
-    </template>
-
-    <!-- Body -->
-    <div class="card-body">
-      <h3 class="topic-name">{{ topic.name }}</h3>
-      <p class="topic-description">{{ topic.description || 'Chưa có mô tả' }}</p>
-
-      <!-- Stats -->
-      <div class="stats">
-        <el-statistic
-          title="Lessons"
-          :value="topic.totalLessons || 0"
-        >
-          <template #prefix>
-            <el-icon><Document /></el-icon>
-          </template>
-        </el-statistic>
-      </div>
-
-      <!-- Meta info -->
-      <div class="meta">
-        <el-text size="small" type="info">
-          <el-icon><Clock /></el-icon>
-          {{ formatDate(topic.createdAt) }}
-        </el-text>
+        </el-tooltip>
       </div>
     </div>
 
-    <!-- Footer actions -->
-    <template #footer>
-      <div class="footer-actions">
-        <el-button
-          size="small"
-          @click.stop="handleViewLessons"
-        >
-          <el-icon><FolderOpened /></el-icon>
-          Xem Lessons
-        </el-button>
+    <div class="topic-body">
+      <h3 class="topic-title" :title="topic.name">{{ topic.name }}</h3>
 
-        <el-button
-          size="small"
-          type="success"
-          @click.stop="handleAddLesson"
-        >
-          <el-icon><Plus /></el-icon>
-          Thêm Lesson
-        </el-button>
+      <p class="topic-desc">
+        {{ topic.description || 'Chưa có mô tả.' }}
+      </p>
+
+      <div class="topic-meta">
+        <span class="meta-item">
+          <el-icon><Document /></el-icon> {{ topic.totalLessons || 0 }} bài
+        </span>
+        <span class="meta-item">
+          <el-icon><Timer /></el-icon> STT: {{ topic.orderIndex }}
+        </span>
       </div>
-    </template>
+    </div>
+
+    <div class="topic-footer">
+      <el-button
+        type="primary"
+        plain
+        size="small"
+        class="manage-btn"
+        @click="$emit('view-lessons', topic)"
+      >
+        Quản lý bài học
+      </el-button>
+
+      <div class="footer-actions">
+        <el-tooltip content="Chỉnh sửa" placement="top">
+          <el-button link type="primary" class="icon-btn" @click="$emit('edit', topic)">
+            <el-icon :size="18"><Edit /></el-icon>
+          </el-button>
+        </el-tooltip>
+
+        <el-tooltip content="Xóa" placement="top">
+          <el-button link type="danger" class="icon-btn" @click="$emit('delete', topic)">
+            <el-icon :size="18"><Delete /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+    </div>
   </el-card>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import {
-  Edit,
-  Delete,
-  Document,
-  Clock,
-  FolderOpened,
-  Plus
-} from '@element-plus/icons-vue'
-import { formatDistanceToNow } from 'date-fns'
-import { vi } from 'date-fns/locale'
+import { ref, watch } from 'vue'
+import { Document, Timer, Edit, Delete } from '@element-plus/icons-vue'
 
-// Props
 const props = defineProps({
-  topic: {
-    type: Object,
-    required: true,
-  },
+  topic: { type: Object, required: true }
 })
 
-// Emits
-const emit = defineEmits(['edit', 'delete', 'toggle-active', 'view-lessons', 'add-lesson'])
+const emit = defineEmits(['edit', 'delete', 'view-lessons', 'toggle-active'])
 
-// Computed
-const isActive = computed({
-  get: () => props.topic.isActive,
-  set: (value) => {
-    emit('toggle-active', { ...props.topic, isActive: value })
-  }
-})
+const localActive = ref(false)
 
-// Methods
-const handleEdit = () => {
-  console.log('Edit clicked for topic:', props.topic.id)
-  emit('edit', props.topic)
+watch(() => props.topic?.isActive, (newVal) => {
+  localActive.value = newVal
+}, { immediate: true })
+
+const handleToggleActive = (val) => {
+  emit('toggle-active', { ...props.topic, isActive: val })
 }
 
-const handleDelete = () => {
-  console.log('Delete clicked for topic:', props.topic.id)
-  emit('delete', props.topic)
-}
-
-const handleToggleActive = (value) => {
-  console.log('Toggle active for topic:', props.topic.id, value)
-  emit('toggle-active', { ...props.topic, isActive: value })
-}
-
-const handleViewLessons = () => {
-  console.log('View lessons clicked for topic:', props.topic.id)
-  emit('view-lessons', props.topic)
-}
-
-const handleAddLesson = () => {
-  console.log('Add lesson clicked for topic:', props.topic.id)
-  emit('add-lesson', props.topic)
-}
-
-const getLevelColor = (level) => {
-  const colors = {
-    BEGINNER: 'success',
-    ELEMENTARY: 'primary',
-    INTERMEDIATE: 'warning',
-    UPPER_INTERMEDIATE: 'danger',
-    ADVANCED: 'danger',
-  }
-  return colors[level] || 'info'
-}
-
-const formatDate = (date) => {
-  if (!date) return 'N/A'
-  try {
-    return formatDistanceToNow(new Date(date), {
-      addSuffix: true,
-      locale: vi
-    })
-  } catch (error) {
-    console.error('Date format error:', error)
-    return 'N/A'
+const getLevelClass = (level) => {
+  switch(level) {
+    case 'BEGINNER': return 'bg-beginner';
+    case 'INTERMEDIATE': return 'bg-intermediate';
+    case 'ADVANCED': return 'bg-advanced';
+    default: return 'bg-beginner';
   }
 }
 </script>
 
 <style scoped>
 .topic-card {
-  transition: all 0.3s ease;
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  transition: transform 0.2s ease-in-out;
+  border-radius: 12px; /* Bo góc mềm mại hơn */
+  border: 1px solid var(--el-border-color-light);
+  overflow: hidden;
 }
-
-.topic-card.inactive {
-  opacity: 0.6;
-  border: 2px dashed var(--el-border-color);
-}
-
 .topic-card:hover {
   transform: translateY(-4px);
+  box-shadow: var(--el-box-shadow-light);
 }
 
-.card-header {
+/* Header: Tăng Padding */
+.topic-header {
+  height: 50px;
+  padding: 0 20px; /* Padding rộng hơn */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.topic-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.bg-beginner { background-color: #f0f9eb; border-left: 4px solid #67c23a; }
+.bg-intermediate { background-color: #fdf6ec; border-left: 4px solid #e6a23c; }
+.bg-advanced { background-color: #ecf5ff; border-left: 4px solid #409eff; }
+
+html.dark .bg-beginner { background-color: #1e2b20; border-left-color: #467a4b; }
+html.dark .bg-intermediate { background-color: #2b2318; border-left-color: #916d31; }
+html.dark .bg-advanced { background-color: #18222c; border-left-color: #335d88; }
+
+.topic-level-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--el-text-color-regular);
 }
 
-.level-tag {
-  font-weight: 600;
-}
-
-.order-badge {
-  background: var(--el-color-info-light-9);
-  color: var(--el-color-info);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card-body {
-  padding: 12px 0;
+/* Body: Tăng Padding */
+.topic-body {
+  padding: 20px; /* Padding rộng hơn cho nội dung */
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.topic-name {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0 0 8px 0;
+.topic-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 10px;
   color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.topic-description {
-  color: var(--el-text-color-regular);
-  margin: 0 0 12px 0;
-  line-height: 1.5;
-  min-height: 40px;
+.topic-desc {
   font-size: 14px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 20px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 42px;
 }
 
-.stats {
+.topic-meta {
   display: flex;
-  gap: 20px;
-  margin: 12px 0;
-  padding: 12px 0;
-  border-top: 1px solid var(--el-border-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
   margin-top: auto;
-  padding-top: 8px;
+}
+.meta-item { display: flex; align-items: center; gap: 6px; }
+
+/* Footer: Tăng Padding & Spacing */
+.topic-footer {
+  padding: 12px 20px; /* Padding rộng hơn */
+  background-color: #f9faFc;
+  border-top: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Footer Dark Mode */
+html.dark .topic-footer {
+  background-color: #1d1e1f;
+  border-top-color: #363637;
 }
 
 .footer-actions {
   display: flex;
-  gap: 8px;
-  justify-content: space-between;
+  gap: 12px; /* Khoảng cách giữa các nút icon */
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .actions {
-    width: 100%;
-    justify-content: space-between;
-  }
+.icon-btn {
+  padding: 6px; /* Tăng vùng click */
+  margin-left: 0 !important;
 }
 </style>

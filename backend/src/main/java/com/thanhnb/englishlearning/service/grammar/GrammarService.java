@@ -15,6 +15,8 @@ import com.thanhnb.englishlearning.repository.grammar.*;
 import com.thanhnb.englishlearning.service.common.BaseLearningService;
 import com.thanhnb.englishlearning.service.common.LessonProgressService;
 import com.thanhnb.englishlearning.service.question.QuestionService;
+
+import io.jsonwebtoken.lang.Collections;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -64,18 +67,31 @@ public class GrammarService extends BaseLearningService<GrammarLesson, UserGramm
         public List<GrammarTopicDTO> getAccessibleTopicsForUser(Long userId) {
                 log.info("Loading all topics with lessons for user {}", userId);
 
+                // Lấy tất cả topics active
                 List<GrammarTopic> topics = grammarTopicRepository.findByIsActiveTrueOrderByOrderIndexAsc();
+                if (topics.isEmpty()) return Collections.emptyList();
 
+                List<Long> topicIds = topics.stream().map(GrammarTopic::getId).toList();
+
+                // Lấy tất cả progress của user trong các topics này
+                List<UserGrammarProgress> allProgress = userGrammarProgressRepository.findByUserIdAndTopicIdIn(userId, topicIds);
+
+                // Gom nhóm progress theo topicId
+                Map<Long, List<UserGrammarProgress>> progressByTopicMap = allProgress.stream()
+                        .collect(Collectors.groupingBy(p -> p.getLesson().getTopic().getId()));
+
+                // Map dữ liệu (Xử lí progress cho từng lesson trong topic)
                 return topics.stream().map(topic -> {
                         GrammarTopicDTO dto = convertTopicToDTO(topic);
 
-                        Long completedLessons = userGrammarProgressRepository
-                                        .countCompletedLessonsInTopic(userId, topic.getId());
-                        Long totalLessons = grammarLessonRepository
-                                        .countByTopicIdAndIsActive(topic.getId(), true);
+                        // Lấy list progress tương ứng với topic từ map
+                        List<UserGrammarProgress> topicProgress = progressByTopicMap.getOrDefault(topic.getId(), Collections.emptyList());
 
-                        dto.setCompletedLessons(completedLessons.intValue());
-                        dto.setTotalLessons(totalLessons.intValue());
+                        long completedLessons = topicProgress.stream().filter(UserGrammarProgress::getIsCompleted).count();
+                        int totalLessons = topic.getLessons().size();
+
+                        dto.setCompletedLessons((int) completedLessons);
+                        dto.setTotalLessons(totalLessons);
                         dto.setIsAccessible(true);
 
                         List<GrammarLesson> lessons = grammarLessonRepository

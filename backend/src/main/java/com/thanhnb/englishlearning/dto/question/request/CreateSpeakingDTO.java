@@ -27,9 +27,6 @@ public class CreateSpeakingDTO {
     
     @NotNull @Min(1)
     private Integer orderIndex;
-    
-    @Schema(description = "Gợi ý (nếu có)")
-    private String hint;
 
     // --- Trường đặc thù ---
     @Schema(description = "Câu trả lời mẫu (cho AI so sánh)", example = "I enjoy reading books and playing sports...")

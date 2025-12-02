@@ -19,13 +19,7 @@ RUN ./mvnw dependency:go-offline -B || echo "Some dependencies might need source
 # ✅ Không copy src ở đây để có hot reload
 
 EXPOSE 8980
-EXPOSE 5005
 
 # Healthcheck để đảm bảo app đã sẵn sàng
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
     CMD curl -f http://localhost:8980/actuator/health || exit 1
-
-# Chạy Spring Boot với Maven trong dev mode
-# - spring-boot:run: Chạy app trong dev mode
-# - Debug port 5005: Cho remote debugging từ IDE
-ENTRYPOINT ["./mvnw", "spring-boot:run", "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"]

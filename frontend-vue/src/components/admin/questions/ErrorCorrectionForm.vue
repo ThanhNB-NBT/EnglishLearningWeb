@@ -1,99 +1,85 @@
-<!-- src/components/admin/questions/ErrorCorrectionForm.vue -->
 <template>
   <div class="error-correction-form">
-    <!-- Hint (Optional) -->
-    <el-form-item label="Hint (Optional)">
-      <el-input
-        v-model="localMetadata.hint"
-        type="textarea"
-        :rows="2"
-        placeholder="Enter a hint to help users..."
-        maxlength="200"
-        show-word-limit
-        @input="emitUpdate"
-      />
-    </el-form-item>
-
-    <!-- Correct Answer (Corrected Sentence) -->
-    <el-form-item label="Corrected Sentence" required>
-      <el-input
-        v-model="localMetadata.correctAnswer"
-        type="textarea"
-        :rows="3"
-        placeholder="Enter the corrected sentence (e.g., She goes to school every day.)"
-        @input="emitUpdate"
-      />
-      <template #extra>
-        <el-text size="small" type="info">
-          Enter the grammatically correct version of the sentence in the question.
-        </el-text>
-      </template>
-    </el-form-item>
-
-    <!-- Case Sensitive -->
-    <el-form-item label="Case Sensitive">
-      <el-switch
-        v-model="localMetadata.caseSensitive"
-        active-text="Yes"
-        inactive-text="No"
-        @change="emitUpdate"
-      />
-    </el-form-item>
-
-    <!-- Example Usage -->
-    <el-alert
-      title="Example"
-      type="info"
-      :closable="false"
-      style="margin-top: 12px"
-    >
+    <el-alert title="Cách tạo câu hỏi tìm lỗi sai" type="warning" :closable="false" show-icon class="mb-4">
       <template #default>
-        <p><strong>Question:</strong> Find and correct the error: "She go to school every day."</p>
-        <p><strong>Correct Answer:</strong> She goes to school every day.</p>
+        Hệ thống sẽ gạch chân phần sai hoặc yêu cầu người dùng click vào từ sai.<br>
+        Nhập chính xác <b>từ/cụm từ sai</b> có trong câu hỏi.
       </template>
     </el-alert>
+
+    <el-form-item label="Chi tiết lỗi sai" required>
+      <el-card shadow="never" class="error-card">
+        <el-form-item label="Từ/Cụm từ sai (Trong bài)" class="mb-3">
+          <el-input v-model="localMetadata.errorText" placeholder="VD: go (trong câu 'He go to school')"
+            @input="emitUpdate">
+            <template #prefix><el-icon class="text-danger">
+                <CloseBold />
+              </el-icon></template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item label="Sửa lại cho đúng" class="mb-0">
+          <el-input v-model="localMetadata.correction" placeholder="VD: goes" @input="emitUpdate">
+            <template #prefix><el-icon class="text-success"><Select /></el-icon></template>
+          </el-input>
+        </el-form-item>
+      </el-card>
+    </el-form-item>
+
+    <el-form-item label="Giải thích chi tiết">
+      <el-input v-model="localMetadata.explanation" type="textarea" :rows="3"
+        placeholder="Tại sao lại sai? (VD: Chủ ngữ số ít 'He' thì động từ phải thêm 'es')..." @input="emitUpdate" />
+    </el-form-item>
   </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
+import { CloseBold, Select } from '@element-plus/icons-vue'
 
-const props = defineProps({
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
-})
-
+const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
 const localMetadata = ref({
-  hint: props.metadata.hint || '',
-  correctAnswer: props.metadata.correctAnswer || '',
-  caseSensitive: props.metadata.caseSensitive ?? false,
+  errorText: props.metadata?.errorText || '',
+  correction: props.metadata?.correction || '',
+  explanation: props.metadata?.explanation || ''
 })
 
-watch(
-  () => props.metadata,
-  (newVal) => {
-    if (newVal && Object.keys(newVal).length > 0) {
-      localMetadata.value = {
-        hint: newVal.hint || '',
-        correctAnswer: newVal.correctAnswer || '',
-        caseSensitive: newVal.caseSensitive ?? false,
-      }
-    }
-  },
-  { deep: true }
-)
+watch(() => props.metadata, (newVal) => {
+  if (newVal) {
+    localMetadata.value.errorText = newVal.errorText || ''
+    localMetadata.value.correction = newVal.correction || ''
+    localMetadata.value.explanation = newVal.explanation || ''
+  }
+}, { deep: true })
 
-const emitUpdate = () => {
-  emit('update:metadata', { ...localMetadata.value })
-}
+const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
 
 <style scoped>
 .error-correction-form {
-  padding: 8px 0;
+  padding: 10px 0;
+}
+
+.error-card {
+  background-color: #fff6f6;
+  border-color: #fab6b6;
+}
+
+.text-danger {
+  color: #f56c6c;
+}
+
+.text-success {
+  color: #67c23a;
+}
+
+.mb-3 {
+  margin-bottom: 12px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
 }
 </style>

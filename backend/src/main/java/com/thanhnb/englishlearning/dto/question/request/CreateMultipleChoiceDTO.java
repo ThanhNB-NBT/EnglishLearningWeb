@@ -10,8 +10,6 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Schema(description = "DTO để TẠO MỚI câu hỏi trắc nghiệm (MULTIPLE_CHOICE)")
 public class CreateMultipleChoiceDTO extends CreateQuestionDTO {
-    
-    private String hint;
 
     @NotNull(message = "Options không được null")
     @Size(min = 2, message = "Cần ít nhất 2 options")

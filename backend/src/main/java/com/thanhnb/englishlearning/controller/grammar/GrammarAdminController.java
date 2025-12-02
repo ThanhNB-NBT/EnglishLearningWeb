@@ -464,6 +464,9 @@ public class GrammarAdminController {
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(
                         @Valid @RequestBody CreateQuestionDTO dto) {
                 try {
+                        log.info("📥 Received DTO class: {}", dto.getClass().getName());
+                        log.info("📥 Question Type: {}", dto.getQuestionType());
+                        log.info("📥 DTO toString: {}", dto);
                         QuestionResponseDTO created = grammarAdminService.createQuestion(dto);
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(CustomApiResponse.created(created, "Tạo question thành công"));

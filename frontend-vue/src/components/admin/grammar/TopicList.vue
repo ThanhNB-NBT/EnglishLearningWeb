@@ -1,447 +1,240 @@
 <template>
-  <div class="topics-list-container">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-left">
-        <h1>Quản lý Grammar Topics</h1>
-        <el-space wrap>
-          <el-text type="info">
-            Tổng: {{ grammarStore.topics.length }} topics
-          </el-text>
-          <el-text v-if="filters.status !== 'all' || filters.level" type="warning">
-            • Đã lọc: {{ filteredTopics.length }} topics
-          </el-text>
-          <el-text v-if="totalPages > 1" type="primary">
-            • Trang {{ currentPage }}/{{ totalPages }}
-          </el-text>
-        </el-space>
+  <div class="topic-list-container">
+    <div class="header-actions">
+      <div class="left-actions">
+        <el-input v-model="searchQuery" placeholder="Tìm kiếm chủ đề..." :prefix-icon="Search" clearable
+          class="search-input" />
+
+        <el-select v-model="filterLevel" placeholder="Lọc theo Level" clearable class="filter-select">
+          <el-option label="Tất cả" value="" />
+          <el-option label="Beginner" value="BEGINNER" />
+          <el-option label="Intermediate" value="INTERMEDIATE" />
+          <el-option label="Advanced" value="ADVANCED" />
+        </el-select>
       </div>
 
-      <div class="header-right">
-        <el-button
-          type="warning"
-          :icon="Tools"
-          @click="handleValidateOrder"
-        >
-          Validate Order
+      <div class="right-actions">
+        <el-button type="primary" :icon="Plus" @click="handleCreate">
+          Tạo Topic
         </el-button>
-
-        <el-button
-          type="primary"
-          :icon="Plus"
-          @click="handleCreate"
-        >
-          Tạo Topic mới
+        <el-button :icon="Refresh" @click="loadTopics">
+          Làm mới
         </el-button>
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <el-card class="filter-card" shadow="never">
-      <el-form inline>
-        <el-form-item label="Trạng thái">
-          <el-radio-group v-model="filters.status" @change="handleFilterChange">
-            <el-radio-button label="all">Tất cả</el-radio-button>
-            <el-radio-button label="active">Active</el-radio-button>
-            <el-radio-button label="inactive">Inactive</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
-        <el-form-item label="Level">
-          <el-select
-            v-model="filters.level"
-            placeholder="Tất cả levels"
-            clearable
-            style="width: 200px"
-            @change="handleFilterChange"
-          >
-            <el-option label="Tất cả" value="" />
-            <el-option label="Beginner" value="BEGINNER" />
-            <el-option label="Elementary" value="ELEMENTARY" />
-            <el-option label="Intermediate" value="INTERMEDIATE" />
-            <el-option label="Upper Intermediate" value="UPPER_INTERMEDIATE" />
-            <el-option label="Advanced" value="ADVANCED" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="Sắp xếp">
-          <el-select
-            v-model="filters.sort"
-            style="width: 200px"
-            @change="handleFilterChange"
-          >
-            <el-option label="Order Index (Tăng)" value="orderIndex,asc" />
-            <el-option label="Order Index (Giảm)" value="orderIndex,desc" />
-            <el-option label="Tên (A-Z)" value="name,asc" />
-            <el-option label="Tên (Z-A)" value="name,desc" />
-            <el-option label="Ngày tạo (Mới nhất)" value="createdAt,desc" />
-            <el-option label="Ngày tạo (Cũ nhất)" value="createdAt,asc" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button
-            :icon="Refresh"
-            @click="handleRefresh"
-          >
-            Làm mới
+        <el-tooltip content="Kiểm tra và sửa lỗi thứ tự sắp xếp" placement="top">
+          <el-button :icon="Tools" @click="handleValidateOrder">
+            Validate
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
-    <!-- Loading -->
-    <div v-if="grammarStore.topicsLoading" class="loading-container">
-      <el-skeleton :rows="3" animated />
+        </el-tooltip>
+      </div>
     </div>
 
-    <!-- Empty state -->
-    <el-empty
-      v-else-if="!grammarStore.topicsLoading && grammarStore.topics.length === 0"
-      description="Chưa có topic nào"
-    >
-      <el-button type="primary" @click="handleCreate">
-        Tạo topic đầu tiên
-      </el-button>
-    </el-empty>
+    <el-skeleton :rows="3" v-if="loading" animated />
 
-    <!-- No results after filter -->
-    <el-empty
-      v-else-if="!grammarStore.topicsLoading && filteredTopics.length === 0"
-      description="Không tìm thấy topic nào với bộ lọc này"
-    >
-      <el-button @click="handleRefresh">
-        Xóa bộ lọc
-      </el-button>
-    </el-empty>
+    <el-empty v-else-if="filteredTopics.length === 0" description="Không tìm thấy chủ đề nào" />
 
-    <!-- Topics Grid -->
-    <div v-else class="topics-grid">
-      <TopicCard
-        v-for="topic in paginatedTopics"
-        :key="topic.id"
-        :topic="topic"
-        @edit="handleEdit"
-        @delete="handleDelete"
-        @toggle-active="handleToggleActive"
-        @view-lessons="handleViewLessons"
-        @add-lesson="handleAddLesson"
-      />
+    <div v-else class="topic-grid">
+      <el-row :gutter="24">
+        <el-col v-for="topic in paginatedTopics" :key="topic.id" :xs="24" :sm="12" :md="8" class="mb-6">
+          <TopicCard
+            :topic="topic"
+            @edit="handleEdit"
+            @delete="handleDelete"
+            @view-lessons="handleViewLessons"
+            @toggle-active="handleToggleActive" />
+        </el-col>
+      </el-row>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="totalPages > 1" class="pagination-container">
+    <div class="pagination-wrapper"
+      v-if="filteredTopics.length > 0">
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :page-sizes="[6, 10, 20, 50]"
+        :page-sizes="[6, 9, 12, 24]"
         :total="filteredTopics.length"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
+        layout="total, sizes, prev, pager, next"
         @size-change="handleSizeChange"
-        @current-change="handlePageChange"
-      />
+        @current-change="handlePageChange" />
     </div>
 
-    <!-- Topic Form Dialog -->
     <TopicForm
-      v-model="showForm"
-      :topic="selectedTopic"
+      ref="topicFormRef"
       @success="handleFormSuccess"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { Plus, Refresh, Search, Tools } from '@element-plus/icons-vue'
 import { useGrammarStore } from '@/stores/grammar'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Plus, Tools, Refresh } from '@element-plus/icons-vue'
-import TopicCard from '@/components/admin/grammar/TopicCard.vue'
-import TopicForm from '@/components/admin/grammar/TopicForm.vue'
+import TopicCard from './TopicCard.vue'
+import TopicForm from './TopicForm.vue'
 
-// Store
-const grammarStore = useGrammarStore()
+const emit = defineEmits(['view-lessons'])
+const store = useGrammarStore()
+const topicFormRef = ref(null)
 
-// Refs
-const showForm = ref(false)
-const selectedTopic = ref(null)
-
-// Pagination refs - Cho filtered topics
+const loading = ref(false)
+const searchQuery = ref('')
+const filterLevel = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(9)
 
-// Filters
-const filters = ref({
-  status: 'all', // all | active | inactive
-  level: '',
-  sort: 'orderIndex,asc',
-})
+// --- Actions (Xử lý sự kiện) ---
 
-
-// Computed - Filter topics ở client side
-const filteredTopics = computed(() => {
-  let topics = [...grammarStore.topics]
-
-  // Filter by status
-  if (filters.value.status === 'active') {
-    topics = topics.filter(t => t.isActive)
-  } else if (filters.value.status === 'inactive') {
-    topics = topics.filter(t => !t.isActive)
-  }
-
-  // Filter by level
-  if (filters.value.level) {
-    topics = topics.filter(t => t.levelRequired === filters.value.level)
-  }
-
-  // Sort
-  const [sortField, sortOrder] = filters.value.sort.split(',')
-  topics.sort((a, b) => {
-    let aVal = a[sortField]
-    let bVal = b[sortField]
-
-    // Handle string comparison
-    if (typeof aVal === 'string') {
-      aVal = aVal.toLowerCase()
-      bVal = bVal.toLowerCase()
-    }
-
-    if (sortOrder === 'asc') {
-      return aVal > bVal ? 1 : -1
-    } else {
-      return aVal < bVal ? 1 : -1
-    }
-  })
-
-  return topics
-})
-
-// Paginated topics - Client-side pagination
-const paginatedTopics = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredTopics.value.slice(start, end)
-})
-
-// Total pages based on filtered topics
-const totalPages = computed(() => {
-  return Math.ceil(filteredTopics.value.length / pageSize.value)
-})
-
-// Watch filters - Reset to page 1 when filter changes
-watch(() => filters.value, () => {
-  currentPage.value = 1
-}, { deep: true })
-
-// Lifecycle
-onMounted(() => {
-  fetchAllTopics()
-})
-
-// Methods
-const fetchAllTopics = async () => {
-  try {
-    // Load ALL topics without pagination from backend
-    // Backend pagination: Lấy tất cả với size lớn
-    await grammarStore.fetchTopics({
-      page: 0,
-      size: 1000, // Load all
-      sort: 'orderIndex,asc',
-    })
-
-    console.log('Loaded all topics:', grammarStore.topics.length)
-  } catch {
-    // Error handled in store
-  }
-}
-
+// Mở form tạo mới
 const handleCreate = () => {
-  selectedTopic.value = null
-  showForm.value = true
+  if (topicFormRef.value) {
+    topicFormRef.value.openCreate()
+  }
 }
 
+// Mở form chỉnh sửa
 const handleEdit = (topic) => {
-  selectedTopic.value = topic
-  showForm.value = true
-}
-
-const handleDelete = async (topic) => {
-  try {
-    await ElMessageBox.confirm(
-      `Bạn có chắc chắn muốn xóa topic "${topic.name}"?`,
-      'Xác nhận xóa',
-      {
-        confirmButtonText: 'Xóa',
-        cancelButtonText: 'Hủy',
-        type: 'warning',
-        beforeClose: async (action, instance, done) => {
-          if (action === 'confirm') {
-            instance.confirmButtonLoading = true
-            try {
-              await grammarStore.deleteTopic(topic.id)
-              done()
-            } catch {
-              instance.confirmButtonLoading = false
-            }
-          } else {
-            done()
-          }
-        },
-      }
-    )
-  } catch {
-    // User cancelled
+  if (topicFormRef.value) {
+    topicFormRef.value.openEdit(topic)
   }
 }
 
-const handleToggleActive = async (topic) => {
+// Khi form submit thành công
+const handleFormSuccess = async () => {
+  await loadTopics()
+}
+
+// Các hàm khác giữ nguyên
+const loadTopics = async () => {
+  loading.value = true
   try {
-    if (!topic.isActive) {
-      // Deactivate
-      await grammarStore.deactivateTopic(topic.id)
-    } else {
-      // Reactivate bằng cách update
-      await grammarStore.updateTopic(topic.id, {
-        name: topic.name,
-        description: topic.description,
-        levelRequired: topic.levelRequired,
-        orderIndex: topic.orderIndex,
-        isActive: true
-      })
-      ElMessage.success('Đã kích hoạt lại topic!')
-    }
-
-    // Refresh lại danh sách
-    await fetchAllTopics()
-  } catch {
-    // Error handled in store
+    await store.fetchTopics({ size: 100 })
+  } finally {
+    loading.value = false
   }
-}
-
-const emit = defineEmits(['add-lessons', 'view-lessons'])
-
-const handleViewLessons = (topic) => {
-  emit('view-lessons', topic)
-}
-
-const handleAddLesson = (topic) => {
-  emit('add-lessons', topic)
 }
 
 const handleValidateOrder = async () => {
   try {
-    const result = await grammarStore.validateTopicsOrder()
+    await store.validateTopicsOrder()
+  } catch (e) {
+    console.error(e)
+  }
+}
 
-    if (result.issuesFixed === 0) {
-      ElMessage.success('Order Index đã chính xác!')
+const filteredTopics = computed(() => {
+  let result = store.topics
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(t => t.name.toLowerCase().includes(query))
+  }
+  if (filterLevel.value) {
+    result = result.filter(t => t.levelRequired === filterLevel.value)
+  }
+  return result
+})
+
+const paginatedTopics = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredTopics.value.slice(start, start + pageSize.value)
+})
+
+const handleToggleActive = async (topic) => {
+  try {
+    if (topic.isActive) {
+      await store.updateTopic(topic.id, { ...topic, isActive: true })
+    } else {
+      await store.deactivateTopic(topic.id)
     }
-  } catch {
-    // Error handled in store
+  } catch (e) {
+    ElMessage.error('Có lỗi xảy ra khi cập nhật trạng thái topic.')
+    console.error(e)
   }
 }
 
-const handleFilterChange = () => {
-  // currentPage auto reset via watcher
-  console.log('🔍 Filter changed:', filters.value)
-}
+const handleDelete = async (topic) => {
+  try {
+    await ElMessageBox.confirm(`Bạn có chắc muốn xóa topic "${topic.name}"?`, 'Cảnh báo', {
+      type: 'warning', confirmButtonText: 'Xóa', cancelButtonText: 'Hủy'
+    })
+    await store.deleteTopic(topic.id)
 
-const handleRefresh = async () => {
-  filters.value = {
-    status: 'all',
-    level: '',
-    sort: 'orderIndex,asc',
+    await loadTopics()
+  } catch (e) {
+    ElMessage.error('Xóa topic thất bại.')
+    console.error(e)
   }
-  currentPage.value = 1
-  await fetchAllTopics()
 }
 
-const handlePageChange = (page) => {
-  currentPage.value = page
-  console.log('Changed to page:', page)
+const handleViewLessons = (topic) => emit('view-lessons', topic)
+const handleSizeChange = () => currentPage.value = 1
+const handlePageChange = (val) => currentPage.value = val
 
-  // Scroll to top
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const handleSizeChange = (size) => {
-  pageSize.value = size
-  currentPage.value = 1
-  console.log('Changed page size to:', size)
-}
-
-const handleFormSuccess = async () => {
-  // Refresh toàn bộ danh sách
-  await fetchAllTopics()
-  console.log('Refreshed topics list after form success')
-}
+onMounted(loadTopics)
 </script>
 
 <style scoped>
-.topics-list-container {
-  padding: 24px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  gap: 16px;
-}
-
-.header-left h1 {
-  margin: 0 0 8px 0;
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.filter-card {
-  margin-bottom: 24px;
-}
-
-.filter-card :deep(.el-card__body) {
+.topic-list-container {
   padding: 16px;
 }
 
-.loading-container {
-  padding: 24px;
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.topics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
-  gap: 20px;
+.left-actions {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-width: 300px;
+}
+
+.right-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.search-input {
+  flex: 2;
+}
+
+.mb-6 {
   margin-bottom: 24px;
 }
 
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
-  padding: 16px 0;
+.filter-select {
+  flex: 1;
+  min-width: 140px;
 }
 
-/* Responsive */
+.pagination-wrapper {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
 @media (max-width: 768px) {
-  .topics-grid {
-    grid-template-columns: 1fr;
+  .topic-list-container {
+    padding: 16px;
   }
 
-  .page-header {
+  .header-actions {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 
-  .header-right {
-    width: 100%;
+  .left-actions {
+    flex-direction: column;
+    min-width: 100%;
+  }
+
+  .right-actions {
     justify-content: flex-end;
+    margin-top:12px;
   }
 }
 </style>
