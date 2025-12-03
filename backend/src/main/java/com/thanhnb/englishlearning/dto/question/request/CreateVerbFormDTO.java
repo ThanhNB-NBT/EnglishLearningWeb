@@ -4,6 +4,7 @@ import com.thanhnb.englishlearning.enums.QuestionType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.util.List;
@@ -28,8 +29,12 @@ public class CreateVerbFormDTO extends CreateQuestionDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class VerbBlankDTO {
+        @NotNull(message = "Vị trí không được null")
         private Integer position;
+        
         private String verb; // Động từ gốc
-        private List<String> correctAnswers; // Các dạng chia đúng
+        
+        @NotEmpty(message = "Phải có ít nhất 1 đáp án đúng")
+        private List<String> correctAnswers;
     }
 }

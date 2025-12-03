@@ -12,13 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 
 /**
- * ✅ Abstract base service cho các module học tập (Grammar, Reading, Listening, etc.)
+ * Abstract base service cho các module học tập (Grammar, Reading, Listening, etc.)
  * Chứa logic chung: Question processing, Answer checking, Unlock logic
- * 
- * Refactored để:
- * - Delegate question processing đến QuestionService
- * - Remove deprecated dependencies (QuestionOption, AnswerCheckingService)
- * - Tích hợp với metadata-based architecture
  */
 @Slf4j
 public abstract class BaseLearningService<TLesson, TProgress> {

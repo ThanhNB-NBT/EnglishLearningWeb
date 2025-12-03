@@ -33,9 +33,7 @@
                     :reserve-keyword="false" placeholder="Nhập đáp án đúng (VD: goes, is going)..." style="width: 100%"
                     @change="emitUpdate">
                     <template #empty>
-                      <div class="p-2 text-gray-400 text-xs text-center">
-                        Gõ đáp án và ấn Enter
-                      </div>
+                      <div class="p-2 text-gray-400 text-xs text-center">Gõ đáp án và ấn Enter</div>
                     </template>
                   </el-select>
                 </el-col>
@@ -69,7 +67,10 @@ const localMetadata = ref({
 })
 
 watch(() => props.metadata, (newVal) => {
-  if (newVal && newVal.blanks) localMetadata.value = newVal
+  if (newVal) localMetadata.value = {
+    blanks: newVal.blanks || [{ position: 1, verb: '', correctAnswers: [] }],
+    explanation: newVal.explanation || ''
+  }
 }, { deep: true })
 
 const addBlank = () => {

@@ -33,7 +33,9 @@ public class QuestionMetadataValidator {
 
         switch (questionType) {
             case MULTIPLE_CHOICE, TRUE_FALSE -> validateMultipleChoice(metadata, questionType);
-            case FILL_BLANK, SHORT_ANSWER, VERB_FORM, ERROR_CORRECTION -> validateTextAnswer(metadata, questionType);
+            case FILL_BLANK, VERB_FORM -> validateFillBlank(metadata, questionType);
+            case ERROR_CORRECTION -> validateErrorCorrection(metadata, questionType);
+            case TEXT_ANSWER -> validateTextAnswer(metadata, questionType);
             case MATCHING -> validateMatching(metadata);
             case SENTENCE_BUILDING -> validateSentenceBuilding(metadata);
             case COMPLETE_CONVERSATION -> validateConversation(metadata);
@@ -130,6 +132,81 @@ public class QuestionMetadataValidator {
             throw new RuntimeException(
                     String.format("%s chỉ được có đúng 1 option đúng (tìm thấy %d options đúng)",
                             type, correctCount));
+        }
+    }
+
+    private void validateFillBlank(Map<String, Object> metadata, QuestionType type) {
+        if (!metadata.containsKey("blanks")) {
+            throw new RuntimeException(type + " cần có 'blanks' trong metadata");
+        }
+
+        Object blanksObj = metadata.get("blanks");
+        if (!(blanksObj instanceof List)) {
+            throw new RuntimeException(type + " 'blanks' phải là List");
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> blanks = (List<Map<String, Object>>) blanksObj;
+
+        if (blanks.isEmpty()) {
+            throw new RuntimeException(type + " cần ít nhất 1 blank");
+        }
+
+        for (int i = 0; i < blanks.size(); i++) {
+            Map<String, Object> blank = blanks.get(i);
+
+            if (!blank.containsKey("position")) {
+                throw new RuntimeException(type + " blank thứ " + (i + 1) + " thiếu 'position'");
+            }
+
+            if (!blank.containsKey("correctAnswers")) {
+                throw new RuntimeException(type + " blank thứ " + (i + 1) + " thiếu 'correctAnswers'");
+            }
+
+            Object answersObj = blank.get("correctAnswers");
+            if (!(answersObj instanceof List)) {
+                throw new RuntimeException(type + " blank 'correctAnswers' phải là List");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<String> correctAnswers = (List<String>) answersObj;
+
+            // KIỂM TRA CỤ THỂ
+            if (correctAnswers.isEmpty()) {
+                throw new RuntimeException(
+                        String.format("%s - Chỗ trống #%d chưa có đáp án đúng.  Vui lòng nhập ít nhất 1 đáp án.",
+                                type, blank.get("position")));
+            }
+
+            // KIỂM TRA TỪNG ĐÁP ÁN KHÔNG RỖNG
+            for (int j = 0; j < correctAnswers.size(); j++) {
+                String answer = correctAnswers.get(j);
+                if (answer == null || answer.trim().isEmpty()) {
+                    throw new RuntimeException(
+                            String.format("%s - Chỗ trống #%d có đáp án rỗng (vị trí %d)",
+                                    type, blank.get("position"), j + 1));
+                }
+            }
+        }
+    }
+
+    private void validateErrorCorrection(Map<String, Object> metadata, QuestionType type) {
+        if (!metadata.containsKey("errorText")) {
+            throw new RuntimeException(type + " cần có 'errorText' trong metadata");
+        }
+
+        Object errorTextObj = metadata.get("errorText");
+        if (errorTextObj == null || (errorTextObj instanceof String && ((String) errorTextObj).trim().isEmpty())) {
+            throw new RuntimeException(type + " 'errorText' không được để trống");
+        }
+
+        if (!metadata.containsKey("correction")) {
+            throw new RuntimeException(type + " cần có 'correction' trong metadata");
+        }
+
+        Object correctionObj = metadata.get("correction");
+        if (correctionObj == null || (correctionObj instanceof String && ((String) correctionObj).trim().isEmpty())) {
+            throw new RuntimeException(type + " 'correction' không được để trống");
         }
     }
 

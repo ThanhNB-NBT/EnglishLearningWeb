@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
  * - Subclass chỉ cần implement getParentType() và validateLessonExists()
  */
 @Slf4j
+@Transactional
 public abstract class BaseQuestionService {
 
     @Autowired
@@ -119,7 +120,6 @@ public abstract class BaseQuestionService {
     /**
      * Create single question
      */
-    @Transactional
     public QuestionResponseDTO createQuestion(CreateQuestionDTO createDTO) {
         validateLessonExists(createDTO.getParentId());
 
@@ -158,7 +158,6 @@ public abstract class BaseQuestionService {
      * Create multiple questions in bulk
      * Optimized: Only queries DB once for nextOrderIndex
      */
-    @Transactional
     public List<QuestionResponseDTO> createQuestionsInBulk(Long lessonId, List<CreateQuestionDTO> createDTOs) {
         validateLessonExists(lessonId);
 
@@ -208,7 +207,6 @@ public abstract class BaseQuestionService {
     /**
      * Update question
      */
-    @Transactional
     public QuestionResponseDTO updateQuestion(Long id, Object dto) {
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + id));
@@ -278,7 +276,6 @@ public abstract class BaseQuestionService {
     /**
      * Delete single question
      */
-    @Transactional
     public void deleteQuestion(Long id) {
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + id));
@@ -301,7 +298,6 @@ public abstract class BaseQuestionService {
     /**
      * Bulk delete questions
      */
-    @Transactional
     public int bulkDeleteQuestions(List<Long> questionIds) {
         if (questionIds == null || questionIds.isEmpty()) {
             return 0;
@@ -353,7 +349,6 @@ public abstract class BaseQuestionService {
     /**
      * Copy questions from one lesson to another
      */
-    @Transactional
     public void copyQuestionsToLesson(Long sourceLessonId, Long targetLessonId) {
         validateLessonExists(sourceLessonId);
         validateLessonExists(targetLessonId);

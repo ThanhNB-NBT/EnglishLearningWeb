@@ -48,9 +48,11 @@ const localMetadata = ref({
 
 watch(() => props.metadata, (newVal) => {
   if (newVal) {
-    localMetadata.value.errorText = newVal.errorText || ''
-    localMetadata.value.correction = newVal.correction || ''
-    localMetadata.value.explanation = newVal.explanation || ''
+    localMetadata.value = {
+      errorText: newVal.errorText || '',
+      correction: newVal.correction || '',
+      explanation: newVal.explanation || ''
+    }
   }
 }, { deep: true })
 

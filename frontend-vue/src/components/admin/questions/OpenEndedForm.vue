@@ -12,8 +12,8 @@
         placeholder="Nhập các ý chính hoặc câu trả lời mẫu..." @input="emitUpdate" />
     </el-form-item>
 
-    <el-form-item label="Ghi chú cho người chấm (Optional)">
-      <el-input v-model="localMetadata.gradingNote" type="textarea" :rows="2" placeholder="Lưu ý khi chấm điểm..."
+    <el-form-item label="Ghi chú / Giải thích thêm">
+      <el-input v-model="localMetadata.explanation" type="textarea" :rows="2" placeholder="Lưu ý khi chấm điểm..."
         @input="emitUpdate" />
     </el-form-item>
   </div>
@@ -27,7 +27,7 @@ const emit = defineEmits(['update:metadata'])
 
 const localMetadata = ref({
   suggestedAnswer: props.metadata?.suggestedAnswer || '',
-  gradingNote: props.metadata?.gradingNote || ''
+  explanation: props.metadata?.explanation || ''
 })
 
 watch(() => props.metadata, (newVal) => {
@@ -38,11 +38,6 @@ const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
 
 <style scoped>
-.open-ended-form {
-  padding: 10px 0;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
-}
+.open-ended-form { padding: 10px 0; }
+.mb-4 { margin-bottom: 16px; }
 </style>

@@ -7,7 +7,7 @@
       content-type="html"
       :theme="theme"
       :toolbar="customToolbar"
-      :style="{ height: height }"
+      :style="{ height: height, width: width }"
       @ready="onEditorReady"
       @update:content="handleContentUpdate"
       @text-change="handleTextChange"
@@ -41,7 +41,11 @@ const props = defineProps({
   },
   height: {
     type: String,
-    default: '400px'
+    default: '200px'
+  },
+  width: {
+    type: String,
+    default: '100%'
   },
   placeholder: {
     type: String,
@@ -70,7 +74,7 @@ const localContent = ref(props.modelValue || '')
 const wordCount = ref(0)
 const charCount = ref(0)
 
-// ✅ Enhanced toolbar configurations
+// Enhanced toolbar configurations
 const toolbarConfigs = {
   // Complete toolbar with all features
   full: [
@@ -89,7 +93,7 @@ const toolbarConfigs = {
     ['clean']
   ],
 
-  // ✅ NEW: Optimized for lesson content (grammar lessons, theory)
+  // Optimized for lesson content (grammar lessons, theory)
   lesson: [
     [{ 'header': [1, 2, 3, false] }],
     ['bold', 'italic', 'underline', 'strike'],
@@ -122,7 +126,7 @@ const toolbarConfigs = {
     ['clean']
   ],
 
-  // ✅ NEW: Question content (for question text)
+  // Question content (for question text)
   question: [
     [{ 'header': [2, 3, false] }],
     ['bold', 'italic', 'underline'],
@@ -133,7 +137,7 @@ const toolbarConfigs = {
     ['clean']
   ],
 
-  // ✅ NEW: Simple formatting (for descriptions)
+  // Simple formatting (for descriptions)
   simple: [
     ['bold', 'italic'],
     [{ 'list': 'bullet' }],
@@ -195,7 +199,6 @@ const updateWordCount = (html) => {
 
 // Editor ready callback
 const onEditorReady = (editor) => {
-  console.log('✅ Quill editor ready')
 
   // Set placeholder
   if (props.placeholder) {
@@ -385,7 +388,6 @@ defineExpose({
   background: var(--el-text-color-secondary);
 }
 
-/* ✅ Enhanced content styling */
 :deep(.ql-editor h1) {
   font-size: 2em;
   font-weight: 700;
@@ -617,7 +619,6 @@ html.dark :deep(.ql-editor code) {
   background-color: var(--el-fill-color-dark);
 }
 
-/* ✅ Responsive */
 @media (max-width: 768px) {
   :deep(.ql-toolbar) {
     padding: 8px;

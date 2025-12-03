@@ -5,7 +5,6 @@ public enum QuestionType {
     FILL_BLANK("Điền vào chỗ trống"),
     TRUE_FALSE("Đúng/Sai"),
     VERB_FORM("Chia động từ"),
-    SHORT_ANSWER("Trả lời ngắn"),
     ERROR_CORRECTION("Sửa lỗi"),
     MATCHING("Nối câu"),
     COMPLETE_CONVERSATION("Hoàn thành hội thoại"),
