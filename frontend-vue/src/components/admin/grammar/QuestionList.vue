@@ -26,7 +26,6 @@
           <el-option label="Xây dựng câu" value="SENTENCE_BUILDING" />
           <el-option label="Hội thoại" value="CONVERSATION" />
           <el-option label="Phát âm" value="PRONUNCIATION" />
-          <el-option label="Trả lời ngắn" value="SHORT_ANSWER" />
           <el-option label="Văn bản" value="TEXT_ANSWER" />
           <el-option label="Chia động từ" value="VERB_FORM" />
           <el-option label="Sửa lỗi sai" value="ERROR_CORRECTION" />
@@ -337,7 +336,6 @@ const getQuestionTypeColor = (type) => {
     'SENTENCE_BUILDING': 'danger',
     'CONVERSATION': 'primary',
     'PRONUNCIATION': 'warning',
-    'SHORT_ANSWER': 'info',
     'TEXT_ANSWER': 'info',
     'VERB_FORM': 'success',
     'ERROR_CORRECTION': 'danger',

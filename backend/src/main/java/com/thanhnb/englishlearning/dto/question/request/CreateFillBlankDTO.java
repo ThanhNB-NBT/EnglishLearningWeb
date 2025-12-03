@@ -29,13 +29,9 @@ public class CreateFillBlankDTO extends CreateQuestionDTO {
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class BlankDTO {
         @NotNull(message = "Vị trí không được null")
         private Integer position;
-
-        private String verb;
 
         @NotEmpty(message = "Phải có ít nhất 1 đáp án đúng")
         private List<String> correctAnswers;

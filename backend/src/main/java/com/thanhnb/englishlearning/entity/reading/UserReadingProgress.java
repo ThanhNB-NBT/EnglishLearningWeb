@@ -34,7 +34,7 @@ public class UserReadingProgress implements LessonProgressService.LessonProgress
     @Column(name = "score_percentage", precision = 5, scale = 2, nullable = false)
     private BigDecimal scorePercentage = BigDecimal.ZERO;
 
-    @Column(name = "attemps", nullable = false)
+    @Column(name = "attempts", nullable = false)
     private Integer attempts = 0;
 
     @Column(name = "completed_at")

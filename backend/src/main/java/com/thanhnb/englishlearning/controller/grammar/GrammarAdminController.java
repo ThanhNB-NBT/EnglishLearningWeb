@@ -5,6 +5,7 @@ import com.thanhnb.englishlearning.dto.CustomApiResponse;
 import com.thanhnb.englishlearning.dto.PaginatedResponse;
 import com.thanhnb.englishlearning.dto.ParseResult;
 import com.thanhnb.englishlearning.dto.grammar.request.ReorderLessonRequest;
+import com.thanhnb.englishlearning.dto.question.request.CreateFillBlankDTO;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.service.grammar.GrammarAdminService;
@@ -464,9 +465,29 @@ public class GrammarAdminController {
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(
                         @Valid @RequestBody CreateQuestionDTO dto) {
                 try {
-                        log.info("📥 Received DTO class: {}", dto.getClass().getName());
-                        log.info("📥 Question Type: {}", dto.getQuestionType());
-                        log.info("📥 DTO toString: {}", dto);
+                        // ✅ LOG KIỂM TRA JACKSON DESERIALIZE
+                        log.info("═══════════════════════════════════════════════════════");
+                        log.info("📥 [CREATE QUESTION] Received DTO");
+                        log.info("🔹 DTO Class: {}", dto.getClass().getSimpleName());
+                        log.info("🔹 Question Type (field): {}", dto.getQuestionType());
+                        log.info("🔹 Question Type (method): {}", dto.getQuestionType());
+                        log.info("🔹 Parent Type: {}", dto.getParentType());
+                        log.info("🔹 Parent ID: {}", dto.getParentId());
+
+                        if (dto instanceof CreateFillBlankDTO) {
+                                CreateFillBlankDTO fillBlankDTO = (CreateFillBlankDTO) dto;
+                                log.info("🔹 Blanks count: {}",
+                                                fillBlankDTO.getBlanks() != null ? fillBlankDTO.getBlanks().size() : 0);
+                                if (fillBlankDTO.getBlanks() != null) {
+                                        fillBlankDTO.getBlanks().forEach(blank -> log.info("   - Blank #{}: {} answers",
+                                                        blank.getPosition(),
+                                                        blank.getCorrectAnswers() != null
+                                                                        ? blank.getCorrectAnswers().size()
+                                                                        : 0));
+                                }
+                        }
+
+                        log.info("═══════════════════════════════════════════════════════");
                         QuestionResponseDTO created = grammarAdminService.createQuestion(dto);
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(CustomApiResponse.created(created, "Tạo question thành công"));

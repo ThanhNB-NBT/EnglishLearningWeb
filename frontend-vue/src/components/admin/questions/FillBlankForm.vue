@@ -17,6 +17,9 @@
             <el-card shadow="hover" :body-style="{ padding: '12px' }">
               <div class="blank-header mb-2">
                 <el-tag effect="dark" size="small">Vị trí #{{ index + 1 }}</el-tag>
+                <el-icon v-if="blank.correctAnswers.length === 0" color="#F56C6C" class="warning-icon">
+                    <WarningFilled />
+                  </el-icon>
                 <el-button type="danger" link :icon="Delete" @click="removeBlank(index)"
                   :disabled="localMetadata.blanks.length <= 1">
                   Xóa
@@ -32,6 +35,9 @@
                   </div>
                 </template>
               </el-select>
+              <div v-if="blank.correctAnswers.length === 0" class="error-hint">
+                Chưa có đáp án nào.  Vui lòng nhập ít nhất 1 đáp án đúng.
+              </div>
               <div class="text-xs text-gray-400 mt-1">
                 * Chấp nhận nhiều đáp án (VD: "don't", "do not")
               </div>
@@ -54,7 +60,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, WarningFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
   metadata: { type: Object, default: () => ({}) }
@@ -147,4 +153,43 @@ const emitUpdate = () => {
   opacity: 0;
   transform: translateY(10px);
 }
+
+.error-border {
+  border: 2px solid #F56C6C !important;
+  animation: shake 0.3s;
+}
+
+.error-hint {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: #FEF0F0;
+  border-left: 3px solid #F56C6C;
+  color: #F56C6C;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.is-error :deep(.el-select__wrapper) {
+  border-color: #F56C6C !important;
+  box-shadow: 0 0 0 1px #F56C6C inset ! important;
+}
+
+.warning-icon {
+  animation: pulse 1. 5s infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-2 { gap: 8px; }
 </style>

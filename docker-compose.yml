@@ -92,10 +92,10 @@ services:
     command: ./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
       
     volumes:
-      - ./backend/src:/workspace/src
-      - ./backend/pom.xml:/workspace/pom.xml
-      - ./backend/target:/workspace/target
-      - maven-repo:/root/.m2
+        - ./backend/src:/workspace/src
+        - ./backend/pom.xml:/workspace/pom.xml
+    #   - ./backend/target:/workspace/target
+        - maven-repo:/root/.m2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8980/actuator/health"]
       interval: 30s

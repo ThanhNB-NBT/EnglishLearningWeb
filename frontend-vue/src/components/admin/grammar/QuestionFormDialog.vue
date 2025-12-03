@@ -32,6 +32,7 @@
     <div class="dialog-body-content">
       <el-form ref="formRef" :model="formData" :rules="formRules" :label-width="labelWidth" label-position="top"
         @submit.prevent>
+
         <div v-show="currentStep === 1" class="step-content">
           <el-row :gutter="gutter">
             <el-col :xs="24" :sm="24" :md="12">
@@ -48,8 +49,7 @@
                   <el-text type="info" size="small">
                     <el-icon>
                       <InfoFilled />
-                    </el-icon>
-                    {{ currentQuestionTypeOption.description }}
+                    </el-icon> {{ currentQuestionTypeOption.description }}
                   </el-text>
                 </div>
               </el-form-item>
@@ -70,7 +70,7 @@
 
           <el-form-item label="Nội dung câu hỏi (Đề bài)" prop="questionText">
             <QuillRichEditor v-model="formData.questionText" placeholder="Nhập nội dung câu hỏi..."
-              :height="editorHeight" toolbar="question" :show-word-count="true" />
+              :height="editorHeight" :width="editorWidth" toolbar="question" :show-word-count="true" />
             <template #extra>
               <el-text type="info" size="small">
                 Sử dụng trình soạn thảo để định dạng văn bản, thêm hình ảnh hoặc liên kết
@@ -78,10 +78,6 @@
             </template>
           </el-form-item>
 
-          <el-form-item label="Giải thích đáp án (Tùy chọn)" prop="explanation">
-            <el-input v-model="formData.explanation" type="textarea" :rows="4"
-              placeholder="Giải thích tại sao đáp án này đúng..." show-word-limit maxlength="500" :size="formSize" />
-          </el-form-item>
         </div>
 
         <div v-show="currentStep === 2" class="step-content">
@@ -161,14 +157,12 @@ import {
   DocumentAdd, EditPen, View, Edit, InfoFilled
 } from '@element-plus/icons-vue'
 import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
-
-// Import Composable
 import { useGrammarQuestionForm } from '@/composables/grammar/useGrammarQuestions'
 
-// Import Lazy Components
+// Lazy Components
 const MultipleChoiceForm = defineAsyncComponent(() => import('@/components/admin/questions/MultipleChoiceForm.vue'))
 const TrueFalseForm = defineAsyncComponent(() => import('@/components/admin/questions/TrueFalseForm.vue'))
-const ShortAnswerForm = defineAsyncComponent(() => import('@/components/admin/questions/ShortAnswerForm.vue'))
+const FillBlankForm = defineAsyncComponent(() => import('@/components/admin/questions/FillBlankForm.vue'))
 const MatchingForm = defineAsyncComponent(() => import('@/components/admin/questions/MatchingForm.vue'))
 const SentenceBuildingForm = defineAsyncComponent(() => import('@/components/admin/questions/SentenceBuildingForm.vue'))
 const ReadingComprehensionForm = defineAsyncComponent(() => import('@/components/admin/questions/ReadingComprehensionForm.vue'))
@@ -180,55 +174,31 @@ const VerbFormForm = defineAsyncComponent(() => import('@/components/admin/quest
 const TextAnswerForm = defineAsyncComponent(() => import('@/components/admin/questions/TextAnswerForm.vue'))
 const QuestionPreview = defineAsyncComponent(() => import('./QuestionPreview.vue'))
 
-const props = defineProps({
-  lessonId: { type: Number, default: null }
-})
+const props = defineProps({ lessonId: { type: Number, default: null } })
 const emit = defineEmits(['success'])
 
 const {
-  dialogVisible,
-  dialogMode,
-  currentStep,
-  formData,
-  formRules,
-  questionTypeOptions,
-  dialogTitle,
-  submitButtonText,
-  currentQuestionTypeOption,
-  openCreateDialog,
-  openEditDialog,
-  handleSubmit,
-  closeDialog,
-  handleQuestionTypeChange,
-  nextStep,
-  prevStep
+  dialogVisible, dialogMode, currentStep, formData, formRules, questionTypeOptions,
+  dialogTitle, submitButtonText, currentQuestionTypeOption,
+  openCreateDialog, openEditDialog, handleSubmit, closeDialog, handleQuestionTypeChange,
+  nextStep, prevStep
 } = useGrammarQuestionForm()
 
 const formRef = ref(null)
 const submitting = ref(false)
 
-// --- Wrapper functions (FIXED) ---
-const handleOpenCreate = async () => {
-  // Gọi hàm openCreateDialog từ composable và truyền lessonId vào
-  await openCreateDialog(props.lessonId)
-}
+// Expose methods
+const handleOpenCreate = async () => await openCreateDialog(props.lessonId)
+const handleOpenEdit = (question) => openEditDialog(question)
+defineExpose({ openCreate: handleOpenCreate, openEdit: handleOpenEdit })
 
-const handleOpenEdit = (question) => {
-  openEditDialog(question)
-}
-
-defineExpose({
-  openCreate: handleOpenCreate,
-  openEdit: handleOpenEdit
-})
-// ---------------------------------
-
+// Mapping logic
 const getFormComponent = (type) => {
   const map = {
     'MULTIPLE_CHOICE': MultipleChoiceForm,
     'TRUE_FALSE': TrueFalseForm,
-    'FILL_BLANK': ShortAnswerForm,
-    'SHORT_ANSWER': ShortAnswerForm,
+    'FILL_BLANK': FillBlankForm,
+    'TEXT_ANSWER': TextAnswerForm,
     'VERB_FORM': VerbFormForm,
     'ERROR_CORRECTION': ErrorCorrectionForm,
     'MATCHING': MatchingForm,
@@ -237,7 +207,6 @@ const getFormComponent = (type) => {
     'CONVERSATION': ConversationForm,
     'PRONUNCIATION': PronunciationForm,
     'READING_COMPREHENSION': ReadingComprehensionForm,
-    'TEXT_ANSWER': TextAnswerForm,
     'OPEN_ENDED': OpenEndedForm
   }
   return map[type] || null
@@ -246,13 +215,14 @@ const getFormComponent = (type) => {
 const previewData = computed(() => ({
   questionText: formData.value.questionText,
   questionType: formData.value.questionType,
-  explanation: formData.value.explanation,
+  explanation: formData.value.metadata?.explanation, // Preview lấy từ metadata
   metadata: formData.value.metadata,
   points: formData.value.points,
   orderIndex: formData.value.orderIndex,
   parentId: formData.value.parentId
 }))
 
+// Responsive logic
 const isMobile = computed(() => window.innerWidth < 768)
 const isTablet = computed(() => window.innerWidth >= 768 && window.innerWidth < 1024)
 const dialogWidth = computed(() => isMobile.value ? '100%' : (isTablet.value ? '90%' : '1100px'))
@@ -260,18 +230,14 @@ const labelWidth = computed(() => isMobile.value ? '100%' : '140px')
 const gutter = computed(() => isMobile.value ? 10 : 20)
 const buttonSize = computed(() => isMobile.value ? 'small' : 'default')
 const formSize = computed(() => isMobile.value ? 'small' : 'default')
-const editorHeight = computed(() => isMobile.value ? '300px' : '450px')
-
+const editorHeight = computed(() => isMobile.value ? '100px' : '300px')
+const editorWidth = computed(() => isMobile.value ? '100%' : '100%')
 const handleNextStep = async () => {
   if (currentStep.value === 1) {
     if (!formRef.value) return
-    // SỬA: Xóa biến fields không dùng
     await formRef.value.validate((valid) => {
-      if (valid) {
-        nextStep()
-      } else {
-        ElMessage.warning('Vui lòng điền đầy đủ thông tin bắt buộc')
-      }
+      if (valid) nextStep()
+      else ElMessage.warning('Vui lòng điền đầy đủ thông tin bắt buộc')
     })
   } else {
     nextStep()
@@ -284,7 +250,7 @@ const onSubmit = async () => {
     const success = await handleSubmit(formRef.value)
     if (success) {
       emit('success')
-      closeDialog() // Thêm đóng dialog
+      closeDialog()
       ElMessage.success(dialogMode.value === 'create' ? 'Tạo câu hỏi thành công!' : 'Cập nhật thành công!')
     }
   } catch (error) {
@@ -342,6 +308,7 @@ const handleBeforeClose = () => closeDialog()
 .step-content {
   min-height: 400px;
   padding: 20px 0;
+  width: 100%;
 }
 
 .option-item {

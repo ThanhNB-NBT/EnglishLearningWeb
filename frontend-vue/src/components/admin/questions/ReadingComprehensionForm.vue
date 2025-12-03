@@ -1,82 +1,142 @@
 <template>
   <div class="reading-comprehension-form">
-    <el-tabs type="border-card" class="mb-4">
-      <el-tab-pane label="Nội dung bài đọc">
-        <el-alert title="Lưu ý" type="info" :closable="false" class="mb-2">
-          Nội dung bài đọc chính nên nhập ở Bước 1 ("Nội dung câu hỏi").
-          Nếu bài đọc quá dài hoặc muốn tách biệt, bạn có thể nhập thêm vào đây.
-        </el-alert>
+    <el-alert title="Hướng dẫn" type="info" :closable="false" show-icon class="mb-4">
+      <template #default>
+        1. Nhập đoạn văn vào bên dưới<br>
+        2. Thêm các câu hỏi trắc nghiệm về đoạn văn (Question text ở Bước 1)<br>
+        3. Mỗi câu hỏi có 4 lựa chọn A-B-C-D
+      </template>
+    </el-alert>
 
-        <el-input v-model="localMetadata.passage" type="textarea" :rows="10"
-          placeholder="Paste nội dung bài đọc vào đây..." @input="emitUpdate" />
-      </el-tab-pane>
+    <!-- Đoạn văn -->
+    <el-form-item label="Đoạn văn (Passage)" required>
+      <el-input
+        v-model="localMetadata.passage"
+        type="textarea"
+        :rows="8"
+        placeholder="Paste đoạn văn tiếng Anh vào đây..."
+        @input="emitUpdate"
+      />
+    </el-form-item>
 
-      <el-tab-pane label="Câu hỏi phụ (Sub-questions)">
-        <div class="sub-questions-container">
-          <div v-for="(question, qIndex) in localMetadata.subQuestions" :key="qIndex" class="sub-question-item mb-4">
-            <el-card shadow="hover">
-              <template #header>
-                <div class="flex justify-between items-center">
-                  <span class="font-bold">Câu hỏi #{{ qIndex + 1 }}</span>
-                  <el-button type="danger" icon="Delete" circle size="small" @click="removeSubQuestion(qIndex)" />
-                </div>
-              </template>
+    <!-- Các câu hỏi -->
+    <el-form-item label="Câu hỏi (Blanks)" required>
+      <div class="text-xs text-info mb-2">
+        ⚠️ Lưu ý: Nội dung câu hỏi (VD: "What is the main idea?") nên nhập ở <b>Bước 1 - Question Text</b>
+      </div>
 
-              <el-input v-model="question.questionText" placeholder="Nội dung câu hỏi..." class="mb-2"
-                @input="emitUpdate" />
+      <div class="blanks-container">
+        <transition-group name="list">
+          <div v-for="(blank, index) in localMetadata.blanks" :key="index" class="blank-item mb-3">
+            <el-card shadow="hover" :body-style="{ padding: '12px' }">
+              <div class="blank-header mb-2">
+                <el-tag effect="dark" size="small">Câu {{ blank.position }}</el-tag>
+                <el-button
+                  type="danger"
+                  link
+                  icon="Delete"
+                  @click="removeBlank(index)"
+                  :disabled="localMetadata.blanks.length <= 1"
+                >
+                  Xóa
+                </el-button>
+              </div>
 
-              <div class="options-list pl-4 border-l-2 border-gray-200">
-                <div v-for="(opt, oIndex) in question.options" :key="oIndex" class="flex gap-2 mb-2 items-center">
-                  <el-radio v-model="question.correctAnswerIndex" :label="oIndex" @change="emitUpdate">
-                    {{ String.fromCharCode(65 + oIndex) }}
+              <!-- 4 Options -->
+              <div class="options-grid">
+                <div v-for="optIdx in 4" :key="optIdx" class="option-input-row">
+                  <el-tag size="small" effect="plain">{{ String.fromCharCode(64 + optIdx) }}</el-tag>
+                  <el-input
+                    v-model="blank.options[optIdx - 1]"
+                    placeholder="Nhập lựa chọn..."
+                    size="small"
+                    @input="emitUpdate"
+                  />
+                  <el-radio
+                    v-model="blank.correctAnswer"
+                    :label="blank.options[optIdx - 1]"
+                    :disabled="!blank.options[optIdx - 1] || !blank.options[optIdx - 1].trim()"
+                    @change="emitUpdate"
+                  >
+                    Đúng
                   </el-radio>
-                  <el-input v-model="opt.text" placeholder="Đáp án..." size="small" @input="emitUpdate" />
                 </div>
               </div>
             </el-card>
           </div>
+        </transition-group>
 
-          <el-button type="primary" plain class="w-full" icon="Plus" @click="addSubQuestion">Thêm câu hỏi
-            phụ</el-button>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
+        <el-button type="primary" plain icon="Plus" class="w-full mt-2" @click="addBlank">
+          Thêm câu hỏi
+        </el-button>
+      </div>
+    </el-form-item>
+
+    <!-- Giải thích -->
+    <el-form-item label="Giải thích / Dịch đoạn văn">
+      <el-input
+        v-model="localMetadata.explanation"
+        type="textarea"
+        :rows="3"
+        placeholder="Dịch nghĩa đoạn văn hoặc giải thích đáp án..."
+        @input="emitUpdate"
+      />
+    </el-form-item>
   </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
 
-const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
+const props = defineProps({
+  metadata: { type: Object, default: () => ({}) }
+})
+
 const emit = defineEmits(['update:metadata'])
 
 const localMetadata = ref({
   passage: props.metadata?.passage || '',
-  subQuestions: props.metadata?.subQuestions || []
+  blanks: props.metadata?.blanks || [
+    { position: 1, options: ['', '', '', ''], correctAnswer: '' }
+  ],
+  explanation: props.metadata?.explanation || ''
 })
 
 watch(() => props.metadata, (newVal) => {
-  if (newVal) {
-    localMetadata.value.passage = newVal.passage || ''
-    localMetadata.value.subQuestions = newVal.subQuestions || []
+  if (newVal && Object.keys(newVal).length > 0) {
+    localMetadata.value = {
+      passage: newVal.passage || '',
+      blanks: newVal.blanks || [{ position: 1, options: ['', '', '', ''], correctAnswer: '' }],
+      explanation: newVal.explanation || ''
+    }
   }
 }, { deep: true })
 
-const addSubQuestion = () => {
-  localMetadata.value.subQuestions.push({
-    questionText: '',
-    options: [{ text: '' }, { text: '' }, { text: '' }, { text: '' }],
-    correctAnswerIndex: 0
+const addBlank = () => {
+  const nextPosition = localMetadata.value.blanks.length + 1
+  localMetadata.value.blanks.push({
+    position: nextPosition,
+    options: ['', '', '', ''],
+    correctAnswer: ''
   })
   emitUpdate()
 }
 
-const removeSubQuestion = (index) => {
-  localMetadata.value.subQuestions.splice(index, 1)
+const removeBlank = (index) => {
+  if (localMetadata.value.blanks.length <= 1) return
+  localMetadata.value.blanks.splice(index, 1)
+
+  // Re-index positions
+  localMetadata.value.blanks.forEach((blank, idx) => {
+    blank.position = idx + 1
+  })
+
   emitUpdate()
 }
 
-const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
+const emitUpdate = () => {
+  emit('update:metadata', { ...localMetadata.value })
+}
 </script>
 
 <style scoped>
@@ -84,43 +144,50 @@ const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
   padding: 10px 0;
 }
 
-.w-full {
-  width: 100%;
+.blanks-container {
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--el-fill-color-blank);
 }
 
-.mb-2 {
-  margin-bottom: 8px;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
-}
-
-.pl-4 {
-  padding-left: 16px;
-}
-
-.border-l-2 {
-  border-left-width: 2px;
-}
-
-.flex {
+.blank-header {
   display: flex;
-}
-
-.justify-between {
   justify-content: space-between;
-}
-
-.items-center {
   align-items: center;
 }
 
-.gap-2 {
+.options-grid {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.font-bold {
-  font-weight: bold;
+.option-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-input-row .el-tag {
+  min-width: 28px;
+  text-align: center;
+}
+
+.w-full { width: 100%; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 12px; }
+.mb-4 { margin-bottom: 16px; }
+.mt-2 { margin-top: 8px; }
+
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>

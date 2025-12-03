@@ -20,16 +20,12 @@
       <div class="words-container">
         <el-tag v-for="(word, index) in localMetadata.words" :key="index" closable size="large" effect="plain"
           class="word-tag" @close="removeWord(index)">
-          <span contenteditable @blur="(e) => updateWord(index, e.target.innerText)">
-            {{ word }}
-          </span>
+          <span contenteditable @blur="(e) => updateWord(index, e.target.innerText)">{{ word }}</span>
         </el-tag>
 
         <el-input v-if="inputVisible" ref="InputRef" v-model="inputValue" class="input-new-word" size="small"
           @keyup.enter="handleInputConfirm" @blur="handleInputConfirm" />
-        <el-button v-else class="button-new-word" size="small" @click="showInput">
-          + Thêm từ
-        </el-button>
+        <el-button v-else class="button-new-word" size="small" @click="showInput">+ Thêm từ</el-button>
       </div>
       <div class="text-xs text-gray-400 mt-2">
         * Mẹo: Click vào từ để sửa nội dung. Thêm các từ sai để tăng độ khó.
@@ -46,10 +42,7 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
 
-const props = defineProps({
-  metadata: { type: Object, default: () => ({}) }
-})
-
+const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
 const fullSentence = ref('')
@@ -63,39 +56,30 @@ const localMetadata = ref({
   explanation: props.metadata?.explanation || ''
 })
 
-// Sync props
 watch(() => props.metadata, (newVal) => {
   if (newVal) {
     localMetadata.value.words = newVal.words || []
     localMetadata.value.explanation = newVal.explanation || ''
-    // Nếu có câu đúng lưu sẵn thì hiện lại
     if (newVal.correctSentence) fullSentence.value = newVal.correctSentence
   }
 }, { deep: true })
 
-// Logic tách từ
 const generateWords = () => {
   if (!fullSentence.value.trim()) return
-
-  // Tách theo khoảng trắng, lọc bỏ rỗng
   const words = fullSentence.value.trim().split(/\s+/).filter(w => w)
   localMetadata.value.words = words
   localMetadata.value.correctSentence = fullSentence.value
   emitUpdate()
 }
 
-// Logic Tag Input
 const removeWord = (index) => {
   localMetadata.value.words.splice(index, 1)
   emitUpdate()
 }
 
 const updateWord = (index, newValue) => {
-  if (newValue.trim()) {
-    localMetadata.value.words[index] = newValue.trim()
-  } else {
-    removeWord(index)
-  }
+  if (newValue.trim()) localMetadata.value.words[index] = newValue.trim()
+  else removeWord(index)
   emitUpdate()
 }
 
@@ -114,7 +98,6 @@ const handleInputConfirm = () => {
 }
 
 const emitUpdate = () => {
-  // Cập nhật lại correctSentence nếu user sửa input
   localMetadata.value.correctSentence = fullSentence.value
   emit('update:metadata', { ...localMetadata.value })
 }

@@ -1,5 +1,6 @@
 package com.thanhnb.englishlearning.dto.question.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.thanhnb.englishlearning.enums.*;
@@ -9,9 +10,11 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.EXISTING_PROPERTY,
+    include = JsonTypeInfo.As.PROPERTY,
     property = "questionType",
     visible = true
 )
@@ -24,15 +27,13 @@ import lombok.*;
     
     // 3. Nhóm điền từ
     @JsonSubTypes.Type(value = CreateFillBlankDTO.class, name = "FILL_BLANK"),
-    
-    @JsonSubTypes.Type(value = CreateFillBlankDTO.class, name = "VERB_FORM"),
+    @JsonSubTypes.Type(value = CreateVerbFormDTO.class, name = "VERB_FORM"),
     
     // 4. Tìm lỗi sai
     @JsonSubTypes.Type(value = CreateErrorCorrectionDTO.class, name = "ERROR_CORRECTION"),
     
     // 5. Tự luận
     @JsonSubTypes.Type(value = CreateTextAnswerDTO.class, name = "TEXT_ANSWER"),
-    @JsonSubTypes.Type(value = CreateTextAnswerDTO.class, name = "SHORT_ANSWER"),
     
     // 6. Nối cặp
     @JsonSubTypes.Type(value = CreateMatchingDTO.class, name = "MATCHING"),
@@ -72,5 +73,9 @@ public abstract class CreateQuestionDTO {
     @Min(value = 0, message = "Orderindex phải => 0")
     private Integer orderIndex = 0;
 
+    @JsonProperty("questionType")
+    private QuestionType questionType;
+
     public abstract QuestionType getQuestionType();
+
 }

@@ -21,7 +21,6 @@ import java.util.*;
  * - Calculate points
  * - Return detailed results
  * 
- * ✅ UPDATED: explanation now in metadata instead of Question field
  */
 @Service
 @RequiredArgsConstructor
@@ -61,7 +60,7 @@ public class QuestionAnswerProcessor {
             case MULTIPLE_CHOICE, TRUE_FALSE ->
                 validateMultipleChoice(metadata, userAnswer, builder);
 
-            case SHORT_ANSWER ->
+            case TEXT_ANSWER ->
                 validateTextAnswer(metadata, userAnswer, builder);
 
             case ERROR_CORRECTION ->

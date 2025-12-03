@@ -1,42 +1,90 @@
 <template>
   <div class="conversation-form">
-    <el-alert title="Tạo hội thoại" type="success" :closable="false" class="mb-4">
-      <template #default>
-        Thêm các dòng thoại cho nhân vật A và B. Để tạo chỗ trống cần điền, hãy viết từ đó trong ngoặc vuông. <br>
-        Ví dụ: <b>Hello, how [are] you?</b> (Người dùng sẽ phải điền từ "are").
-      </template>
+    <el-alert title="Hướng dẫn tạo câu hỏi hội thoại" type="success" :closable="false" class="mb-4">
+      Nhập ngữ cảnh hội thoại, các lựa chọn để hoàn thành câu, và chọn đáp án đúng.
     </el-alert>
 
-    <div class="chat-container">
-      <transition-group name="list">
-        <div v-for="(line, index) in localMetadata.dialogue" :key="index" class="chat-line mb-3"
-          :class="{ 'is-right': line.speaker === 'B' }">
-          <div class="speaker-avatar" :class="line.speaker === 'A' ? 'bg-primary' : 'bg-warning'">
-            {{ line.speaker }}
+    <!-- Ngữ cảnh hội thoại -->
+    <el-form-item label="Ngữ cảnh hội thoại" required>
+      <el-input
+        v-model="localMetadata.conversationContext"
+        type="textarea"
+        :rows="4"
+        placeholder="VD: A: Hi, how are you?&#10;B: I'm fine, thanks. _____&#10;A: That's great!"
+        @input="emitUpdate"
+      >
+        <template #prepend>
+          <el-icon><ChatDotRound /></el-icon>
+        </template>
+      </el-input>
+      <div class="text-xs text-gray-400 mt-1">
+        * Dùng <b>_____</b> để đánh dấu chỗ trống cần điền
+      </div>
+    </el-form-item>
+
+    <!-- Các lựa chọn -->
+    <el-form-item label="Các lựa chọn (Options)" required>
+      <div class="options-container">
+        <transition-group name="list">
+          <div v-for="(opt, idx) in localMetadata.options" :key="idx" class="option-row mb-2">
+            <el-tag effect="plain" class="option-label">{{ String.fromCharCode(65 + idx) }}</el-tag>
+            <el-input
+              v-model="localMetadata.options[idx]"
+              placeholder="Nhập lựa chọn..."
+              @input="emitUpdate"
+            />
+            <el-button
+              type="danger"
+              icon="Delete"
+              circle
+              plain
+              size="small"
+              @click="removeOption(idx)"
+              :disabled="localMetadata.options.length <= 2"
+            />
           </div>
+        </transition-group>
 
-          <div class="chat-bubble">
-            <div class="bubble-header">
-              <span class="text-xs text-gray-400">Dòng #{{ index + 1 }}</span>
-              <el-button type="danger" link icon="Delete" size="small" @click="removeLine(index)" />
-            </div>
+        <el-button type="primary" plain icon="Plus" class="w-full mt-2" @click="addOption">
+          Thêm lựa chọn
+        </el-button>
+      </div>
+    </el-form-item>
 
-            <el-input v-model="line.text" type="textarea" :rows="2"
-              placeholder="Nhập lời thoại... VD: Nice to [meet] you." @input="emitUpdate" />
-          </div>
-        </div>
-      </transition-group>
-    </div>
+    <!-- Đáp án đúng -->
+    <el-form-item label="Đáp án đúng" required>
+      <el-select
+        v-model="localMetadata.correctAnswer"
+        placeholder="Chọn đáp án đúng"
+        style="width: 100%"
+        @change="emitUpdate"
+      >
+        <el-option
+          v-for="(opt, idx) in localMetadata.options"
+          :key="idx"
+          :label="`${String.fromCharCode(65 + idx)}. ${opt}`"
+          :value="opt"
+          :disabled="!opt.trim()"
+        />
+      </el-select>
+    </el-form-item>
 
-    <div class="actions-bar mt-4">
-      <el-button type="primary" plain @click="addLine('A')">+ Thêm thoại A</el-button>
-      <el-button type="warning" plain @click="addLine('B')">+ Thêm thoại B</el-button>
-    </div>
+    <!-- Giải thích -->
+    <el-form-item label="Giải thích / Dịch nghĩa">
+      <el-input
+        v-model="localMetadata.explanation"
+        type="textarea"
+        :rows="2"
+        placeholder="Giải thích đáp án hoặc dịch đoạn hội thoại..."
+        @input="emitUpdate"
+      />
+    </el-form-item>
   </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
+import { ChatDotRound } from '@element-plus/icons-vue'
 
 const props = defineProps({
   metadata: { type: Object, default: () => ({}) }
@@ -44,28 +92,40 @@ const props = defineProps({
 
 const emit = defineEmits(['update:metadata'])
 
-// Init data
 const localMetadata = ref({
-  dialogue: props.metadata?.dialogue || [
-    { speaker: 'A', text: '' },
-    { speaker: 'B', text: '' }
-  ]
+  conversationContext: props.metadata?.conversationContext || '',
+  options: props.metadata?.options || ['', '', '', ''],
+  correctAnswer: props.metadata?.correctAnswer || '',
+  explanation: props.metadata?.explanation || ''
 })
 
 watch(() => props.metadata, (newVal) => {
-  if (newVal && newVal.dialogue) {
-    localMetadata.value.dialogue = newVal.dialogue
+  if (newVal && Object.keys(newVal).length > 0) {
+    localMetadata.value = {
+      conversationContext: newVal.conversationContext || '',
+      options: newVal.options || ['', '', '', ''],
+      correctAnswer: newVal.correctAnswer || '',
+      explanation: newVal.explanation || ''
+    }
   }
 }, { deep: true })
 
-// Actions
-const addLine = (speaker) => {
-  localMetadata.value.dialogue.push({ speaker, text: '' })
+const addOption = () => {
+  localMetadata.value.options.push('')
   emitUpdate()
 }
 
-const removeLine = (index) => {
-  localMetadata.value.dialogue.splice(index, 1)
+const removeOption = (index) => {
+  if (localMetadata.value.options.length <= 2) return
+
+  const removedOption = localMetadata.value.options[index]
+  localMetadata.value.options.splice(index, 1)
+
+  // Nếu xóa đáp án đang được chọn, reset correctAnswer
+  if (localMetadata.value.correctAnswer === removedOption) {
+    localMetadata.value.correctAnswer = ''
+  }
+
   emitUpdate()
 }
 
@@ -79,74 +139,31 @@ const emitUpdate = () => {
   padding: 10px 0;
 }
 
-.chat-container {
-  background: #f9f9f9;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #eee;
-  max-height: 500px;
-  overflow-y: auto;
+.options-container {
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--el-fill-color-blank);
 }
 
-.chat-line {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  max-width: 85%;
-}
-
-.chat-line.is-right {
-  margin-left: auto;
-  flex-direction: row-reverse;
-}
-
-.speaker-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+.option-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: white;
+  gap: 10px;
+}
+
+.option-label {
+  min-width: 32px;
+  text-align: center;
   font-weight: bold;
-  flex-shrink: 0;
 }
 
-.bg-primary {
-  background-color: #409eff;
-}
+.w-full { width: 100%; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
 
-.bg-warning {
-  background-color: #e6a23c;
-}
-
-.chat-bubble {
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  flex: 1;
-  position: relative;
-}
-
-.chat-line.is-right .chat-bubble {
-  background: #ecf5ff;
-  /* Màu xanh nhạt cho B */
-}
-
-.bubble-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.actions-bar {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-}
-
-/* Transition */
 .list-enter-active,
 .list-leave-active {
   transition: all 0.3s ease;
@@ -155,6 +172,6 @@ const emitUpdate = () => {
 .list-enter-from,
 .list-leave-to {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateX(-20px);
 }
 </style>
