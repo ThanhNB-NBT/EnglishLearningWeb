@@ -1,8 +1,9 @@
 package com.thanhnb.englishlearning.enums;
 
 public enum LessonType {
-    THEORY("Lý thuyết"), 
-    PRACTICE("Thực hành");
+    THEORY("Lý thuyết"),
+    PRACTICE("Thực hành"),
+    READING("Đọc hiểu");
 
     private final String description;
 

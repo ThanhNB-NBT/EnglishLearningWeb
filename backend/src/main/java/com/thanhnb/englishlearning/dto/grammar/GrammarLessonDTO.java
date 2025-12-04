@@ -135,19 +135,6 @@ public class GrammarLessonDTO {
     }
 
     /**
-     * Convenience method: Get questions count
-     */
-    public int getQuestionCount() {
-        if (createQuestions != null) {
-            return createQuestions.size();
-        }
-        if (questions != null) {
-            return questions.size();
-        }
-        return 0;
-    }
-
-    /**
      * Check if lesson has questions
      */
     public boolean hasQuestions() {

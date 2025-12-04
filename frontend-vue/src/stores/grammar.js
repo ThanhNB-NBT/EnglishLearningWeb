@@ -458,6 +458,22 @@ export const useGrammarStore = defineStore('grammar', {
       }
     },
 
+    async createQuestionsInBulk(lessonId, questionsPayload) {
+      this.questionsLoading = true // Dùng loading của questions
+      try {
+        const response = await grammarAdminAPI.createQuestionsInBulk(lessonId, questionsPayload)
+        if (response.data.success) {
+          return response.data.data
+        }
+      } catch (error) {
+        console.error('Error bulk creating questions:', error)
+        ElMessage.error(error.response?.data?.message || 'Lỗi khi tạo hàng loạt')
+        throw error
+      } finally {
+        this.questionsLoading = false
+      }
+    },
+
     async updateQuestion(id, questionData) {
       try {
         const response = await grammarAdminAPI.updateQuestion(id, questionData)

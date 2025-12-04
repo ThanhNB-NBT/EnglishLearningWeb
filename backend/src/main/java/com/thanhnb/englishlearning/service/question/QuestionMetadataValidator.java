@@ -33,15 +33,14 @@ public class QuestionMetadataValidator {
 
         switch (questionType) {
             case MULTIPLE_CHOICE, TRUE_FALSE -> validateMultipleChoice(metadata, questionType);
-            case FILL_BLANK, VERB_FORM -> validateFillBlank(metadata, questionType);
+            case FILL_BLANK, VERB_FORM, TEXT_ANSWER -> validateFillBlank(metadata, questionType);
             case ERROR_CORRECTION -> validateErrorCorrection(metadata, questionType);
-            case TEXT_ANSWER -> validateTextAnswer(metadata, questionType);
             case MATCHING -> validateMatching(metadata);
             case SENTENCE_BUILDING -> validateSentenceBuilding(metadata);
-            case COMPLETE_CONVERSATION -> validateConversation(metadata);
             case PRONUNCIATION -> validatePronunciation(metadata);
             case READING_COMPREHENSION -> validateReadingComprehension(metadata);
             case OPEN_ENDED -> validateOpenEnded(metadata);
+            case SENTENCE_TRANSFORMATION -> validateSentenceTransformation(metadata);
             default -> throw new IllegalArgumentException("Unsupported question type: " + questionType);
         }
 
@@ -51,6 +50,14 @@ public class QuestionMetadataValidator {
     // ========== PRIVATE VALIDATION METHODS ==========
 
     private void validateMultipleChoice(Map<String, Object> metadata, QuestionType type) {
+        if (type == QuestionType.COMPLETE_CONVERSATION && metadata.containsKey("conversationContext")) {
+            // Validate kiểu conversation (có options, correctAnswer string)
+            if (!metadata.containsKey("options") || !metadata.containsKey("correctAnswer")) {
+                throw new RuntimeException("Hội thoại thiếu options hoặc correctAnswer");
+            }
+            return;
+        }
+
         if (!metadata.containsKey("options")) {
             throw new RuntimeException(type + " cần có 'options' trong metadata");
         }
@@ -136,6 +143,8 @@ public class QuestionMetadataValidator {
     }
 
     private void validateFillBlank(Map<String, Object> metadata, QuestionType type) {
+        if (type == QuestionType.TEXT_ANSWER && metadata.containsKey("correctAnswer")) return;
+        
         if (!metadata.containsKey("blanks")) {
             throw new RuntimeException(type + " cần có 'blanks' trong metadata");
         }
@@ -210,17 +219,6 @@ public class QuestionMetadataValidator {
         }
     }
 
-    private void validateTextAnswer(Map<String, Object> metadata, QuestionType type) {
-        if (!metadata.containsKey("correctAnswer")) {
-            throw new RuntimeException(type + " cần có 'correctAnswer' trong metadata");
-        }
-
-        Object answer = metadata.get("correctAnswer");
-        if (answer == null || (answer instanceof String && ((String) answer).trim().isEmpty())) {
-            throw new RuntimeException(type + " 'correctAnswer' không được để trống");
-        }
-    }
-
     private void validateMatching(Map<String, Object> metadata) {
         if (!metadata.containsKey("pairs")) {
             throw new RuntimeException("MATCHING cần có 'pairs' trong metadata");
@@ -277,31 +275,6 @@ public class QuestionMetadataValidator {
         Object sentenceObj = metadata.get("correctSentence");
         if (sentenceObj == null || ((String) sentenceObj).trim().isEmpty()) {
             throw new RuntimeException("SENTENCE_BUILDING 'correctSentence' không được để trống");
-        }
-    }
-
-    private void validateConversation(Map<String, Object> metadata) {
-        if (!metadata.containsKey("conversationContext")) {
-            throw new RuntimeException("COMPLETE_CONVERSATION cần có 'conversationContext'");
-        }
-
-        if (!metadata.containsKey("correctAnswer")) {
-            throw new RuntimeException("COMPLETE_CONVERSATION cần có 'correctAnswer'");
-        }
-
-        if (!metadata.containsKey("options")) {
-            throw new RuntimeException("COMPLETE_CONVERSATION cần có 'options'");
-        }
-
-        Object optionsObj = metadata.get("options");
-        if (!(optionsObj instanceof List)) {
-            throw new RuntimeException("COMPLETE_CONVERSATION 'options' phải là List");
-        }
-
-        @SuppressWarnings("unchecked")
-        List<String> options = (List<String>) optionsObj;
-        if (options.size() < 2) {
-            throw new RuntimeException("COMPLETE_CONVERSATION cần ít nhất 2 options");
         }
     }
 
@@ -403,5 +376,30 @@ public class QuestionMetadataValidator {
         // OPEN_ENDED có thể không cần validate strict
         // Chỉ cần suggestedAnswer (optional), timeLimitSeconds (optional)
         log.debug("OPEN_ENDED validation: minimal checks (suggestedAnswer optional)");
+    }
+
+    private void validateSentenceTransformation(Map<String, Object> metadata) {
+        if (!metadata.containsKey("originalSentence")) {
+            throw new RuntimeException("SENTENCE_TRANSFORMATION thiếu trường 'originalSentence'");
+        }
+
+        Object originalObj = metadata.get("originalSentence");
+        if (!(originalObj instanceof String) || ((String) originalObj).trim().isEmpty()) {
+            throw new RuntimeException("SENTENCE_TRANSFORMATION 'originalSentence' không được để trống");
+        }
+
+        if (!metadata.containsKey("correctAnswers")) {
+            throw new RuntimeException("SENTENCE_TRANSFORMATION thiếu trường 'correctAnswers'");
+        }
+
+        Object answersObj = metadata.get("correctAnswers");
+        if (!(answersObj instanceof List)) {
+            throw new RuntimeException("SENTENCE_TRANSFORMATION 'correctAnswers' phải là một danh sách (List)");
+        }
+
+        List<?> list = (List<?>) answersObj;
+        if (list.isEmpty()) {
+            throw new RuntimeException("SENTENCE_TRANSFORMATION danh sách 'correctAnswers' không được rỗng");
+        }
     }
 }
