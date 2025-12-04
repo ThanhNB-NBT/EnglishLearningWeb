@@ -38,9 +38,14 @@ public class GrammarLessonService {
         return lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId, pageable)
                 .map(lesson -> {
                     GrammarLessonDTO dto = convertToDTO(lesson);
-                    long questionCount = questionRepository.countByParentTypeAndParentId(
-                            ParentType.GRAMMAR, lesson.getId());
-                    dto.setQuestionCount((int) questionCount);
+                    long count = questionRepository.countByParentTypeAndParentId(
+                            ParentType.GRAMMAR,
+                            lesson.getId());
+
+                    // Log ra kiểm tra xem số đúng chưa
+                    log.info("Lesson {} has {} questions", lesson.getTitle(), count);
+
+                    dto.setQuestionCount((int) count);
                     return dto;
                 });
     }
@@ -50,10 +55,15 @@ public class GrammarLessonService {
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + lessonId));
 
         GrammarLessonDTO dto = convertToDTO(lesson);
-        
-        long questionCount = questionRepository.countByParentTypeAndParentId(
-                ParentType.GRAMMAR, lessonId);
-        dto.setQuestionCount((int) questionCount);
+
+        long count = questionRepository.countByParentTypeAndParentId(
+                ParentType.GRAMMAR,
+                lesson.getId());
+
+        // Log ra kiểm tra xem số đúng chưa
+        log.info("Lesson {} has {} questions", lesson.getTitle(), count);
+
+        dto.setQuestionCount((int) count);
 
         return dto;
     }
@@ -113,7 +123,7 @@ public class GrammarLessonService {
         lesson.setLessonType(dto.getLessonType());
         lesson.setContent(dto.getContent());
         lesson.setOrderIndex(dto.getOrderIndex());
-        
+
         if (dto.getEstimatedDuration() != null) {
             lesson.setEstimatedDuration(dto.getEstimatedDuration());
         }
@@ -139,12 +149,12 @@ public class GrammarLessonService {
         if (shouldCascade) {
             List<Question> questions = questionRepository
                     .findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType.GRAMMAR, id);
-            
+
             if (!questions.isEmpty()) {
                 questionRepository.deleteAllByIdInBatch(
                         questions.stream().map(Question::getId).toList());
-                
-                log.info("Deleted {} questions for lesson {}", 
+
+                log.info("Deleted {} questions for lesson {}",
                         questions.size(), lesson.getTitle());
             }
         } else {
@@ -204,7 +214,6 @@ public class GrammarLessonService {
                 lesson.getIsActive(),
                 lesson.getCreatedAt(),
                 lesson.getMetadata(),
-                lesson.getTopic().getName()
-        );
+                lesson.getTopic().getName());
     }
 }

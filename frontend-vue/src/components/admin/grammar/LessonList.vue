@@ -68,6 +68,14 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="Điểm" width="80" align="center">
+          <template #default="{ row }">
+            <span class="font-bold" :class="row.pointsReward > 0 ? 'text-primary' : 'text-gray'">
+              {{ row.pointsReward || 0 }}
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="Active" width="80" align="center">
           <template #default="{ row }">
             <el-switch v-model="row.isActive" size="small" @change="handleToggleActive(row)" @click.stop />
@@ -237,7 +245,7 @@ onMounted(async () => {
   padding: 16px;
 }
 
-/* Header & Filter Styles */
+/* Header & Filter */
 .header-actions {
   display: flex;
   flex-wrap: wrap;
@@ -253,6 +261,11 @@ onMounted(async () => {
   flex: 1;
 }
 
+.right-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .topic-select {
   min-width: 180px;
 }
@@ -266,7 +279,7 @@ onMounted(async () => {
   width: 110px;
 }
 
-/* Table Info Styles */
+/* Lesson Info */
 .lesson-info {
   display: flex;
   flex-direction: column;
@@ -308,47 +321,52 @@ onMounted(async () => {
   color: #c0c4cc;
 }
 
-/* Actions Column Style */
+/* --- FIX ACTION COLUMN (LESSON) --- */
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 0px;
+  align-items: center;
+  gap: 4px;
 }
 
 .square-btn {
   border-radius: 4px;
-  padding: 8px;
-  width: 32px;
-  height: 32px;
+  padding: 0;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* 1. Cấu hình chung cột Fixed */
+:deep(.el-table .actions-col) {
+  border-left: 1px solid var(--el-table-border-color) !important;
+  border-bottom: 1px solid var(--el-table-border-color) !important;
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 5 !important;
+}
+
+/* 2. Fix viền trên Header */
+:deep(.el-table__header th.actions-col) {
+  border-top: 1px solid var(--el-table-border-color) !important;
+  background-color: var(--el-table-header-bg-color) !important;
+}
+
+/* 3. Fix màu nền Body */
+:deep(.el-table__body td.actions-col) {
+  background-color: var(--el-table-tr-bg-color) !important;
+}
+
+/* 4. Fix màu nền Hover */
+:deep(.el-table--enable-row-hover .el-table__body tr:hover > td.actions-col) {
+  background-color: var(--el-table-row-hover-bg-color) !important;
+}
+
+/* Responsive & Misc */
 :deep(.clickable-row) {
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-:deep(.clickable-row:hover) {
-  background-color: var(--el-fill-color-light) !important;
-}
-
-/* --- FIX LỖI VIỀN (QUAN TRỌNG) --- */
-
-/* 1. Ép viền trái cho header của cột fixed-right */
-:deep(.el-table .el-table__fixed-right th.el-table__cell) {
-  border-left: 1px solid var(--el-table-border-color) !important;
-}
-
-/* 2. Ép viền trái cho các ô dữ liệu của cột fixed-right */
-:deep(.el-table .el-table__fixed-right td.el-table__cell) {
-  border-left: 1px solid var(--el-table-border-color) !important;
-}
-
-/* 3. (Tuỳ chọn) Luôn hiển thị bóng đổ nhẹ để tách biệt rõ ràng hơn */
-:deep(.el-table__fixed-right) {
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05) !important;
 }
 
 .pagination-wrapper {
@@ -371,10 +389,6 @@ onMounted(async () => {
     display: flex;
     justify-content: flex-end;
     margin-top: 8px;
-  }
-
-  :deep(.el-table .cell) {
-    padding: 0 4px;
   }
 }
 </style>

@@ -72,7 +72,7 @@ services:
       
       # ===== JPA =====
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_SHOW_SQL: "true"
       
       # ===== DEVTOOLS =====
       SPRING_DEVTOOLS_RESTART_ENABLED: "true"

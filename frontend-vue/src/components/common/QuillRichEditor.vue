@@ -1,19 +1,7 @@
-<!-- src/components/common/QuillRichEditor.vue - Enhanced Version -->
 <template>
-  <div class="quill-editor-wrapper">
-    <QuillEditor
-      ref="quillEditorRef"
-      v-model:content="localContent"
-      content-type="html"
-      :theme="theme"
-      :toolbar="customToolbar"
-      :style="{ height: height, width: width }"
-      @ready="onEditorReady"
-      @update:content="handleContentUpdate"
-      @text-change="handleTextChange"
-    />
+  <div class="quill-editor-wrapper" :class="{ 'is-disabled': readOnly }">
+    <div ref="editorRef" :style="{ height: height, width: width }"></div>
 
-    <!-- Word count display -->
     <div v-if="showWordCount" class="editor-footer">
       <div class="word-count">
         <el-text size="small" type="info">
@@ -25,645 +13,357 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import Quill from 'quill'
+import 'quill/dist/quill.snow.css'
 
-// Props
+// Modules
+import BlotFormatter from 'quill-blot-formatter'
+import MarkdownShortcuts from 'quill-markdown-shortcuts'
+
+// --- 1. CẤU HÌNH FONT CHỮ ---
+const Font = Quill.import('attributors/class/font')
+const fontList = [
+  'arial', 'times-new-roman', 'verdana', 'tahoma',
+  'courier-new', 'georgia', 'trebuchet-ms', 'impact'
+]
+Font.whitelist = fontList
+Quill.register(Font, true)
+
+// --- 2. ĐĂNG KÝ MODULES ---
+if (!Quill.imports['modules/blotFormatter']) {
+  Quill.register('modules/blotFormatter', BlotFormatter)
+}
+if (!Quill.imports['modules/markdownShortcuts']) {
+  Quill.register('modules/markdownShortcuts', MarkdownShortcuts)
+}
+
 const props = defineProps({
-  modelValue: {
-    type: String,
-    default: ''
-  },
-  theme: {
-    type: String,
-    default: 'snow' // 'snow' | 'bubble'
-  },
-  height: {
-    type: String,
-    default: '200px'
-  },
-  width: {
-    type: String,
-    default: '100%'
-  },
-  placeholder: {
-    type: String,
-    default: 'Nhập nội dung...'
-  },
-  toolbar: {
-    type: [Array, String],
-    default: 'full' // 'full' | 'essential' | 'minimal' | 'lesson' | custom array
-  },
-  readOnly: {
-    type: Boolean,
-    default: false
-  },
-  showWordCount: {
-    type: Boolean,
-    default: false
-  }
+  modelValue: { type: String, default: '' },
+  theme: { type: String, default: 'snow' },
+  height: { type: String, default: '300px' },
+  width: { type: String, default: '100%' },
+  placeholder: { type: String, default: 'Nhập nội dung...' },
+  toolbar: { type: [Array, String], default: 'full' },
+  readOnly: { type: Boolean, default: false },
+  showWordCount: { type: Boolean, default: true }
 })
 
-// Emits
-const emit = defineEmits(['update:modelValue', 'text-change'])
+const emit = defineEmits(['update:modelValue', 'text-change', 'ready'])
 
-// Refs
-const quillEditorRef = ref(null)
-const localContent = ref(props.modelValue || '')
+const editorRef = ref(null)
+let quillInstance = null
+let toolbarContainer = null
+
 const wordCount = ref(0)
 const charCount = ref(0)
+const isLocalChange = ref(false)
 
-// Enhanced toolbar configurations
-const toolbarConfigs = {
-  // Complete toolbar with all features
+// --- HTML TOOLBAR BẢNG ---
+const getTableToolbarHTML = () => {
+  return `
+    <span class="ql-formats table-controls">
+      <button type="button" class="ql-table-insert" title="Chèn bảng 3x3">
+        <svg viewBox="0 0 18 18"><rect class="ql-stroke" height="12" width="12" x="3" y="3"></rect><rect class="ql-fill" height="2" width="3" x="5" y="5"></rect><rect class="ql-fill" height="2" width="3" x="10" y="5"></rect><rect class="ql-fill" height="2" width="3" x="5" y="11"></rect><rect class="ql-fill" height="2" width="3" x="10" y="11"></rect></svg>
+      </button>
+      <button type="button" class="ql-table-row-add" title="Thêm dòng dưới">
+        <svg viewBox="0 0 18 18"><path class="ql-fill" d="M14,4H4A2,2,0,0,0,2,6V12a2,2,0,0,0,2,2H14a2,2,0,0,0,2-2V6A2,2,0,0,0,14,4ZM4,6H14V8H4V6Zm0,6V10H14v2Z"/><rect class="ql-fill" height="2" width="8" x="5" y="15"></rect></svg>
+      </button>
+      <button type="button" class="ql-table-col-add" title="Thêm cột phải">
+        <svg viewBox="0 0 18 18"><path class="ql-fill" d="M12,2H6A2,2,0,0,0,4,4V14a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V4A2,2,0,0,0,12,2ZM6,4H8V14H6V4Zm6,10H10V4h2Z"/><rect class="ql-fill" height="8" width="2" x="15" y="5"></rect></svg>
+      </button>
+      <button type="button" class="ql-table-delete-row" title="Xóa dòng">
+        <svg viewBox="0 0 18 18"><line class="ql-stroke" x1="2" x2="16" y1="9" y2="9"></line><path class="ql-fill" d="M14,4H4A2,2,0,0,0,2,6V12a2,2,0,0,0,2,2H14a2,2,0,0,0,2-2V6A2,2,0,0,0,14,4ZM4,6H14V8H4V6Zm0,6V10H14v2Z"/></svg>
+      </button>
+      <button type="button" class="ql-table-delete-col" title="Xóa cột">
+        <svg viewBox="0 0 18 18"><line class="ql-stroke" x1="9" x2="9" y1="2" y2="16"></line><path class="ql-fill" d="M12,2H6A2,2,0,0,0,4,4V14a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V4A2,2,0,0,0,12,2ZM6,4H8V14H6V4Zm6,10H10V4h2Z"/></svg>
+      </button>
+    </span>
+  `
+}
+
+// --- CẤU HÌNH TOOLBAR CHÍNH ---
+const toolbarOptions = {
   full: [
-    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-    [{ 'font': [] }],
-    [{ 'size': ['small', false, 'large', 'huge'] }],
+    // FONT & SIZE (Đầy đủ)
+    [{ 'font': [false, ...fontList] }, { 'size': ['small', false, 'large', 'huge'] }],
     ['bold', 'italic', 'underline', 'strike'],
-    [{ 'color': [] }, { 'background': [] }],
-    [{ 'script': 'sub'}, { 'script': 'super' }],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
-    [{ 'indent': '-1'}, { 'indent': '+1' }],
-    [{ 'direction': 'rtl' }],
+    [{ 'color': [] }, { 'background': [] }], // Bảng màu
+    [{ 'script': 'sub' }, { 'script': 'super' }],
+    [{ 'header': 1 }, { 'header': 2 }, 'blockquote', 'code-block'],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'list': 'check' }],
+    [{ 'indent': '-1' }, { 'indent': '+1' }],
     [{ 'align': [] }],
-    ['blockquote', 'code-block'],
     ['link', 'image', 'video', 'formula'],
     ['clean']
   ],
-
-  // Optimized for lesson content (grammar lessons, theory)
-  lesson: [
-    [{ 'header': [1, 2, 3, false] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ 'color': [] }, { 'background': [] }],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
-    [{ 'indent': '-1'}, { 'indent': '+1' }],
-    [{ 'align': [] }],
-    ['blockquote', 'code-block'],
-    [{ 'script': 'sub'}, { 'script': 'super' }],
-    ['link', 'image'],
-    ['clean']
-  ],
-
-  // Essential features for general content
-  essential: [
-    [{ 'header': [1, 2, 3, false] }],
-    ['bold', 'italic', 'underline'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    [{ 'color': [] }, { 'background': [] }],
-    [{ 'align': [] }],
-    ['link', 'image'],
-    ['clean']
-  ],
-
-  // Minimal for simple text
-  minimal: [
-    ['bold', 'italic', 'underline'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    ['link'],
-    ['clean']
-  ],
-
-  // Question content (for question text)
   question: [
     [{ 'header': [2, 3, false] }],
-    ['bold', 'italic', 'underline'],
-    [{ 'color': [] }],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    ['code-block'],
+    [{ 'font': [false, 'arial', 'times-new-roman'] }],
+    ['bold', 'italic', 'underline', 'strike', 'code-block'],
+    [{ 'color': [] }, { 'background': [] }],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
     ['link', 'image'],
-    ['clean']
-  ],
-
-  // Simple formatting (for descriptions)
-  simple: [
-    ['bold', 'italic'],
-    [{ 'list': 'bullet' }],
-    ['link'],
     ['clean']
   ]
 }
 
-// Computed toolbar based on prop
-const customToolbar = computed(() => {
-  if (Array.isArray(props.toolbar)) {
-    return props.toolbar
+onMounted(() => {
+  if (!editorRef.value) return
+
+  // Tạo container cho toolbar
+  toolbarContainer = document.createElement('div')
+  editorRef.value.parentNode.insertBefore(toolbarContainer, editorRef.value)
+
+  let baseToolbarConfig = Array.isArray(props.toolbar)
+    ? props.toolbar
+    : (toolbarOptions[props.toolbar] || toolbarOptions.full)
+
+  // Init Quill (Native Table)
+  quillInstance = new Quill(editorRef.value, {
+    theme: props.theme,
+    modules: {
+      toolbar: { container: toolbarContainer },
+      table: true,
+      blotFormatter: {},
+      markdownShortcuts: {}
+    },
+    placeholder: props.placeholder,
+    readOnly: props.readOnly
+  })
+
+  // Re-init (Trick để render toolbar chuẩn từ mảng config)
+  toolbarContainer.remove()
+  quillInstance = new Quill(editorRef.value, {
+    theme: props.theme,
+    modules: {
+      toolbar: baseToolbarConfig,
+      table: true,
+      blotFormatter: {},
+      markdownShortcuts: {}
+    },
+    placeholder: props.placeholder,
+    readOnly: props.readOnly
+  })
+
+  // Inject Custom Buttons
+  injectTableButtons()
+
+  if (props.modelValue) {
+    quillInstance.root.innerHTML = props.modelValue
+    updateCounts()
   }
-  return toolbarConfigs[props.toolbar] || toolbarConfigs.full
+
+  // Handle Changes
+  quillInstance.on('text-change', (delta, oldDelta, source) => {
+    isLocalChange.value = true
+    const html = quillInstance.root.innerHTML
+    const finalHtml = (html === '<p><br></p>') ? '' : html
+
+    emit('update:modelValue', finalHtml)
+    emit('text-change', { delta, oldDelta, source })
+    updateCounts()
+
+    nextTick(() => { isLocalChange.value = false })
+  })
+
+  // Fix button types (tránh reload form)
+  const allButtons = quillInstance.getModule('toolbar').container.querySelectorAll('button')
+  allButtons.forEach(btn => btn.setAttribute('type', 'button'))
+
+  emit('ready', quillInstance)
 })
 
-// Watch props.modelValue to sync with parent
-watch(
-  () => props.modelValue,
-  (newVal) => {
-    if (newVal !== localContent.value) {
-      localContent.value = newVal || ''
-      updateWordCount(newVal)
+const injectTableButtons = () => {
+  const toolbarModule = quillInstance.getModule('toolbar')
+  if (!toolbarModule) return
+
+  const container = toolbarModule.container
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = getTableToolbarHTML()
+  const tableGroup = tempDiv.firstElementChild
+  container.appendChild(tableGroup)
+
+  const tableModule = quillInstance.getModule('table')
+
+  const actions = {
+    '.ql-table-insert': () => tableModule.insertTable(3, 3),
+    '.ql-table-row-add': () => tableModule.insertRowBelow(),
+    '.ql-table-col-add': () => tableModule.insertColumnRight(),
+    '.ql-table-delete-row': () => tableModule.deleteRow(),
+    '.ql-table-delete-col': () => tableModule.deleteColumn()
+  }
+
+  Object.keys(actions).forEach(selector => {
+    const btn = tableGroup.querySelector(selector)
+    if (btn) {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        try { actions[selector]() } catch (err) { }
+      })
     }
-  }
-)
-
-// Handle content update
-const handleContentUpdate = (content) => {
-  emit('update:modelValue', content)
-  updateWordCount(content)
+  })
 }
 
-// Handle text change event
-const handleTextChange = (delta, oldDelta, source) => {
-  emit('text-change', { delta, oldDelta, source })
+// Watchers
+watch(() => props.modelValue, (newVal) => {
+  if (!quillInstance) return
+  if (isLocalChange.value) return // Chặn vòng lặp
+  if (newVal === quillInstance.root.innerHTML) return
+
+  const range = quillInstance.getSelection()
+  quillInstance.root.innerHTML = newVal || ''
+  if (range) {
+    try { quillInstance.setSelection(range) } catch (e) { }
+  }
+  updateCounts()
+})
+
+watch(() => props.readOnly, (val) => {
+  if (quillInstance) quillInstance.enable(!val)
+})
+
+const updateCounts = () => {
+  if (!quillInstance) return
+  const text = quillInstance.getText().trim()
+  if (!text) { wordCount.value = 0; charCount.value = 0; return }
+  charCount.value = text.length
+  wordCount.value = text.split(/\s+/).filter(w => w.length > 0).length
 }
 
-// Update word and character count
-const updateWordCount = (html) => {
-  if (!html) {
-    wordCount.value = 0
-    charCount.value = 0
-    return
-  }
+onBeforeUnmount(() => {
+  quillInstance = null
+})
 
-  // Strip HTML tags to get plain text
-  const div = document.createElement('div')
-  div.innerHTML = html
-  const text = div.textContent || div.innerText || ''
-
-  // Count characters (excluding spaces)
-  charCount.value = text.replace(/\s/g, '').length
-
-  // Count words
-  const words = text.trim().split(/\s+/).filter(word => word.length > 0)
-  wordCount.value = words.length
-}
-
-// Editor ready callback
-const onEditorReady = (editor) => {
-
-  // Set placeholder
-  if (props.placeholder) {
-    editor.root.dataset.placeholder = props.placeholder
-  }
-
-  // Set readOnly
-  if (props.readOnly) {
-    editor.enable(false)
-  }
-
-  // Initial word count
-  updateWordCount(localContent.value)
-}
-
-// Public methods (expose to parent if needed)
 defineExpose({
-  getEditor: () => quillEditorRef.value?.getQuill(),
-  setContent: (content) => {
-    localContent.value = content
-    updateWordCount(content)
-  },
-  clear: () => {
-    localContent.value = ''
-    wordCount.value = 0
-    charCount.value = 0
-  },
-  getWordCount: () => wordCount.value,
-  getCharCount: () => charCount.value
+  getEditor: () => quillInstance,
+  setContent: (content) => { if (quillInstance) { quillInstance.root.innerHTML = content; updateCounts() } },
+  clear: () => { if (quillInstance) { quillInstance.root.innerHTML = ''; updateCounts() } }
 })
 </script>
 
 <style scoped>
+/* =======================================================
+   BASE STYLES (Chế độ Sáng)
+   ======================================================= */
 .quill-editor-wrapper {
   border: 1px solid var(--el-border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  transition: all 0.3s;
+  border-radius: 8px;
+  width: 100% !important;
   background: var(--el-bg-color);
+  display: flex; flex-direction: column;
 }
 
-.quill-editor-wrapper:hover {
-  border-color: var(--el-color-primary-light-5);
-}
-
-.quill-editor-wrapper:focus-within {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 3px var(--el-color-primary-light-9);
-}
-
-/* Editor footer for word count */
-.editor-footer {
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding: 6px 12px;
-  background: var(--el-fill-color-lighter);
-  display: flex;
-  justify-content: flex-end;
-}
-
-.word-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Toolbar styling */
+/* Toolbar */
 :deep(.ql-toolbar) {
-  background-color: var(--el-fill-color-lighter);
-  border: none;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  padding: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  border: none !important;
+  border-bottom: 1px solid var(--el-border-color-lighter) !important;
+  background: var(--el-fill-color-light);
+  border-radius: 8px 8px 0 0;
+  padding: 8px 12px;
 }
 
-:deep(.ql-toolbar .ql-formats) {
-  margin-right: 8px;
-}
-
-:deep(.ql-toolbar .ql-stroke) {
-  stroke: var(--el-text-color-primary);
-  transition: stroke 0.2s;
-}
-
-:deep(.ql-toolbar .ql-fill) {
-  fill: var(--el-text-color-primary);
-  transition: fill 0.2s;
-}
-
-:deep(.ql-toolbar .ql-picker-label) {
-  color: var(--el-text-color-primary);
-}
-
-:deep(.ql-toolbar button) {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-:deep(.ql-toolbar button:hover) {
-  background-color: var(--el-color-primary-light-9);
-}
-
-:deep(.ql-toolbar button:hover .ql-stroke) {
-  stroke: var(--el-color-primary);
-}
-
-:deep(.ql-toolbar button:hover .ql-fill) {
-  fill: var(--el-color-primary);
-}
-
-:deep(.ql-toolbar button.ql-active) {
-  background-color: var(--el-color-primary-light-8);
-}
-
-:deep(.ql-toolbar button.ql-active .ql-stroke) {
-  stroke: var(--el-color-primary);
-}
-
-:deep(.ql-toolbar button.ql-active .ql-fill) {
-  fill: var(--el-color-primary);
-}
-
-/* Picker dropdowns */
-:deep(.ql-toolbar .ql-picker) {
-  color: var(--el-text-color-primary);
-}
-
-:deep(.ql-toolbar .ql-picker:hover) {
-  color: var(--el-color-primary);
-}
-
-:deep(.ql-toolbar .ql-picker-options) {
-  background-color: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  box-shadow: var(--el-box-shadow-light);
-}
-
-/* Container styling */
+/* Editor */
 :deep(.ql-container) {
-  font-family: inherit;
-  font-size: 15px;
-  background-color: var(--el-bg-color);
-  border: none;
+  border: none !important;
+  font-family: inherit; font-size: 15px; flex: 1;
 }
-
 :deep(.ql-editor) {
-  min-height: 250px;
-  max-height: 600px;
+  padding: 20px; min-height: inherit; line-height: 1.6;
+}
+
+/* Dropdown Menu (Font, Size, Color) */
+:deep(.ql-picker-options) {
+  max-height: 250px;
   overflow-y: auto;
-  padding: 20px;
-  line-height: 1.8;
-  color: var(--el-text-color-primary);
-}
-
-:deep(.ql-editor:focus) {
-  outline: none;
-}
-
-/* Placeholder styling */
-:deep(.ql-editor.ql-blank::before) {
-  color: var(--el-text-color-placeholder);
-  font-style: italic;
-  font-size: 14px;
-}
-
-/* Scrollbar styling */
-:deep(.ql-editor::-webkit-scrollbar) {
-  width: 8px;
-}
-
-:deep(.ql-editor::-webkit-scrollbar-track) {
-  background: var(--el-fill-color-lighter);
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+  z-index: 9999 !important;
   border-radius: 4px;
 }
 
-:deep(.ql-editor::-webkit-scrollbar-thumb) {
-  background: var(--el-border-color);
-  border-radius: 4px;
-  transition: background 0.2s;
+/* Font Faces & Display Names */
+:deep(.ql-font-arial) { font-family: 'Arial', sans-serif; }
+:deep(.ql-font-times-new-roman) { font-family: 'Times New Roman', serif; }
+:deep(.ql-font-verdana) { font-family: 'Verdana', sans-serif; }
+:deep(.ql-font-tahoma) { font-family: 'Tahoma', sans-serif; }
+:deep(.ql-font-courier-new) { font-family: 'Courier New', monospace; }
+:deep(.ql-font-georgia) { font-family: 'Georgia', serif; }
+:deep(.ql-font-trebuchet-ms) { font-family: 'Trebuchet MS', sans-serif; }
+:deep(.ql-font-impact) { font-family: 'Impact', sans-serif; }
+
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="arial"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="arial"]::before) { content: 'Arial'; font-family: 'Arial'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="times-new-roman"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="times-new-roman"]::before) { content: 'Times New Roman'; font-family: 'Times New Roman'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="verdana"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="verdana"]::before) { content: 'Verdana'; font-family: 'Verdana'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="tahoma"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="tahoma"]::before) { content: 'Tahoma'; font-family: 'Tahoma'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="courier-new"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="courier-new"]::before) { content: 'Courier New'; font-family: 'Courier New'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before) { content: 'Georgia'; font-family: 'Georgia'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="trebuchet-ms"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="trebuchet-ms"]::before) { content: 'Trebuchet MS'; font-family: 'Trebuchet MS'; }
+:deep(.ql-picker.ql-font .ql-picker-label[data-value="impact"]::before), :deep(.ql-picker.ql-font .ql-picker-item[data-value="impact"]::before) { content: 'Impact'; font-family: 'Impact'; }
+
+/* Table Styles */
+:deep(.ql-editor table) { width: 100%; border-collapse: collapse; margin: 10px 0; table-layout: fixed; }
+:deep(.ql-editor td) { border: 1px solid #dcdfe6; padding: 8px; min-width: 50px; }
+
+/* Custom Buttons (Chế độ Sáng) */
+:deep(.table-controls button) {
+  width: 28px !important; height: 24px !important; padding: 2px !important; margin-right: 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  color: #606266; /* Màu xám chuẩn */
+}
+:deep(.table-controls button svg) { width: 18px; height: 18px; fill: currentColor; }
+:deep(.table-controls button .ql-stroke) { stroke: currentColor; stroke-width: 1.5; fill: none; }
+:deep(.table-controls button .ql-fill) { fill: currentColor; }
+:deep(.table-controls button:hover) { color: var(--el-color-primary); }
+:deep(.ql-table-delete-row:hover), :deep(.ql-table-delete-col:hover) { color: #f56c6c !important; }
+
+/* Footer */
+.editor-footer { border-top: 1px solid var(--el-border-color-lighter); padding: 8px 16px; background-color: var(--el-fill-color-lighter); display: flex; justify-content: flex-end; font-size: 12px; color: var(--el-text-color-secondary); }
+.word-count { display: flex; align-items: center; gap: 8px; }
+
+/* =======================================================
+   DARK MODE STYLES (ĐÃ ĐỒNG BỘ MÀU)
+   ======================================================= */
+
+/* 1. Nền và Viền */
+html.dark .quill-editor-wrapper { background: var(--el-bg-color); border-color: var(--el-border-color-darker); }
+html.dark :deep(.ql-toolbar) { background-color: var(--el-bg-color-overlay); border-bottom-color: var(--el-border-color-darker) !important; }
+html.dark .editor-footer { background-color: var(--el-bg-color-overlay); border-top-color: var(--el-border-color-darker); }
+html.dark :deep(.ql-editor td) { border-color: #4c4d4f; }
+
+/* 2. Đồng bộ màu Icon (Cả nút mặc định & nút bảng) */
+/* Ép tất cả nút có màu xám sáng (tương tự var(--el-text-color-regular)) */
+html.dark :deep(.ql-toolbar button),
+html.dark :deep(.ql-picker-label) {
+  color: #A3A6AD !important; /* Màu xám sáng chuẩn Dark Mode */
 }
 
-:deep(.ql-editor::-webkit-scrollbar-thumb:hover) {
-  background: var(--el-text-color-secondary);
+/* Đảm bảo SVG dùng màu currentColor */
+html.dark :deep(.ql-toolbar .ql-stroke) { stroke: currentColor !important; }
+html.dark :deep(.ql-toolbar .ql-fill) { fill: currentColor !important; }
+
+/* Hover & Active States (Chuyển sang màu xanh) */
+html.dark :deep(.ql-toolbar button:hover),
+html.dark :deep(.ql-toolbar button.ql-active),
+html.dark :deep(.ql-picker-label:hover),
+html.dark :deep(.ql-picker-label.ql-active) {
+  color: var(--el-color-primary) !important;
 }
 
-:deep(.ql-editor h1) {
-  font-size: 2em;
-  font-weight: 700;
-  margin: 0.8em 0 0.5em;
-  padding-bottom: 0.3em;
-  border-bottom: 2px solid var(--el-border-color-lighter);
-  color: var(--el-text-color-primary);
+/* 3. FIX DROPDOWN LIST (Nền đen, Chữ trắng) */
+html.dark :deep(.ql-picker-options) {
+  background-color: #1d1e1f !important; /* Nền tối */
+  border-color: #414243 !important;      /* Viền tối */
+  color: #E5EAF3 !important;             /* Chữ sáng */
 }
-
-:deep(.ql-editor h2) {
-  font-size: 1.6em;
-  font-weight: 600;
-  margin: 0.7em 0 0.4em;
-  color: var(--el-text-color-primary);
+html.dark :deep(.ql-picker-item) {
+  color: #E5EAF3 !important;
 }
-
-:deep(.ql-editor h3) {
-  font-size: 1.3em;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-  color: var(--el-text-color-primary);
-}
-
-:deep(.ql-editor h4) {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin: 0.5em 0 0.3em;
-  color: var(--el-text-color-regular);
-}
-
-:deep(.ql-editor p) {
-  margin: 0.6em 0;
-  line-height: 1.8;
-}
-
-:deep(.ql-editor strong) {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-:deep(.ql-editor em) {
-  font-style: italic;
-}
-
-:deep(.ql-editor u) {
-  text-decoration: underline;
-}
-
-:deep(.ql-editor s) {
-  text-decoration: line-through;
-}
-
-/* Lists */
-:deep(.ql-editor ul),
-:deep(.ql-editor ol) {
-  padding-left: 1.5em;
-  margin: 0.8em 0;
-}
-
-:deep(.ql-editor li) {
-  margin: 0.4em 0;
-  line-height: 1.6;
-}
-
-:deep(.ql-editor ul > li::marker) {
-  color: var(--el-color-primary);
-}
-
-:deep(.ql-editor ol > li::marker) {
-  color: var(--el-color-primary);
-  font-weight: 600;
-}
-
-/* Checklist */
-:deep(.ql-editor .ql-list[data-list="check"]) {
-  list-style: none;
-  padding-left: 0;
-}
-
-:deep(.ql-editor .ql-list[data-list="check"] > li) {
-  padding-left: 1.8em;
-  position: relative;
-}
-
-:deep(.ql-editor .ql-list[data-list="check"] > li::before) {
-  content: '☐';
-  position: absolute;
-  left: 0;
-  color: var(--el-color-primary);
-  font-size: 1.2em;
-}
-
-:deep(.ql-editor .ql-list[data-list="check"] > li[data-checked="true"]::before) {
-  content: '☑';
-  color: var(--el-color-success);
-}
-
-/* Code styling */
-:deep(.ql-editor code) {
-  background-color: var(--el-fill-color-light);
-  color: var(--el-color-danger);
-  padding: 3px 6px;
-  border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-:deep(.ql-editor pre.ql-syntax) {
-  background-color: #282c34;
-  color: #abb2bf;
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.9em;
-  line-height: 1.6;
-  margin: 1em 0;
-  border: 1px solid var(--el-border-color);
-}
-
-/* Blockquote */
-:deep(.ql-editor blockquote) {
-  border-left: 4px solid var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
-  padding: 12px 16px;
-  margin: 1em 0;
-  border-radius: 0 4px 4px 0;
-  color: var(--el-text-color-secondary);
-  font-style: italic;
-}
-
-/* Links */
-:deep(.ql-editor a) {
-  color: var(--el-color-primary);
-  text-decoration: underline;
-  transition: color 0.2s;
-}
-
-:deep(.ql-editor a:hover) {
-  color: var(--el-color-primary-dark-2);
-}
-
-/* Images */
-:deep(.ql-editor img) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 6px;
-  margin: 1em 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* Videos */
-:deep(.ql-editor iframe) {
-  max-width: 100%;
-  border-radius: 6px;
-  margin: 1em 0;
-}
-
-/* Alignment */
-:deep(.ql-editor .ql-align-center) {
-  text-align: center;
-}
-
-:deep(.ql-editor .ql-align-right) {
-  text-align: right;
-}
-
-:deep(.ql-editor .ql-align-justify) {
-  text-align: justify;
-}
-
-/* Indentation */
-:deep(.ql-editor .ql-indent-1) {
-  padding-left: 3em;
-}
-
-:deep(.ql-editor .ql-indent-2) {
-  padding-left: 6em;
-}
-
-:deep(.ql-editor .ql-indent-3) {
-  padding-left: 9em;
-}
-
-/* Subscript & Superscript */
-:deep(.ql-editor sub) {
-  vertical-align: sub;
-  font-size: 0.8em;
-}
-
-:deep(.ql-editor sup) {
-  vertical-align: super;
-  font-size: 0.8em;
-}
-
-/* Dark mode support */
-html.dark :deep(.ql-toolbar) {
-  background-color: var(--el-bg-color-overlay);
-  border-bottom-color: var(--el-border-color-darker);
-}
-
-html.dark :deep(.ql-container) {
-  background-color: var(--el-bg-color);
-}
-
-html.dark :deep(.ql-editor) {
-  color: var(--el-text-color-primary);
-}
-
-html.dark :deep(.ql-toolbar .ql-stroke) {
-  stroke: var(--el-text-color-regular);
-}
-
-html.dark :deep(.ql-toolbar .ql-fill) {
-  fill: var(--el-text-color-regular);
-}
-
-html.dark :deep(.ql-editor pre.ql-syntax) {
-  background-color: #1e1e1e;
-  border-color: var(--el-border-color-darker);
-}
-
-html.dark :deep(.ql-editor blockquote) {
-  background-color: var(--el-fill-color-dark);
-  border-left-color: var(--el-color-primary);
-}
-
-html.dark :deep(.ql-editor code) {
-  background-color: var(--el-fill-color-dark);
-}
-
-@media (max-width: 768px) {
-  :deep(.ql-toolbar) {
-    padding: 8px;
-  }
-
-  :deep(.ql-toolbar button) {
-    width: 24px;
-    height: 24px;
-  }
-
-  :deep(.ql-editor) {
-    padding: 16px;
-    font-size: 14px;
-    min-height: 200px;
-  }
-
-  :deep(.ql-editor h1) {
-    font-size: 1.6em;
-  }
-
-  :deep(.ql-editor h2) {
-    font-size: 1.4em;
-  }
-
-  :deep(.ql-editor h3) {
-    font-size: 1.2em;
-  }
-
-  .editor-footer {
-    padding: 4px 8px;
-  }
-}
-
-@media (max-width: 480px) {
-  :deep(.ql-toolbar) {
-    padding: 6px;
-  }
-
-  :deep(.ql-toolbar .ql-formats) {
-    margin-right: 4px;
-  }
-
-  :deep(.ql-editor) {
-    padding: 12px;
-    font-size: 13px;
-  }
+html.dark :deep(.ql-picker-item:hover),
+html.dark :deep(.ql-picker-item.ql-selected) {
+  background-color: #303133 !important;  /* Nền hover xám nhẹ */
+  color: var(--el-color-primary) !important;
 }
 </style>

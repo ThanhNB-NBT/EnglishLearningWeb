@@ -16,12 +16,15 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "DTO cho câu hỏi Điền từ, Trả lời ngắn, Chia động từ")
+@Schema(description = "DTO cho câu hỏi Điền từ (Hỗ trợ cả Word Bank)")
 public class CreateFillBlankDTO extends CreateQuestionDTO {
 
     @NotEmpty(message = "Danh sách chỗ trống (blanks) không được để trống")
     @Valid
     private List<BlankDTO> blanks;
+
+    @Schema(description = "Danh sách từ cho trước (Word Bank). Nếu có, user sẽ kéo thả/chọn thay vì gõ.")
+    private List<String> wordBank; 
 
     @Override
     public QuestionType getQuestionType() {
@@ -29,11 +32,16 @@ public class CreateFillBlankDTO extends CreateQuestionDTO {
     }
 
     @Data
+    @NoArgsConstructor // Thêm constructor này
+    @AllArgsConstructor
     public static class BlankDTO {
         @NotNull(message = "Vị trí không được null")
         private Integer position;
 
         @NotEmpty(message = "Phải có ít nhất 1 đáp án đúng")
         private List<String> correctAnswers;
+        
+        // Thêm hint cho Verb Form nếu muốn gộp chung
+        private String hint; 
     }
 }
