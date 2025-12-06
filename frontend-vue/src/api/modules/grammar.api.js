@@ -13,22 +13,37 @@ export const grammarUserAPI = {
 // ==================== ADMIN APIs (từ GrammarAdminController) ====================
 export const grammarAdminAPI = {
   // === AI Parsing ===
-  parseFile: (topicId, file, pages = null) => {
+  parseFile: (topicId, file, pages = null, parsingContext = null) => {
     const formData = new FormData()
     formData.append('file', file)
 
-    // Backend (GrammarAdminController) nhận 'pages' dưới dạng @RequestParam
+    // Build query params for pages and parsingContext
     const params = new URLSearchParams()
+
+    // Add pages as repeated params (backend expects List<Integer>)
     if (pages && pages.length > 0) {
       pages.forEach((page) => params.append('pages', page))
     }
 
-    return apiClient.post(`/api/admin/grammar/topics/${topicId}/parse-file`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 600000, // 10 phút
-      params: params,
-    })
+    // Add parsing context if provided
+    if (parsingContext && parsingContext.trim()) {
+      params.append('parsingContext', parsingContext.trim())
+    }
+
+    return apiClient.post(
+      `/api/admin/grammar/topics/${topicId}/parse-file`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000, // 10 minutes
+        params: params
+      }
+    )
   },
+
+  /**
+   * Save parsed lessons to database
+   */
   saveParsedLessons: (topicId, parseResult) =>
     apiClient.post(`/api/admin/grammar/topics/${topicId}/save-parsed-lessons`, parseResult),
 

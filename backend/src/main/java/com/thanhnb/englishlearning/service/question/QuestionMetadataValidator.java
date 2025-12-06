@@ -4,6 +4,8 @@ import com.thanhnb.englishlearning.enums.QuestionType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,75 @@ public class QuestionMetadataValidator {
         }
 
         log.debug("Validated metadata structure for {}", questionType);
+    }
+
+    /**
+     * Hàm làm sạch dữ liệu từ các nguồn không tin cậy (như AI) trước khi validate
+     */
+    @SuppressWarnings("unchecked")
+    public void sanitizeMetadata(QuestionType type, Map<String, Object> meta) {
+        if (meta == null) return;
+
+        try {
+            // 1. Fix lỗi String "true"/"false" -> Boolean
+            if (meta.containsKey("isCorrect")) {
+                Object val = meta.get("isCorrect");
+                if (val instanceof String) {
+                    meta.put("isCorrect", Boolean.parseBoolean((String) val));
+                }
+            }
+
+            // 2. Fix lỗi trong Options (QUAN TRỌNG: Fix lỗi 'order')
+            if (meta.containsKey("options") && meta.get("options") instanceof List) {
+                List<Object> options = (List<Object>) meta.get("options");
+                for (int i = 0; i < options.size(); i++) {
+                    if (options.get(i) instanceof Map) {
+                        Map<String, Object> opt = (Map<String, Object>) options.get(i);
+                        
+                        // --- FIX LỖI ORDER ---
+                        if (!opt.containsKey("order")) {
+                            opt.put("order", i + 1);
+                        } else {
+                            Object orderVal = opt.get("order");
+                            // Nếu AI trả về String "1" -> parse sang int 1
+                            if (orderVal instanceof String) {
+                                try {
+                                    opt.put("order", Integer.parseInt((String) orderVal));
+                                } catch (NumberFormatException e) {
+                                    opt.put("order", i + 1);
+                                }
+                            }
+                            // Nếu AI trả về Double 1.0 -> cast sang int 1
+                            else if (orderVal instanceof Number) {
+                                opt.put("order", ((Number) orderVal).intValue());
+                            }
+                        }
+                        // ---------------------
+
+                        // Fix boolean trong option
+                        if (opt.containsKey("isCorrect") && opt.get("isCorrect") instanceof String) {
+                            opt.put("isCorrect", Boolean.parseBoolean((String) opt.get("isCorrect")));
+                        }
+                    }
+                }
+            }
+
+            // 3. Fix lỗi CorrectAnswers (Sentence Transformation)
+            if (type == QuestionType.SENTENCE_TRANSFORMATION && meta.containsKey("correctAnswers")) {
+                Object ansObj = meta.get("correctAnswers");
+                if (ansObj instanceof String) {
+                    meta.put("correctAnswers", new ArrayList<>(Collections.singletonList(ansObj)));
+                }
+            }
+            
+            // 4. Fix lỗi Blanks (Fill in blank)
+            if (meta.containsKey("blanks") && !(meta.get("blanks") instanceof List)) {
+                 // Nếu AI trả về object lẻ thay vì list -> bỏ qua hoặc fix tùy logic
+            }
+
+        } catch (Exception e) {
+            log.warn("Sanitization warning: {}", e.getMessage());
+        }
     }
 
     // ========== PRIVATE VALIDATION METHODS ==========
@@ -143,8 +214,9 @@ public class QuestionMetadataValidator {
     }
 
     private void validateFillBlank(Map<String, Object> metadata, QuestionType type) {
-        if (type == QuestionType.TEXT_ANSWER && metadata.containsKey("correctAnswer")) return;
-        
+        if (type == QuestionType.TEXT_ANSWER && metadata.containsKey("correctAnswer"))
+            return;
+
         if (!metadata.containsKey("blanks")) {
             throw new RuntimeException(type + " cần có 'blanks' trong metadata");
         }

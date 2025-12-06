@@ -6,7 +6,6 @@ import com.thanhnb.englishlearning.dto.PaginatedResponse;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.service.reading.*;
-import com.thanhnb.englishlearning.service.ai.reading.ReadingAIParsingService;
 import com.thanhnb.englishlearning.util.PaginationHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,117 +40,10 @@ public class ReadingAdminController {
         private final ReadingQuestionService questionService;
         private final ReadingValidationService validationService;
         private final ReadingStatisticsService statisticsService;
-        private final ReadingAIParsingService aiParsingService;
 
         // ═════════════════════════════════════════════════════════════════
         // AI PARSING ENDPOINTS
         // ═════════════════════════════════════════════════════════════════
-
-        /**
-         * ENDPOINT 1: Parse file thành Reading lesson
-         */
-        @PostMapping("/lessons/parse-file")
-        @Operation(summary = "Parse file (PDF/DOCX/Image) thành Reading lesson", description = "Sử dụng AI để phân tích file và tạo Reading lesson với English content, Vietnamese translation, và questions")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> parseFile(
-                        @Parameter(description = "File PDF/DOCX/Image (max 20MB)", required = true) @RequestParam("file") MultipartFile file) {
-                try {
-                        log.info("[READING PARSE] Received file: {}", file.getOriginalFilename());
-
-                        // Parse file using AI
-                        ReadingLessonDTO lesson = aiParsingService.parseFileForImport(file);
-
-                        if (lesson == null || lesson.getTitle() == null) {
-                                return ResponseEntity.badRequest()
-                                                .body(CustomApiResponse.badRequest(
-                                                                "AI không thể parse file này. Vui lòng kiểm tra nội dung."));
-                        }
-
-                        // Calculate statistics
-                        int questionCount = lesson.getQuestions() != null ? lesson.getQuestions().size() : 0;
-
-                        // Build response
-                        Map<String, Object> summary = new HashMap<>();
-                        summary.put("fileName", file.getOriginalFilename());
-                        summary.put("fileSize", String.format("%.2f MB", file.getSize() / (1024.0 * 1024.0)));
-                        summary.put("fileType", file.getContentType());
-                        summary.put("title", lesson.getTitle());
-                        summary.put("contentLength", lesson.getContent() != null ? lesson.getContent().length() : 0);
-                        summary.put("translationLength",
-                                        lesson.getContentTranslation() != null ? lesson.getContentTranslation().length()
-                                                        : 0);
-                        summary.put("hasTranslation", lesson.getContentTranslation() != null
-                                        && !lesson.getContentTranslation().isEmpty());
-                        summary.put("orderIndex", lesson.getOrderIndex());
-                        summary.put("questionCount", questionCount);
-
-                        Map<String, Object> response = new HashMap<>();
-                        response.put("lesson", lesson);
-                        response.put("summary", summary);
-
-                        log.info("[READING PARSE] Success: title='{}', orderIndex={}, {} questions",
-                                        lesson.getTitle(), lesson.getOrderIndex(), questionCount);
-
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(response,
-                                                        String.format("Parse thành công! Tạo bài đọc '%s' với %d câu hỏi.",
-                                                                        lesson.getTitle(), questionCount)));
-
-                } catch (Exception e) {
-                        log.error("[READING PARSE] Error: ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi khi parse file: " + e.getMessage()));
-                }
-        }
-
-        /**
-         * ENDPOINT 2: Save parsed lesson to database
-         */
-        @PostMapping("/lessons/save-parsed-lesson")
-        @Operation(summary = "Lưu parsed lesson vào database", description = "Lưu bài đọc đã được parse vào database với questions")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> saveParsedLesson(
-                        @Parameter(description = "Parsed lesson từ endpoint parse-file", required = true) @RequestBody ReadingLessonDTO parsedLesson) {
-                try {
-                        log.info("[READING SAVE] Saving lesson: {}",
-                                        parsedLesson != null ? parsedLesson.getTitle() : "null");
-
-                        // Validate
-                        if (parsedLesson == null || parsedLesson.getTitle() == null) {
-                                return ResponseEntity.badRequest()
-                                                .body(CustomApiResponse.badRequest("Dữ liệu lesson không hợp lệ"));
-                        }
-
-                        // Import to database
-                        ReadingLessonDTO savedLesson = readingAdminService.importLessonFromFile(parsedLesson);
-
-                        // Count questions
-                        int questionCount = parsedLesson.getQuestions() != null ? parsedLesson.getQuestions().size()
-                                        : 0;
-
-                        // Build response
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("lessonId", savedLesson.getId());
-                        result.put("title", savedLesson.getTitle());
-                        result.put("orderIndex", savedLesson.getOrderIndex());
-                        result.put("questionCount", questionCount);
-                        result.put("pointsReward", savedLesson.getPointsReward());
-                        result.put("isActive", savedLesson.getIsActive());
-                        result.put("createdAt", savedLesson.getCreatedAt());
-
-                        log.info("[READING SAVE] Success: id={}, title='{}', orderIndex={}, {} questions",
-                                        savedLesson.getId(), savedLesson.getTitle(), savedLesson.getOrderIndex(),
-                                        questionCount);
-
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(result,
-                                                        String.format("Đã lưu bài đọc '%s' với %d câu hỏi!",
-                                                                        savedLesson.getTitle(), questionCount)));
-
-                } catch (Exception e) {
-                        log.error("[READING SAVE] Business error: {}", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
 
         // ═════════════════════════════════════════════════════════════════
         // LESSON CRUD
