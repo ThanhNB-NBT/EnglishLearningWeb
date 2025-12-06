@@ -1,12 +1,15 @@
 package com.thanhnb.englishlearning.service.ai.grammar;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thanhnb.englishlearning.config.AIConfig;
 import com.thanhnb.englishlearning.dto.ParseResult;
 import com.thanhnb.englishlearning.dto.grammar.GrammarLessonDTO;
-import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.enums.LessonType;
 import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
 import com.thanhnb.englishlearning.service.ai.base.AIParsingService;
+import com.thanhnb.englishlearning.service.ai.base.ContentChunk;
+import com.thanhnb.englishlearning.service.question.QuestionConverter;
 import com.thanhnb.englishlearning.service.question.QuestionMetadataValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,16 +18,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.*;
 
 /**
- * AI Parsing Service for Grammar module
+ * ✅ OPTIMIZED Grammar AI Parsing Service
  * 
- * Responsibilities:
- * - Parse PDF/DOCX/Image files using Gemini AI
- * - Convert raw text to structured Grammar lessons
- * - Validate and normalize question metadata
- * - Auto-adjust orderIndex based on existing lessons
- * 
- * @author thanhnb
- * @version 2.0 - Metadata-based architecture
+ * Key Features:
+ * 1. Two-tier prompt system: Core (fixed) + Context (dynamic)
+ * 2. Automatic question type detection based on content
+ * 3. Flexible section parsing with user guidance
+ * 4. Smart pronunciation exercise handling (MC vs Classification)
  */
 @Service
 @Slf4j
@@ -32,28 +32,582 @@ public class GrammarAIParsingService extends AIParsingService<ParseResult> {
 
     private final GrammarLessonRepository lessonRepository;
     private final QuestionMetadataValidator metadataValidator;
-
-    // Constants for default values
-    private static final int DEFAULT_THEORY_POINTS = 10;
-    private static final int DEFAULT_PRACTICE_POINTS = 15;
-    private static final int BASE_THEORY_DURATION = 180;
-    private static final int BASE_PRACTICE_DURATION = 300;
-    private static final int DURATION_PER_QUESTION = 30;
-    private static final int LONG_CONTENT_BONUS = 120;
-    private static final int LONG_CONTENT_THRESHOLD = 5000;
+    private final QuestionConverter questionConverter;
+    
+    // Dynamic context from admin (can be set per request)
+    private String userProvidedContext = "";
 
     public GrammarAIParsingService(
             AIConfig aiConfig,
+            ObjectMapper objectMapper,
             GrammarLessonRepository lessonRepository,
-            QuestionMetadataValidator metadataValidator) {
-        super(aiConfig);
+            QuestionMetadataValidator metadataValidator,
+            QuestionConverter questionConverter) {
+        super(aiConfig, objectMapper);
         this.lessonRepository = lessonRepository;
         this.metadataValidator = metadataValidator;
+        this.questionConverter = questionConverter;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CONFIGURATION
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CORE PROMPT (Fixed - Defines all question types)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    protected String buildPrompt() {
+        return buildCorePrompt() + "\n\n" + buildDynamicContext();
+    }
+
+    private String buildCorePrompt() {
+        return """
+            You are an English textbook parser. Extract lessons following STRICT rules.
+
+            ═══════════════════════════════════════════════════════════════
+            🛡️ ANTI-HALLUCINATION RULES (CRITICAL)
+            ═══════════════════════════════════════════════════════════════
+            1. **Insufficient Content:** If the text provided is just a header, a page number, or a fragment less than 2 sentences -> **RETURN EMPTY LESSONS ARRAY** `{"lessons": []}`.
+            2. **Do Not Invent:** Do NOT generate questions or theory that are not explicitly in the text.
+            3. **Context Only:** If the text only contains "CONTEXT FROM PREVIOUS PART" and nothing else meaningful -> **RETURN EMPTY**.
+
+            ═══════════════════════════════════════════════════════════════════════════
+            🎯 CORE RULES
+            ═══════════════════════════════════════════════════════════════════════════
+            1. IGNORE "--- CONTEXT FROM PREVIOUS PART ---"
+            2. ONLY parse "--- CURRENT CONTENT TO PARSE ---"
+            3. Theory → ONE lesson (lessonType: "THEORY")
+            4. Each Exercise → SEPARATE lesson (lessonType: "PRACTICE")
+            5. NEVER put questions in theory lesson content
+            6. AUTO-DETECT question type based on content structure
+
+            ═══════════════════════════════════════════════════════════════════════════
+            📦 OUTPUT FORMAT
+            ═══════════════════════════════════════════════════════════════════════════
+            {
+              "lessons": [
+                {
+                  "title": "Pronunciation - Theory",
+                  "lessonType": "THEORY",
+                  "content": "<h3>I. Phiên âm...</h3><p>Theory content...</p>"
+                },
+                {
+                  "title": "Pronunciation - Exercise 1",
+                  "lessonType": "PRACTICE",
+                  "createQuestions": [...]
+                }
+              ]
+            }
+
+            ═══════════════════════════════════════════════════════════════════════════
+            ❓ QUESTION TYPES - AUTO DETECTION RULES
+            ═══════════════════════════════════════════════════════════════════════════
+
+            🔍 DETECTION LOGIC:
+            
+            IF question has format "A. word1 B. word2 C. word3 D. word4" 
+            AND asks "choose the word with different pronunciation"
+            → USE: MULTIPLE_CHOICE (NOT PRONUNCIATION type!)
+            
+            IF question asks "classify/group words by pronunciation"
+            AND provides categories like "/e/", "/iː/"
+            → USE: PRONUNCIATION (classification type)
+            
+            IF question has "True/False" or "Right/Wrong"
+            → USE: TRUE_FALSE
+            
+            IF question has blanks like "I ___(1)___ to school"
+            → USE: FILL_BLANK
+            
+            IF question asks "rewrite/transform" with beginning phrase
+            → USE: SENTENCE_TRANSFORMATION
+            
+            IF question asks "arrange/rearrange words"
+            → USE: SENTENCE_BUILDING
+            
+            IF question asks "match A with B"
+            → USE: MATCHING
+            
+            IF question asks "find and correct the error"
+            → USE: ERROR_CORRECTION
+
+            ═══════════════════════════════════════════════════════════════════════════
+            📝 QUESTION TYPE DEFINITIONS
+            ═══════════════════════════════════════════════════════════════════════════
+
+            1️⃣ MULTIPLE_CHOICE (Standard A,B,C,D - Most common for pronunciation exercises)
+            {
+              "questionText": "Choose the word whose underlined part is pronounced differently",
+              "questionType": "MULTIPLE_CHOICE",
+              "points": 5,
+              "orderIndex": 1,
+              "options": [
+                {"text": "head", "isCorrect": false, "order": 1},
+                {"text": "please", "isCorrect": true, "order": 2},
+                {"text": "heavy", "isCorrect": false, "order": 3},
+                {"text": "measure", "isCorrect": false, "order": 4}
+              ]
+            }
+
+            2️⃣ PRONUNCIATION (Classification/Grouping - Rare, only when explicitly grouping)
+            {
+              "questionText": "Classify these words by their vowel sound",
+              "questionType": "PRONUNCIATION",
+              "points": 5,
+              "orderIndex": 1,
+              "words": ["head", "please", "heavy", "measure"],
+              "categories": ["/e/", "/iː/"],
+              "classifications": [
+                {"word": "head", "category": "/e/"},
+                {"word": "please", "category": "/iː/"},
+                {"word": "heavy", "category": "/e/"},
+                {"word": "measure", "category": "/e/"}
+              ]
+            }
+
+            3️⃣ TRUE_FALSE
+            {
+              "questionText": "The sky is blue.",
+              "questionType": "TRUE_FALSE",
+              "points": 5,
+              "orderIndex": 1,
+              "options": [
+                {"text": "True", "isCorrect": true, "order": 1},
+                {"text": "False", "isCorrect": false, "order": 2}
+              ]
+            }
+
+            4️⃣ FILL_BLANK
+            {
+              "questionText": "I ___(1)___ to school yesterday.",
+              "questionType": "FILL_BLANK",
+              "points": 5,
+              "orderIndex": 1,
+              "blanks": [
+                {"position": 1, "correctAnswers": ["went", "walked"]}
+              ]
+            }
+
+            5️⃣ SENTENCE_TRANSFORMATION
+            {
+              "questionText": "Rewrite: It is a pity I didn't see him.",
+              "questionType": "SENTENCE_TRANSFORMATION",
+              "points": 5,
+              "orderIndex": 1,
+              "originalSentence": "It is a pity I didn't see him.",
+              "beginningPhrase": "I wish",
+              "correctAnswers": ["I wish I had seen him"]
+            }
+
+            6️⃣ SENTENCE_BUILDING
+            {
+              "questionText": "Arrange: I / go / will / home",
+              "questionType": "SENTENCE_BUILDING",
+              "points": 5,
+              "orderIndex": 1,
+              "words": ["I", "go", "will", "home"],
+              "correctSentence": "I will go home"
+            }
+
+            7️⃣ MATCHING
+            {
+              "questionText": "Match words with meanings",
+              "questionType": "MATCHING",
+              "points": 5,
+              "orderIndex": 1,
+              "pairs": [
+                {"left": "happy", "right": "vui vẻ", "order": 1},
+                {"left": "sad", "right": "buồn", "order": 2}
+              ]
+            }
+
+            8️⃣ ERROR_CORRECTION
+            {
+              "questionText": "He go to school every day.",
+              "questionType": "ERROR_CORRECTION",
+              "points": 5,
+              "orderIndex": 1,
+              "errorText": "go",
+              "correction": "goes"
+            }
+
+            ═══════════════════════════════════════════════════════════════════════════
+            📚 EXAMPLE: PRONUNCIATION EXERCISE (MULTIPLE CHOICE)
+            ═══════════════════════════════════════════════════════════════════════════
+
+            INPUT TEXT:
+            ```
+            Exercise 1:
+            1. A. head B. please C. heavy D. measure
+            2. A. note B. gloves C. some D. other
+            
+            Đáp án:
+            1.B  2.A
+            ```
+
+            ✅ CORRECT OUTPUT (Use MULTIPLE_CHOICE, not PRONUNCIATION):
+            {
+              "lessons": [
+                {
+                  "title": "Pronunciation - Exercise 1",
+                  "lessonType": "PRACTICE",
+                  "createQuestions": [
+                    {
+                      "questionText": "Choose the word whose underlined part is pronounced differently: A. head B. please C. heavy D. measure",
+                      "questionType": "MULTIPLE_CHOICE",
+                      "points": 5,
+                      "orderIndex": 1,
+                      "options": [
+                        {"text": "head", "isCorrect": false, "order": 1},
+                        {"text": "please", "isCorrect": true, "order": 2},
+                        {"text": "heavy", "isCorrect": false, "order": 3},
+                        {"text": "measure", "isCorrect": false, "order": 4}
+                      ]
+                    },
+                    {
+                      "questionText": "Choose the word whose underlined part is pronounced differently: A. note B. gloves C. some D. other",
+                      "questionType": "MULTIPLE_CHOICE",
+                      "points": 5,
+                      "orderIndex": 2,
+                      "options": [
+                        {"text": "note", "isCorrect": true, "order": 1},
+                        {"text": "gloves", "isCorrect": false, "order": 2},
+                        {"text": "some", "isCorrect": false, "order": 3},
+                        {"text": "other", "isCorrect": false, "order": 4}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
+            ═══════════════════════════════════════════════════════════════════════════
+            ⚠️ CRITICAL VALIDATION CHECKLIST
+            ═══════════════════════════════════════════════════════════════════════════
+            ✓ Pronunciation "choose different word" exercises → MULTIPLE_CHOICE
+            ✓ Each question has ALL required fields per DTO
+            ✓ Answer keys are integrated (don't output separately)
+            ✓ orderIndex starts from 1 in each lesson
+            ✓ All "order" fields start from 1
+            """;
+    }
+
+    private String buildDynamicContext() {
+        if (userProvidedContext == null || userProvidedContext.trim().isEmpty()) {
+            return """
+                ═══════════════════════════════════════════════════════════════════════════
+                📋 PARSING INSTRUCTIONS (Default)
+                ═══════════════════════════════════════════════════════════════════════════
+                Parse ALL content in the document following the core rules above.
+                """;
+        }
+
+        return """
+            ═══════════════════════════════════════════════════════════════════════════
+            📋 PARSING INSTRUCTIONS (User Provided)
+            ═══════════════════════════════════════════════════════════════════════════
+            """ + userProvidedContext + """
+            
+            Follow these specific instructions while adhering to all core rules above.
+            """;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PUBLIC API - Enhanced with context support
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Parse file with optional user context for better accuracy
+     * 
+     * @param file PDF/DOCX file to parse
+     * @param topicId Topic ID to assign lessons to
+     * @param pages Specific pages to parse (null = all pages)
+     * @param parsingContext User guidance (e.g., "Only parse sections I, II and exercises. Skip section III")
+     */
+    public ParseResult parseFileWithContext(
+            MultipartFile file, 
+            Long topicId, 
+            List<Integer> pages,
+            String parsingContext) throws Exception {
+        
+        // Set dynamic context
+        this.userProvidedContext = parsingContext;
+        
+        log.info("📄 Parsing: {} (topicId: {}, pages: {}, has context: {})", 
+            file.getOriginalFilename(), 
+            topicId, 
+            pages != null ? pages.size() : "all",
+            parsingContext != null && !parsingContext.trim().isEmpty());
+        
+        if (parsingContext != null && !parsingContext.trim().isEmpty()) {
+            log.info("📋 User context: {}", parsingContext);
+        }
+        
+        ParseResult result = parseFile(file, pages);
+        
+        if (topicId != null) {
+            adjustOrderForTopic(result, topicId);
+        }
+        
+        // Clear context after use
+        this.userProvidedContext = "";
+        
+        return result;
+    }
+
+    // Backward compatibility
+    public ParseResult parseFileWithTopicId(MultipartFile file, Long topicId, List<Integer> pages) 
+            throws Exception {
+        return parseFileWithContext(file, topicId, pages, null);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PARSING WITH ENHANCED VALIDATION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    protected ParseResult parseResponse(String jsonResponse) throws Exception {
+        try {
+            log.debug("🔍 Parsing AI response (length: {} chars)", jsonResponse.length());
+            
+            String preview = jsonResponse.substring(0, Math.min(500, jsonResponse.length()));
+            log.debug("📄 Response preview: {}", preview);
+
+            ParseResult result = objectMapper.readValue(jsonResponse, ParseResult.class);
+            
+            if (result == null) {
+                throw new Exception("Parsed result is null");
+            }
+            
+            if (result.lessons == null) {
+                result.lessons = new ArrayList<>();
+            }
+            
+            log.info("✅ Parsed {} lessons", result.lessons.size());
+            
+            for (int i = 0; i < result.lessons.size(); i++) {
+                GrammarLessonDTO lesson = result.lessons.get(i);
+                int qCount = lesson.getCreateQuestions() != null ? lesson.getCreateQuestions().size() : 0;
+                log.info("  📚 Lesson {}: '{}' ({}) - {} questions", 
+                    i + 1, lesson.getTitle(), lesson.getLessonType(), qCount);
+                
+                // Log question types for verification
+                if (qCount > 0) {
+                    Map<String, Integer> typeCount = new HashMap<>();
+                    lesson.getCreateQuestions().forEach(q -> 
+                        typeCount.merge(q.getQuestionType().toString(), 1, Integer::sum)
+                    );
+                    log.debug("    Question types: {}", typeCount);
+                }
+            }
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("❌ JSON Parsing Error: {}", e.getMessage());
+            log.error("📄 Raw response (first 1000 chars): {}", 
+                jsonResponse.substring(0, Math.min(1000, jsonResponse.length())));
+            throw new Exception("Failed to parse AI response: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    protected ParseResult postProcess(ParseResult result) {
+        if (result.lessons == null) {
+            log.warn("⚠️ No lessons to post-process");
+            return result;
+        }
+
+        log.info("🔧 Post-processing {} lessons", result.lessons.size());
+
+        Iterator<GrammarLessonDTO> iterator = result.lessons.iterator();
+        int lessonIndex = 0;
+        
+        while (iterator.hasNext()) {
+            GrammarLessonDTO lesson = iterator.next();
+            lessonIndex++;
+
+            // --- LOGIC LỌC PHANTOM LESSON ---
+            boolean hasQuestions = lesson.getCreateQuestions() != null && !lesson.getCreateQuestions().isEmpty();
+            boolean hasContent = lesson.getContent() != null && lesson.getContent().length() > 50; // Nội dung HTML > 50 ký tự
+            
+            // Nếu bài học KHÔNG có câu hỏi VÀ (không có nội dung hoặc nội dung quá ngắn/rác)
+            // -> XÓA NGAY
+            if (!hasQuestions && !hasContent) {
+                log.warn("🗑️ Removed phantom lesson: '{}' (No questions, content too short)", lesson.getTitle());
+                iterator.remove();
+                continue;
+            }
+            
+            // Nếu bài học có tiêu đề mặc định kiểu "Section 1" mà không có nội dung gì -> XÓA
+            if (lesson.getTitle().toLowerCase().startsWith("section") && !hasQuestions && !hasContent) {
+                iterator.remove();
+                continue;
+            }
+
+            if (lesson.getTitle() == null || lesson.getTitle().trim().isEmpty()) {
+                log.warn("⚠️ Removing lesson #{} - missing title", lessonIndex);
+                iterator.remove();
+                continue;
+            }
+
+            log.debug("📖 Processing: '{}'", lesson.getTitle());
+
+            // Set defaults
+            if (lesson.getLessonType() == null) {
+                lesson.setLessonType(LessonType.THEORY);
+            }
+            if (lesson.getIsActive() == null) {
+                lesson.setIsActive(true);
+            }
+            if (lesson.getPointsReward() == null) {
+                lesson.setPointsReward(10);
+            }
+            if (lesson.getEstimatedDuration() == null) {
+                lesson.setEstimatedDuration(300);
+            }
+
+            // Validate questions
+            if (lesson.getCreateQuestions() != null && !lesson.getCreateQuestions().isEmpty()) {
+                processQuestions(lesson);
+            }
+        }
+
+        log.info("✅ Post-processing complete. Final: {} lessons", result.lessons.size());
+        return result;
+    }
+
+    private void processQuestions(GrammarLessonDTO lesson) {
+        List<CreateQuestionDTO> questions = lesson.getCreateQuestions();
+        log.debug("  🔍 Validating {} questions", questions.size());
+
+        Iterator<CreateQuestionDTO> qIterator = questions.iterator();
+        int validCount = 0;
+        int order = 1;
+
+        while (qIterator.hasNext()) {
+            CreateQuestionDTO question = qIterator.next();
+
+            try {
+                if (question.getOrderIndex() == null || question.getOrderIndex() == 0) {
+                    question.setOrderIndex(order);
+                }
+
+                Map<String, Object> metadata = questionConverter.buildMetadata(question);
+                
+                if (metadata != null) {
+                    metadataValidator.sanitizeMetadata(question.getQuestionType(), metadata);
+                    metadataValidator.validate(question.getQuestionType(), metadata);
+                }
+
+                validCount++;
+                order++;
+                
+                log.debug("    ✓ Q{}: {} ({})", 
+                    question.getOrderIndex(), 
+                    truncate(question.getQuestionText(), 40),
+                    question.getQuestionType());
+
+            } catch (Exception e) {
+                log.warn("    ✗ Invalid question: {} - {}", 
+                    truncate(question.getQuestionText(), 40), 
+                    e.getMessage());
+                qIterator.remove();
+            }
+        }
+
+        // Auto-set PRACTICE if has questions
+        if (validCount > 0) {
+            lesson.setLessonType(LessonType.PRACTICE);
+        }
+
+        log.debug("  ✓ {} valid questions", validCount);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MERGING (Conservative approach)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    protected ParseResult mergeResults(List<ParseResult> results) {
+        log.info("🔗 Merging {} chunks", results.size());
+
+        ParseResult merged = new ParseResult();
+        merged.lessons = new ArrayList<>();
+
+        for (int i = 0; i < results.size(); i++) {
+            ParseResult result = results.get(i);
+            
+            if (result == null || result.lessons == null) {
+                continue;
+            }
+
+            log.debug("  📦 Chunk {} has {} lessons", i + 1, result.lessons.size());
+
+            for (GrammarLessonDTO lesson : result.lessons) {
+                if (merged.lessons.isEmpty()) {
+                    merged.lessons.add(lesson);
+                    continue;
+                }
+
+                GrammarLessonDTO lastLesson = merged.lessons.get(merged.lessons.size() - 1);
+
+                // Only merge if EXACT same title + type
+                if (shouldMerge(lastLesson, lesson)) {
+                    mergeLessons(lastLesson, lesson);
+                    log.debug("    🔗 Merged into: '{}'", lastLesson.getTitle());
+                } else {
+                    merged.lessons.add(lesson);
+                    log.debug("    ➕ Added: '{}'", lesson.getTitle());
+                }
+            }
+        }
+
+        // Re-index
+        for (int i = 0; i < merged.lessons.size(); i++) {
+            merged.lessons.get(i).setOrderIndex(i + 1);
+        }
+
+        log.info("✅ Merge complete. Total: {} lessons", merged.lessons.size());
+        return merged;
+    }
+
+    private boolean shouldMerge(GrammarLessonDTO l1, GrammarLessonDTO l2) {
+        return l1.getTitle().equals(l2.getTitle()) && 
+               l1.getLessonType() == l2.getLessonType();
+    }
+
+    private void mergeLessons(GrammarLessonDTO target, GrammarLessonDTO source) {
+        if (source.getContent() != null && !source.getContent().trim().isEmpty()) {
+            String existing = target.getContent() != null ? target.getContent() : "";
+            target.setContent(existing + "\n" + source.getContent());
+        }
+
+        if (source.getCreateQuestions() != null && !source.getCreateQuestions().isEmpty()) {
+            if (target.getCreateQuestions() == null) {
+                target.setCreateQuestions(new ArrayList<>());
+            }
+            target.getCreateQuestions().addAll(source.getCreateQuestions());
+
+            for (int i = 0; i < target.getCreateQuestions().size(); i++) {
+                target.getCreateQuestions().get(i).setOrderIndex(i + 1);
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UTILITIES & OVERRIDES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private void adjustOrderForTopic(ParseResult result, Long topicId) {
+        if (result.lessons == null || result.lessons.isEmpty()) return;
+
+        Integer maxOrder = lessonRepository.findMaxOrderIndexByTopicId(topicId);
+        int baseOrder = (maxOrder != null ? maxOrder : 0);
+
+        for (GrammarLessonDTO lesson : result.lessons) {
+            lesson.setTopicId(topicId);
+            lesson.setOrderIndex(++baseOrder);
+        }
+    }
 
     @Override
     protected String getModuleName() {
@@ -62,751 +616,99 @@ public class GrammarAIParsingService extends AIParsingService<ParseResult> {
 
     @Override
     protected double getTemperature() {
-        return 0.5; // Lower temperature for more consistent output
+        return 0.2; // Low temperature for consistent parsing
     }
 
     @Override
-    protected String buildPrompt() {
-        return """
-                You are an AI assistant specializing in English grammar learning materials.
-
-                TASK: Analyze the content and create JSON with grammar lessons and exercises.
-
-                ═══════════════════════════════════════════════════════════════
-                📋 LESSON CLASSIFICATION RULES
-                ═══════════════════════════════════════════════════════════════
-
-                **THEORY (Grammar explanation):**
-                - Explains concepts, definitions, grammar structures
-                - Classification tables, examples with translations
-                - Rules, usage, comparison charts
-                - Title keywords: "Part", "Chapter", "Concept", "Structure", "Grammar"
-
-                **PRACTICE (Exercises):**
-                - Questions, fill-in-the-blanks, multiple choice
-                - Error correction, sentence transformation
-                - Title keywords: "Exercise", "Practice", "Drill", "Test"
-
-                ═══════════════════════════════════════════════════════════════
-                🎵 AUDIO SUPPORT (Optional)
-                ═══════════════════════════════════════════════════════════════
-
-                **For Phonetics THEORY lessons, add metadata:**
-                {
-                  "title": "Unit 1 - Phonetics: /æ/ vs /e/",
-                  "lessonType": "THEORY",
-                  "content": "<h2>Pronunciation...</h2>",
-                  "metadata": {
-                    "audioUrl": "https://storage.../unit1_phonetics.mp3",
-                    "audioDuration": 120,
-                    "audioType": "PHONETICS"
-                  },
-                  "orderIndex": 1
-                }
-
-                **For regular lessons (no audio):**
-                {
-                  "title": "Present Simple Tense",
-                  "lessonType": "THEORY",
-                  "content": "<h2>Grammar...</h2>",
-                  "metadata": null,
-                  "orderIndex": 1
-                }
-
-                NOTE: metadata is OPTIONAL, only add if lesson has audio/video
-
-                ═══════════════════════════════════════════════════════════════
-                🔀 HOW TO SPLIT LESSONS
-                ═══════════════════════════════════════════════════════════════
-
-                **Principles:**
-                1. Each GRAMMAR TOPIC = 1 THEORY + 1 PRACTICE (if exercises exist)
-                2. If theory only → Create 1 THEORY lesson
-                3. If multiple exercise types → Split into separate PRACTICE lessons
-                4. Keep related content together
-
-                ═══════════════════════════════════════════════════════════════
-                📄 CONTENT FORMAT (THEORY ONLY)
-                ═══════════════════════════════════════════════════════════════
-
-                **HTML Structure:**
-                <h2>MAIN HEADING</h2>
-                <h3>Sub-heading</h3>
-                <p>Explanation paragraph...</p>
-
-                <table class="tiptap-table">
-                  <thead>
-                    <tr><th>Form</th><th>Example</th><th>Usage</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>S + V(s/es)</strong></td>
-                      <td>She works here.</td>
-                      <td>Daily routine</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <ul>
-                  <li><strong>Affirmative:</strong> S + V(s/es)</li>
-                  <li><strong>Negative:</strong> S + don't/doesn't + V</li>
-                </ul>
-
-                **Requirements:**
-                - MUST include class="tiptap-table"
-                - Use <br> for line breaks inside cells
-                - Close all tags properly
-
-                ═══════════════════════════════════════════════════════════════
-                ❓ QUESTION FORMATS (PRACTICE ONLY)
-                ═══════════════════════════════════════════════════════════════
-
-                **1. MULTIPLE_CHOICE:**
-                {
-                  "questionText": "She ___ to school every day.",
-                  "questionType": "MULTIPLE_CHOICE",
-                  "explanation": "Present simple with 3rd person",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Think about 3rd person singular",
-                    "options": [
-                      {"text": "go", "isCorrect": false, "order": 1},
-                      {"text": "goes", "isCorrect": true, "order": 2},
-                      {"text": "going", "isCorrect": false, "order": 3},
-                      {"text": "went", "isCorrect": false, "order": 4}
-                    ]
-                  }
-                }
-
-                **2. FILL_BLANK:**
-                {
-                  "questionText": "She (be) ___ young when she started.",
-                  "questionType": "FILL_BLANK",
-                  "explanation": "Simple past tense",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Past tense of 'be' with singular subject",
-                    "answer": "was",
-                    "caseSensitive": false
-                  }
-                }
-
-                **3. SHORT_ANSWER:**
-                {
-                  "questionText": "What is the past tense of 'go'?",
-                  "questionType": "SHORT_ANSWER",
-                  "explanation": "Irregular verb",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "It's an irregular verb",
-                    "answer": "went",
-                    "caseSensitive": false
-                  }
-                }
-
-                **4. VERB_FORM:**
-                {
-                  "questionText": "Complete with correct form: I (study) ___ English now.",
-                  "questionType": "VERB_FORM",
-                  "explanation": "Present continuous for current action",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Use present continuous",
-                    "answer": "am studying",
-                    "caseSensitive": false
-                  }
-                }
-
-                **5. ERROR_CORRECTION:**
-                {
-                  "questionText": "Find and correct: She don't like coffee.",
-                  "questionType": "ERROR_CORRECTION",
-                  "explanation": "Subject-verb agreement",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Check the auxiliary verb",
-                    "answer": "doesn't",
-                    "caseSensitive": false
-                  }
-                }
-
-                **6. MATCHING:**
-                {
-                  "questionText": "Match the words with their meanings:",
-                  "questionType": "MATCHING",
-                  "explanation": "Vocabulary matching",
-                  "points": 10,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Think about common usage",
-                    "pairs": [
-                      {"left": "happy", "right": "vui vẻ", "order": 1},
-                      {"left": "sad", "right": "buồn", "order": 2},
-                      {"left": "angry", "right": "tức giận", "order": 3}
-                    ]
-                  }
-                }
-
-                **7. SENTENCE_BUILDING:**
-                {
-                  "questionText": "Arrange words to make a correct sentence:",
-                  "questionType": "SENTENCE_BUILDING",
-                  "explanation": "Word order in present simple",
-                  "points": 10,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Subject + Verb + Object",
-                    "words": ["school", "goes", "She", "to", "every", "day"],
-                    "correctSentence": "She goes to school every day"
-                  }
-                }
-
-                **8. COMPLETE_CONVERSATION:**
-                {
-                  "questionText": "Complete the conversation:",
-                  "questionType": "COMPLETE_CONVERSATION",
-                  "explanation": "Appropriate response",
-                  "points": 10,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Think about polite responses",
-                    "conversationContext": [
-                      "A: How are you today?",
-                      "B: ___"
-                    ],
-                    "options": ["I'm fine, thank you", "Yes, I do", "No, I'm not"],
-                    "correctAnswer": "I'm fine, thank you"
-                  }
-                }
-
-                **9. PRONUNCIATION:**
-                {
-                  "questionText": "Classify words by vowel sound:",
-                  "questionType": "PRONUNCIATION",
-                  "explanation": "Distinguishing /æ/ and /e/",
-                  "points": 10,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Listen to the vowel sound",
-                    "words": ["cat", "bed", "hat", "pen"],
-                    "audioUrl": "https://storage.../pronunciation.mp3",
-                    "categories": ["/æ/", "/e/"],
-                    "correctClassifications": [
-                      {"word": "cat", "category": "/æ/"},
-                      {"word": "bed", "category": "/e/"}
-                    ]
-                  }
-                }
-
-                **10. READING_COMPREHENSION:**
-                {
-                  "questionText": "Read and complete the blanks:",
-                  "questionType": "READING_COMPREHENSION",
-                  "explanation": "Reading comprehension",
-                  "points": 15,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Read the whole passage first",
-                    "passage": "My family (1)___ four people. We (2)___ in a small house.",
-                    "blanks": [
-                      {
-                        "position": 1,
-                        "options": ["have", "has", "having"],
-                        "correctAnswer": "has"
-                      },
-                      {
-                        "position": 2,
-                        "options": ["live", "lives", "living"],
-                        "correctAnswer": "live"
-                      }
-                    ]
-                  }
-                }
-
-                **11. OPEN_ENDED:**
-                {
-                  "questionText": "Write about your daily routine (50-100 words):",
-                  "questionType": "OPEN_ENDED",
-                  "explanation": "Free writing practice",
-                  "points": 20,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Use present simple tense",
-                    "suggestedAnswer": "I wake up at 6 AM...",
-                    "timeLimitSeconds": "600",
-                    "minWords": 50,
-                    "maxWords": 100
-                  }
-                }
-
-                **12. TRUE_FALSE:**
-                {
-                  "questionText": "She go to school every day.",
-                  "questionType": "TRUE_FALSE",
-                  "explanation": "Present simple with 3rd person",
-                  "points": 5,
-                  "orderIndex": 1,
-                  "metadata": {
-                    "hint": "Think about 3rd person singular",
-                    "options": [
-                      {"text": "true", "isCorrect": false, "order": 1},
-                      {"text": "false", "isCorrect": true, "order": 2},
-                    ]
-                  }
-                }
-
-                ═══════════════════════════════════════════════════════════════
-                📦 OUTPUT JSON FORMAT
-                ═══════════════════════════════════════════════════════════════
-
-                {
-                  "lessons": [
-                    {
-                      "title": "Present Simple Tense",
-                      "lessonType": "THEORY",
-                      "content": "<h2>Present Simple</h2>...",
-                      "metadata": null,
-                      "orderIndex": 1,
-                      "pointsReward": 10,
-                      "estimatedDuration": 300,
-                      "isActive": true,
-                      "questions": null
-                    },
-                    {
-                      "title": "Exercise: Present Simple",
-                      "lessonType": "PRACTICE",
-                      "content": null,
-                      "metadata": null,
-                      "orderIndex": 2,
-                      "pointsReward": 15,
-                      "estimatedDuration": 600,
-                      "isActive": true,
-                      "questions": [...]
-                    }
-                  ]
-                }
-
-                ═══════════════════════════════════════════════════════════════
-                ⚠️ CRITICAL REQUIREMENTS
-                ═══════════════════════════════════════════════════════════════
-
-                1. Return ONLY valid JSON, NO extra text or markdown
-                2. NO ```json``` wrapper
-                3. orderIndex starts from 1 (will be adjusted later)
-                4. HTML must be valid and properly closed
-                5. MULTIPLE_CHOICE must have exactly 1 correct answer
-                6. MATCHING must have at least 2 pairs
-                7. All metadata fields must match exact structure
-                8. explanation max 200 chars
-                9. pointsReward: THEORY = 10, PRACTICE = 15
-                10. estimatedDuration: THEORY = 180-300s, PRACTICE = 300-600s
-                11. lessonType must be "THEORY" or "PRACTICE" (case-sensitive)
-                12. caseSensitive defaults to false
-
-                ═══════════════════════════════════════════════════════════════
-                """;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PARSING & VALIDATION
-    // ═══════════════════════════════════════════════════════════════
-
-    @Override
-    protected ParseResult parseResponse(String jsonResponse) throws Exception {
-        try {
-            ParseResult result = gson.fromJson(jsonResponse, ParseResult.class);
-
-            if (result == null) {
-                throw new Exception("Failed to parse JSON response");
-            }
-
-            if (result.getError() != null) {
-                throw new Exception("AI returned error: " + result.getError());
-            }
-
-            if (result.lessons == null || result.lessons.isEmpty()) {
-                throw new Exception("No lessons found in AI response");
-            }
-
-            log.info("✅ Parsed {} lessons from AI", result.lessons.size());
-            return result;
-
-        } catch (Exception e) {
-            log.error("❌ Error parsing Gemini response: {}", e.getMessage());
-            throw new Exception("Invalid JSON from Gemini: " + e.getMessage(), e);
-        }
+    protected long getMaxFileSize() {
+        return 20 * 1024 * 1024;
     }
 
     @Override
-    protected ParseResult postProcess(ParseResult result) {
-        if (result.lessons == null || result.lessons.isEmpty()) {
-            log.warn("⚠️ Empty result, skipping post-process");
-            return result;
-        }
-
-        int theoryCount = 0;
-        int practiceCount = 0;
-        int totalQuestions = 0;
-
-        for (GrammarLessonDTO lesson : result.lessons) {
-            // Process lesson
-            processLesson(lesson);
-
-            // Count statistics
-            if (lesson.getLessonType() == LessonType.THEORY) {
-                theoryCount++;
-            } else {
-                practiceCount++;
-            }
-
-            // Process questions if exist
-            if (lesson.getQuestions() != null && !lesson.getQuestions().isEmpty()) {
-                totalQuestions += lesson.getQuestions().size();
-                processQuestions(lesson);
-            }
-        }
-
-        // Add summary metadata
-        ParseResult.ParseMetadata metadata = new ParseResult.ParseMetadata();
-        metadata.setTotalTheoryLessons(theoryCount);
-        metadata.setTotalPracticeLessons(practiceCount);
-        metadata.setTotalQuestions(totalQuestions);
-        result.setMetadata(metadata);
-
-        log.info("✅ Post-process complete: {} theory, {} practice, {} questions",
-                theoryCount, practiceCount, totalQuestions);
-
-        return result;
+    protected boolean isImage(String m) {
+        return m != null && m.startsWith("image/");
     }
 
     @Override
-    protected ParseResult mergeResults(List<ParseResult> results) {
-        if (results.size() == 1) {
-            return results.get(0);
+    protected boolean isPDF(String m) {
+        return "application/pdf".equals(m);
+    }
+
+    @Override
+    protected boolean isDOCX(String m) {
+        return m != null && m.contains("wordprocessingml");
+    }
+
+    @Override
+    protected String extractTextFromFile(MultipartFile file, List<Integer> pages) throws Exception {
+        String mimeType = file.getContentType();
+        
+        if (isPDF(mimeType)) {
+            return extractTextFromPDF(file, pages);
+        } else if (isDOCX(mimeType)) {
+            return extractTextFromDOCX(file);
         }
+        
+        throw new Exception("Unsupported file type: " + mimeType);
+    }
 
-        ParseResult merged = new ParseResult();
-        merged.lessons = new ArrayList<>();
+    @Override
+    protected List<ContentChunk> splitIntoLogicalChunks(String text) {
+        List<ContentChunk> chunks = new ArrayList<>();
+        
+        // Regex cũ của bạn (Giữ nguyên vì nó tốt)
+        String regex = "(?m)^(?=(CHUYÊN ĐỀ|UNIT|CHAPTER|PART|PHẦN|TEST|PRACTICE TEST|Exercise|Bài tập)\\s+\\d+|[IVX]+\\.\\s)";
+        
+        String[] sections = text.split(regex);
+        
+        if (sections.length > 1) {
+            for (int i = 0; i < sections.length; i++) {
+                String section = sections[i].trim();
+                
+                // --- CẢI TIẾN BỘ LỌC RÁC ---
+                // 1. Bỏ qua nếu quá ngắn (Tăng từ 50 lên 200 ký tự)
+                // Các bài học thật sự thường dài hơn 200 ký tự. Header/Số trang thường ngắn hơn.
+                if (section.length() < 150) { 
+                    log.info("⚠️ Skipping chunk {} (Too short, likely header/footer): {}...", i, truncate(section, 20));
+                    continue; 
+                }
 
-        // Merge all lessons
-        for (ParseResult result : results) {
-            if (result != null && result.lessons != null) {
-                merged.lessons.addAll(result.lessons);
+                // 2. Bỏ qua nếu chỉ toàn số hoặc ký tự đặc biệt (Rác do PDF lỗi)
+                if (section.matches("^[0-9\\s\\.,\\-\\|]+$")) {
+                    continue;
+                }
+                
+                String title = extractSectionTitle(section, i + 1);
+                chunks.add(new ContentChunk(title, section));
+            }
+        } else {
+            // Fallback: Nếu không tìm thấy header, vẫn check độ dài
+            if (text.length() > 150) {
+                chunks = splitByCharacterCount(text, 6000);
             }
         }
-
-        // Sort by orderIndex
-        merged.lessons.sort(Comparator.comparingInt(
-                l -> l.getOrderIndex() != null ? l.getOrderIndex() : Integer.MAX_VALUE));
-
-        // Re-index sequentially
-        for (int i = 0; i < merged.lessons.size(); i++) {
-            merged.lessons.get(i).setOrderIndex(i + 1);
-        }
-
-        log.info("✅ Merged {} chunks into {} lessons", results.size(), merged.lessons.size());
-        return merged;
+        
+        return chunks;
+    }
+    
+    // Helper để log gọn
+    private String truncate(String s, int len) {
+        return s.length() > len ? s.substring(0, len) : s;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // PUBLIC API - Enhanced with topicId support
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Parse file and auto-adjust orderIndex based on existing lessons in topic
-     * 
-     * @param file    File to parse (PDF/DOCX/Image)
-     * @param topicId Target topic ID
-     * @param pages   Page numbers (null = all pages)
-     * @return Parsed result with adjusted orderIndex
-     */
-    public ParseResult parseFileWithTopicId(MultipartFile file, Long topicId, List<Integer> pages)
-            throws Exception {
-
-        log.info("📄 Parsing file for topic {}: {}", topicId, file.getOriginalFilename());
-
-        // Parse file using base class method
-        ParseResult result = parseFile(file, pages);
-
-        // Adjust orderIndex based on existing lessons
-        if (topicId != null) {
-            adjustOrderIndexForTopic(result, topicId);
+    @Override
+    protected void validateFile(MultipartFile file) throws Exception {
+        if (file.isEmpty()) {
+            throw new Exception("File is empty");
         }
-
-        return result;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PRIVATE HELPER METHODS
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Process single lesson: validate and set defaults
-     */
-    private void processLesson(GrammarLessonDTO lesson) {
-        // Infer lesson type if missing
-        if (lesson.getLessonType() == null) {
-            lesson.setLessonType(inferLessonType(lesson));
+        
+        if (file.getSize() > getMaxFileSize()) {
+            throw new Exception("File too large");
         }
-
-        // Set default points
-        if (lesson.getPointsReward() == null || lesson.getPointsReward() == 0) {
-            lesson.setPointsReward(getDefaultPoints(lesson.getLessonType()));
+        
+        String mimeType = file.getContentType();
+        if (!isImage(mimeType) && !isPDF(mimeType) && !isDOCX(mimeType)) {
+            throw new Exception("Unsupported file type: " + mimeType);
         }
-
-        // Calculate estimated duration
-        if (lesson.getEstimatedDuration() == null || lesson.getEstimatedDuration() == 0) {
-            lesson.setEstimatedDuration(calculateDuration(lesson));
-        }
-
-        // Set active by default
-        if (lesson.getIsActive() == null) {
-            lesson.setIsActive(true);
-        }
-
-        // Clean HTML content for theory lessons
-        if (lesson.getLessonType() == LessonType.THEORY && lesson.getContent() != null) {
-            lesson.setContent(cleanHtmlContent(lesson.getContent()));
-        }
-
-        // Validate lesson metadata if exists
-        if (lesson.getMetadata() != null) {
-            validateLessonMetadata(lesson.getMetadata(), lesson.getTitle());
-        }
-    }
-
-    /**
-     * Infer lesson type from content
-     */
-    private LessonType inferLessonType(GrammarLessonDTO lesson) {
-        // Has content → likely THEORY
-        if (lesson.getContent() != null && !lesson.getContent().trim().isEmpty()) {
-            return LessonType.THEORY;
-        }
-
-        // Has questions → PRACTICE
-        if (lesson.getQuestions() != null && !lesson.getQuestions().isEmpty()) {
-            return LessonType.PRACTICE;
-        }
-
-        // Check title keywords
-        String title = lesson.getTitle() != null ? lesson.getTitle().toLowerCase() : "";
-        if (title.contains("exercise") || title.contains("practice") || title.contains("drill")) {
-            return LessonType.PRACTICE;
-        }
-
-        // Default to THEORY
-        return LessonType.THEORY;
-    }
-
-    /**
-     * Get default points based on lesson type
-     */
-    private int getDefaultPoints(LessonType type) {
-        return type == LessonType.THEORY ? DEFAULT_THEORY_POINTS : DEFAULT_PRACTICE_POINTS;
-    }
-
-    /**
-     * Calculate estimated duration based on content and questions
-     */
-    private int calculateDuration(GrammarLessonDTO lesson) {
-        int baseDuration = lesson.getLessonType() == LessonType.THEORY
-                ? BASE_THEORY_DURATION
-                : BASE_PRACTICE_DURATION;
-
-        // Add time for long content
-        if (lesson.getContent() != null && lesson.getContent().length() > LONG_CONTENT_THRESHOLD) {
-            baseDuration += LONG_CONTENT_BONUS;
-        }
-
-        // Add time for questions
-        if (lesson.getQuestions() != null && lesson.getQuestions().size() > 5) {
-            baseDuration += lesson.getQuestions().size() * DURATION_PER_QUESTION;
-        }
-
-        return baseDuration;
-    }
-
-    /**
-     * Validate lesson-level metadata (audio support)
-     */
-    private void validateLessonMetadata(Map<String, Object> metadata, String lessonTitle) {
-        if (metadata == null || metadata.isEmpty()) {
-            return;
-        }
-
-        // Validate audioUrl if exists
-        if (metadata.containsKey("audioUrl")) {
-            Object audioUrlObj = metadata.get("audioUrl");
-
-            if (!(audioUrlObj instanceof String)) {
-                log.warn("⚠️ Lesson '{}': audioUrl must be String", lessonTitle);
-                return;
-            }
-
-            String audioUrl = (String) audioUrlObj;
-            if (!audioUrl.startsWith("http://") && !audioUrl.startsWith("https://")) {
-                log.warn("⚠️ Lesson '{}': Invalid audioUrl format: {}", lessonTitle, audioUrl);
-            } else {
-                log.debug("✅ Lesson '{}': Valid audioUrl", lessonTitle);
-            }
-        }
-
-        // Validate audioDuration if exists
-        if (metadata.containsKey("audioDuration")) {
-            Object durationObj = metadata.get("audioDuration");
-            if (!(durationObj instanceof Number)) {
-                log.warn("⚠️ Lesson '{}': audioDuration must be Number", lessonTitle);
-            }
-        }
-    }
-
-    /**
-     * Process all questions in a lesson
-     */
-    private void processQuestions(GrammarLessonDTO lesson) {
-        int orderIndex = 1;
-
-        for (QuestionResponseDTO question : lesson.getQuestions()) {
-            // Auto-assign orderIndex if missing
-            if (question.getOrderIndex() == null || question.getOrderIndex() == 0) {
-                question.setOrderIndex(orderIndex++);
-            }
-
-            // Normalize question text
-            if (question.getQuestionText() != null) {
-                question.setQuestionText(normalizeQuestionText(question.getQuestionText()));
-            }
-
-            // Validate metadata structure
-            validateQuestionMetadata(question, lesson.getTitle());
-        }
-    }
-
-    /**
-     * Validate question metadata using centralized validator
-     */
-    private void validateQuestionMetadata(QuestionResponseDTO question, String lessonTitle) {
-        if (question.getMetadata() == null) {
-            log.warn("⚠️ Lesson '{}': Question '{}' has null metadata",
-                    lessonTitle, truncate(question.getQuestionText(), 50));
-            return;
-        }
-
-        try {
-            metadataValidator.validate(question.getQuestionType(), question.getMetadata());
-            log.debug("✅ Validated metadata for question: {}", question.getQuestionType());
-        } catch (Exception e) {
-            log.error("❌ Lesson '{}': Invalid metadata for question '{}': {}",
-                    lessonTitle, truncate(question.getQuestionText(), 50), e.getMessage());
-        }
-    }
-
-    /**
-     * Normalize question text: clean up blanks and special characters
-     */
-    private String normalizeQuestionText(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-
-        return text
-                // Normalize multiple dots to triple underscore
-                .replaceAll("\\.{4,}", "___")
-                // Normalize multiple underscores
-                .replaceAll("_{2,}", "___")
-                // Remove superscript numbers
-                .replaceAll("[¹²³⁴⁵⁶⁷⁸⁹⁰]", "")
-                // Normalize whitespace
-                .replaceAll("\\s+", " ")
-                // Fix spacing around blanks
-                .replaceAll("\\s+___", " ___")
-                .replaceAll("___\\s+", "___ ")
-                .trim();
-    }
-
-    /**
-     * Clean HTML content: remove ads, normalize whitespace
-     */
-    private String cleanHtmlContent(String html) {
-        if (html == null || html.isEmpty()) {
-            return html;
-        }
-
-        return html
-                // Normalize whitespace
-                .replaceAll("\\s+", " ")
-                // Remove empty paragraphs
-                .replaceAll("<p>\\s*</p>", "")
-                // Remove double line breaks
-                .replaceAll("<br>\\s*<br>", "<br>")
-                // Ensure tables have proper class
-                .replaceAll("<table[^>]*>", "<table class=\"tiptap-table\">")
-                // Remove advertisement content
-                .replaceAll("(Hotline:|Website:|Fanpage:)[^<]*", "")
-                .replaceAll("Trung tâm[^<]*", "")
-                .trim();
-    }
-
-    /**
-     * Adjust orderIndex based on existing lessons in topic
-     */
-    private void adjustOrderIndexForTopic(ParseResult result, Long topicId) {
-        if (result.lessons == null || result.lessons.isEmpty()) {
-            log.warn("⚠️ No lessons to adjust orderIndex");
-            return;
-        }
-
-        // Get max orderIndex from database
-        Integer maxOrder = lessonRepository.findMaxOrderIndexByTopicId(topicId);
-        int baseOrder = (maxOrder != null ? maxOrder : 0);
-
-        log.info("📊 Topic {}: Current max orderIndex = {}, starting from {}",
-                topicId, maxOrder, baseOrder + 1);
-
-        Set<Integer> usedIndexes = new HashSet<>();
-
-        for (GrammarLessonDTO lesson : result.lessons) {
-            lesson.setTopicId(topicId);
-
-            // Calculate new orderIndex
-            Integer newIndex = lesson.getOrderIndex();
-            if (newIndex == null || newIndex == 0) {
-                newIndex = ++baseOrder;
-            } else {
-                newIndex = baseOrder + newIndex;
-            }
-
-            // Ensure uniqueness
-            while (usedIndexes.contains(newIndex)) {
-                newIndex++;
-            }
-
-            usedIndexes.add(newIndex);
-            lesson.setOrderIndex(newIndex);
-
-            log.debug("  → Lesson '{}': orderIndex = {}",
-                    truncate(lesson.getTitle(), 40), newIndex);
-        }
-
-        int minIndex = result.lessons.get(0).getOrderIndex();
-        int maxIndex = result.lessons.get(result.lessons.size() - 1).getOrderIndex();
-
-        log.info("✅ Adjusted orderIndex range: {} - {}", minIndex, maxIndex);
-    }
-
-    /**
-     * Truncate text for logging
-     */
-    private String truncate(String text, int maxLength) {
-        if (text == null) {
-            return "";
-        }
-        return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
     }
 }

@@ -5,7 +5,6 @@ import com.thanhnb.englishlearning.dto.CustomApiResponse;
 import com.thanhnb.englishlearning.dto.PaginatedResponse;
 import com.thanhnb.englishlearning.dto.ParseResult;
 import com.thanhnb.englishlearning.dto.grammar.request.ReorderLessonRequest;
-import com.thanhnb.englishlearning.dto.question.request.CreateFillBlankDTO;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.service.grammar.GrammarAdminService;
@@ -40,30 +39,45 @@ public class GrammarAdminController {
         private final GrammarAdminService grammarAdminService;
         private final GrammarAIParsingService grammarAIParsingService;
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // GEMINI AI PARSING (PDF/DOCX/Image)
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
+        // GEMINI AI PARSING (PDF/DOCX/Image) - ENHANCED WITH PARSING CONTEXT
+        // ═══════════════════════════════════════════════════════════════════════════
 
         @PostMapping("/topics/{topicId}/parse-file")
         @Operation(summary = "Parse file (PDF/DOCX/Image) thành Grammar lessons", description = "Sử dụng AI (Gemini) để phân tích file và tạo lessons với questions. "
                         +
-                        "Hỗ trợ PDF (có thể chọn pages), DOCX, và Image (JPG/PNG/WEBP).")
+                        "Hỗ trợ PDF (có thể chọn pages), DOCX, và Image (JPG/PNG/WEBP). " +
+                        "Có thể thêm Parsing Context để hướng dẫn AI phân tích chính xác hơn.")
         public ResponseEntity<CustomApiResponse<Map<String, Object>>> parseFile(
                         @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
 
                         @Parameter(description = "File PDF/DOCX/Image (max 20MB)", required = true) @RequestParam("file") MultipartFile file,
 
-                        @Parameter(description = "Danh sách số trang cần parse (chỉ cho PDF). VD: [1,2,3,5,7]. Nếu không có thì parse toàn bộ.") @RequestParam(required = false) List<Integer> pages) {
+                        @Parameter(description = "Danh sách số trang cần parse (chỉ cho PDF). VD: [1,2,3,5,7]. Nếu không có thì parse toàn bộ.") @RequestParam(required = false) List<Integer> pages,
+
+                        @Parameter(description = "✅ Parsing Context: Hướng dẫn cho AI về cách phân tích file. " +
+                                        "VD: 'Parse sections I, II and exercises. Skip section III.'") @RequestParam(required = false) String parsingContext) {
 
                 try {
-                        log.info("Parse file request: file={}, topicId={}, pages={}",
-                                        file.getOriginalFilename(), topicId,
-                                        pages != null ? pages.size() + " selected" : "all");
+                        log.info("📄 Parse file request: file={}, topicId={}, pages={}, hasContext={}",
+                                        file.getOriginalFilename(),
+                                        topicId,
+                                        pages != null ? pages.size() + " selected" : "all",
+                                        parsingContext != null && !parsingContext.trim().isEmpty());
 
-                        ParseResult result = grammarAIParsingService.parseFileWithTopicId(file, topicId, pages);
+                        if (parsingContext != null && !parsingContext.trim().isEmpty()) {
+                                log.info("📋 Parsing Context provided: {}", parsingContext);
+                        }
+
+                        // ✅ Call service with parsing context
+                        ParseResult result = grammarAIParsingService.parseFileWithContext(
+                                        file,
+                                        topicId,
+                                        pages,
+                                        parsingContext);
 
                         if (result == null || result.lessons == null || result.lessons.isEmpty()) {
-                                log.warn("AI returned empty result");
+                                log.warn("⚠️ AI returned empty result");
                                 return ResponseEntity.badRequest()
                                                 .body(CustomApiResponse.badRequest(
                                                                 "AI không trả về lessons nào. Vui lòng kiểm tra nội dung file."));
@@ -81,9 +95,20 @@ public class GrammarAdminController {
                                         .count();
 
                         int totalQuestions = result.lessons.stream()
-                                        .filter(l -> l.getQuestions() != null)
-                                        .mapToInt(l -> l.getQuestions().size())
+                                        .filter(l -> l.getCreateQuestions() != null)
+                                        .mapToInt(l -> l.getCreateQuestions().size())
                                         .sum();
+
+                        // ✅ Count question types
+                        Map<String, Integer> questionTypeStats = new HashMap<>();
+                        result.lessons.forEach(lesson -> {
+                                if (lesson.getCreateQuestions() != null) {
+                                        lesson.getCreateQuestions().forEach(q -> {
+                                                String type = q.getQuestionType().toString();
+                                                questionTypeStats.merge(type, 1, Integer::sum);
+                                        });
+                                }
+                        });
 
                         Map<String, Object> summary = new HashMap<>();
                         summary.put("fileName", file.getOriginalFilename());
@@ -95,13 +120,17 @@ public class GrammarAdminController {
                         summary.put("theoryLessons", theoryCount);
                         summary.put("practiceLessons", practiceCount);
                         summary.put("totalQuestions", totalQuestions);
+                        summary.put("questionTypeStats", questionTypeStats); // ✅ NEW
+                        summary.put("parsingContextUsed", parsingContext != null && !parsingContext.trim().isEmpty()); // ✅
+                                                                                                                       // NEW
 
                         Map<String, Object> response = new HashMap<>();
                         response.put("parsedData", result);
                         response.put("summary", summary);
 
-                        log.info("Parse success: {} lessons ({} theory, {} practice), {} questions",
-                                        result.lessons.size(), theoryCount, practiceCount, totalQuestions);
+                        log.info("Parse success: {} lessons ({} theory, {} practice), {} questions. Types: {}",
+                                        result.lessons.size(), theoryCount, practiceCount, totalQuestions,
+                                        questionTypeStats);
 
                         return ResponseEntity.ok(
                                         CustomApiResponse.success(response,
@@ -133,11 +162,11 @@ public class GrammarAdminController {
                         @Parameter(description = "ParseResult từ endpoint parse-file", required = true) @RequestBody ParseResult parsedResult) {
 
                 try {
-                        log.info("Saving {} parsed lessons for topicId={}",
+                        log.info("💾 Saving {} parsed lessons for topicId={}",
                                         parsedResult.lessons != null ? parsedResult.lessons.size() : 0, topicId);
 
                         if (parsedResult == null || parsedResult.lessons == null || parsedResult.lessons.isEmpty()) {
-                                log.warn("Empty parsed result");
+                                log.warn("⚠️ Empty parsed result");
                                 return ResponseEntity.badRequest()
                                                 .body(CustomApiResponse.badRequest("Không có lesson nào để import"));
                         }
@@ -146,7 +175,7 @@ public class GrammarAdminController {
                                         topicId, parsedResult.lessons);
 
                         if (savedLessons.isEmpty()) {
-                                log.warn("No lessons were saved");
+                                log.warn("⚠️ No lessons were saved");
                                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                                 .body(CustomApiResponse
                                                                 .badRequest("Không thể lưu lessons vào database"));
@@ -178,7 +207,7 @@ public class GrammarAdminController {
                         result.put("summary", summary);
                         result.put("lessons", savedLessons);
 
-                        log.info("Save success: {} lessons ({} theory, {} practice), {} questions created",
+                        log.info("✅ Save success: {} lessons ({} theory, {} practice), {} questions created",
                                         savedLessons.size(), theoryCount, practiceCount, totalQuestionsCreated);
 
                         return ResponseEntity.ok(
@@ -187,12 +216,12 @@ public class GrammarAdminController {
                                                                         savedLessons.size(), totalQuestionsCreated)));
 
                 } catch (RuntimeException e) {
-                        log.error("Business logic error: {}", e.getMessage());
+                        log.error("❌ Business logic error: {}", e.getMessage());
                         return ResponseEntity.badRequest()
                                         .body(CustomApiResponse.badRequest(String.format("Lỗi: %s", e.getMessage())));
 
                 } catch (Exception e) {
-                        log.error("Unexpected error: ", e);
+                        log.error("❌ Unexpected error: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                         .body(CustomApiResponse.badRequest(
                                                         String.format("Lỗi khi lưu bài học: %s",
@@ -201,9 +230,9 @@ public class GrammarAdminController {
                 }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
         // TOPIC MANAGEMENT
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
 
         @GetMapping("/topics")
         @Operation(summary = "Lấy tất cả topics với phân trang")
@@ -296,9 +325,9 @@ public class GrammarAdminController {
                 }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
         // LESSON MANAGEMENT
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
 
         @GetMapping("/topics/{topicId}/lessons")
         @Operation(summary = "Lấy lessons theo topic với phân trang")
@@ -424,9 +453,9 @@ public class GrammarAdminController {
                 }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
         // QUESTION MANAGEMENT (Metadata-based)
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
 
         @GetMapping("/lessons/{lessonId}/questions")
         @Operation(summary = "Lấy questions theo lesson với phân trang")
@@ -465,29 +494,6 @@ public class GrammarAdminController {
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(
                         @Valid @RequestBody CreateQuestionDTO dto) {
                 try {
-                        // ✅ LOG KIỂM TRA JACKSON DESERIALIZE
-                        log.info("═══════════════════════════════════════════════════════");
-                        log.info("📥 [CREATE QUESTION] Received DTO");
-                        log.info("🔹 DTO Class: {}", dto.getClass().getSimpleName());
-                        log.info("🔹 Question Type (field): {}", dto.getQuestionType());
-                        log.info("🔹 Question Type (method): {}", dto.getQuestionType());
-                        log.info("🔹 Parent Type: {}", dto.getParentType());
-                        log.info("🔹 Parent ID: {}", dto.getParentId());
-
-                        if (dto instanceof CreateFillBlankDTO) {
-                                CreateFillBlankDTO fillBlankDTO = (CreateFillBlankDTO) dto;
-                                log.info("🔹 Blanks count: {}",
-                                                fillBlankDTO.getBlanks() != null ? fillBlankDTO.getBlanks().size() : 0);
-                                if (fillBlankDTO.getBlanks() != null) {
-                                        fillBlankDTO.getBlanks().forEach(blank -> log.info("   - Blank #{}: {} answers",
-                                                        blank.getPosition(),
-                                                        blank.getCorrectAnswers() != null
-                                                                        ? blank.getCorrectAnswers().size()
-                                                                        : 0));
-                                }
-                        }
-
-                        log.info("═══════════════════════════════════════════════════════");
                         QuestionResponseDTO created = grammarAdminService.createQuestion(dto);
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(CustomApiResponse.created(created, "Tạo question thành công"));
@@ -583,9 +589,9 @@ public class GrammarAdminController {
                 }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
         // VALIDATION ENDPOINTS (Health check / Maintenance)
-        // ═══════════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════════════
 
         @PostMapping("/topics/validate-all-order")
         @Operation(summary = "Validate và fix orderIndex của tất cả topics")

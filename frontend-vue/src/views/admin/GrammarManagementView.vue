@@ -47,27 +47,29 @@
       </el-tab-pane>
 
       <!-- AI Parsing Tab (Coming soon) -->
-      <el-tab-pane label="AI Parsing" name="parsing" disabled>
+      <el-tab-pane label="AI Parsing" name="parsing">
         <template #label>
           <span class="tab-label">
             <el-icon><MagicStick /></el-icon>
             <span v-if="!isMobile">AI Parsing</span>
-            <el-tag v-if="!isMobile" size="small" type="success">AI</el-tag>
           </span>
         </template>
-        <el-empty description="Coming soon..." />
+
+        <AIParsingPanel />
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { nextTick, ref, computed } from 'vue'
+import { nextTick, ref, computed, defineAsyncComponent } from 'vue'
 import { Collection, Document, QuestionFilled, MagicStick } from '@element-plus/icons-vue'
 import TopicsList from '@/components/admin/grammar/TopicList.vue'
 import LessonsList from '@/components/admin/grammar/LessonList.vue'
 import QuestionList from '@/components/admin/grammar/QuestionList.vue'
-
+const AIParsingPanel = defineAsyncComponent(() =>
+  import('@/components/admin/grammar/AIParsingPanel.vue')
+)
 // Responsive
 const isMobile = computed(() => window.innerWidth < 768)
 
@@ -78,18 +80,18 @@ const selectedLessonIdForQuestion = ref(null)
 const lessonListRef = ref(null)
 const questionListRef = ref(null)
 
-// ✅ Switch to Lessons tab from Topics
+// Switch to Lessons tab from Topics
 const handleSwitchToLessons = (topic) => {
-  console.log('✅ Switching to lessons for topic:', topic.id, topic.name)
+  console.log('Switching to lessons for topic:', topic.id, topic.name)
   if (topic && topic.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
   }
 }
 
-// ✅ Add lesson from Topics tab
+// Add lesson from Topics tab
 const handleAddLessonFromTopic = async (topic) => {
-  console.log('✅ Adding lesson for topic:', topic.id)
+  console.log('Adding lesson for topic:', topic.id)
   if (topic && topic.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
@@ -101,9 +103,9 @@ const handleAddLessonFromTopic = async (topic) => {
   }
 }
 
-// ✅ NEW: Switch to Questions tab from Lessons (FIXED - Emit instead of router)
+// Switch to Questions tab from Lessons (FIXED - Emit instead of router)
 const handleSwitchToQuestions = (lesson) => {
-  console.log('✅ Switching to questions for lesson:', lesson.id, lesson.title)
+  console.log('Switching to questions for lesson:', lesson.id, lesson.title)
   if (lesson && lesson.id) {
     selectedLessonIdForQuestion.value = lesson.id
     activeTab.value = 'questions'
