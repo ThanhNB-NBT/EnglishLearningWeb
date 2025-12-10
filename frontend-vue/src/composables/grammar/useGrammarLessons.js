@@ -16,7 +16,7 @@ export function useGrammarLessonForm() {
     content: '',
     orderIndex: 1,
     pointsReward: 10,
-    estimatedDuration: 180,
+    timeLimitSeconds: 180,
     isActive: true,
   })
 
@@ -39,7 +39,7 @@ export function useGrammarLessonForm() {
       { required: true, message: 'Vui lòng nhập điểm thưởng', trigger: 'blur' },
       { type: 'number', min: 1, message: 'Điểm thưởng phải lớn hơn 0', trigger: 'blur' },
     ],
-    estimatedDuration: [
+    timeLimitSeconds: [
       { required: true, message: 'Vui lòng nhập thời gian ước tính', trigger: 'blur' },
       { type: 'number', min: 10, message: 'Thời gian phải >= 10 giây', trigger: 'blur' },
     ],
@@ -71,7 +71,7 @@ export function useGrammarLessonForm() {
       content: '',
       orderIndex: nextOrder,
       pointsReward: 10,
-      estimatedDuration: 180,
+      timeLimitSeconds: 180,
       isActive: true,
     }
     dialogVisible.value = true
@@ -88,7 +88,7 @@ export function useGrammarLessonForm() {
       content: lesson.content || '',
       orderIndex: lesson.orderIndex,
       pointsReward: lesson.pointsReward || 10,
-      estimatedDuration: lesson.estimatedDuration || 180,
+      timeLimitSeconds: lesson.timeLimitSeconds || 180,
       isActive: lesson.isActive ?? true,
     }
     dialogVisible.value = true
@@ -133,7 +133,7 @@ export function useGrammarLessonForm() {
       content: '',
       orderIndex: 1,
       pointsReward: 10,
-      estimatedDuration: 180,
+      timeLimitSeconds: 180,
       isActive: true,
     }
   }
@@ -142,10 +142,10 @@ export function useGrammarLessonForm() {
   const handleLessonTypeChange = (type) => {
     if (type === 'THEORY') {
       formData.value.pointsReward = 10
-      formData.value.estimatedDuration = 180
+      formData.value.timeLimitSeconds = 180
     } else if (type === 'PRACTICE') {
       formData.value.pointsReward = 15
-      formData.value.estimatedDuration = 300
+      formData.value.timeLimitSeconds = 300
     }
   }
 

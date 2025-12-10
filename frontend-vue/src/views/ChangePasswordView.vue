@@ -1,108 +1,57 @@
 <template>
-  <div class="change-password-page">
-    <div class="container">
-      <h1 class="page-title">Đổi mật khẩu</h1>
+  <div class="min-h-screen bg-gray-50 dark:bg-dark-bg p-4 flex items-center justify-center">
+    <div class="w-full max-w-lg bg-white dark:bg-[#1d1d1d] rounded-2xl shadow-lg border border-gray-200 dark:border-[#303030] p-8">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Đổi mật khẩu</h2>
 
-      <el-card shadow="never">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          style="margin-bottom: 24px"
-        >
-          <template #title>
-            Sau khi đổi mật khẩu, bạn sẽ cần đăng nhập lại
-          </template>
-        </el-alert>
+      <el-alert
+        title="Lưu ý: Sau khi đổi mật khẩu, bạn sẽ cần đăng nhập lại."
+        type="warning"
+        :closable="false"
+        show-icon
+        class="!mb-6"
+      />
 
-        <el-form
-          ref="formRef"
-          :model="formData"
-          :rules="rules"
-          label-width="180px"
-          label-position="left"
-        >
-          <!-- Old Password -->
-          <el-form-item label="Mật khẩu hiện tại" prop="oldPassword">
-            <el-input
-              v-model="formData.oldPassword"
-              type="password"
-              placeholder="Nhập mật khẩu hiện tại"
-              show-password
-              clearable
-            />
-          </el-form-item>
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-position="top"
+        size="large"
+        @submit.prevent="handleChangePassword"
+      >
+        <el-form-item label="Mật khẩu hiện tại" prop="oldPassword">
+          <el-input v-model="formData.oldPassword" type="password" show-password />
+        </el-form-item>
 
-          <!-- New Password -->
-          <el-form-item label="Mật khẩu mới" prop="newPassword">
-            <el-input
-              v-model="formData.newPassword"
-              type="password"
-              placeholder="Tối thiểu 8 ký tự"
-              show-password
-              clearable
-            />
-          </el-form-item>
+        <el-form-item label="Mật khẩu mới" prop="newPassword">
+          <el-input v-model="formData.newPassword" type="password" placeholder="Tối thiểu 8 ký tự" show-password />
+        </el-form-item>
 
-          <!-- Confirm Password -->
-          <el-form-item label="Xác nhận mật khẩu mới" prop="confirmPassword">
-            <el-input
-              v-model="formData.confirmPassword"
-              type="password"
-              placeholder="Nhập lại mật khẩu mới"
-              show-password
-              clearable
-              @keyup.enter="handleChangePassword"
-            />
-          </el-form-item>
+        <el-form-item label="Xác nhận mật khẩu mới" prop="confirmPassword">
+          <el-input v-model="formData.confirmPassword" type="password" show-password @keyup.enter="handleChangePassword" />
+        </el-form-item>
 
-          <!-- Action Buttons -->
-          <el-form-item>
-            <el-button
-              type="primary"
-              :loading="loading"
-              :disabled="loading"
-              @click="handleChangePassword"
-            >
-              Đổi mật khẩu
-            </el-button>
-            <el-button @click="resetForm">
-              Đặt lại
-            </el-button>
-            <el-button @click="$router.back()">
-              Quay lại
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
+        <div class="flex flex-col gap-3 mt-8">
+          <el-button
+            type="primary"
+            native-type="submit"
+            :loading="loading"
+            class="!w-full !font-bold"
+          >
+            Đổi mật khẩu
+          </el-button>
+          <el-button @click="$router.back()" class="!w-full !ml-0">
+            Hủy bỏ
+          </el-button>
+        </div>
+      </el-form>
     </div>
   </div>
 </template>
 
 <script setup>
+// Script giữ nguyên
 import { useChangePassword } from '@/composables/auth/useChangePassword'
-
-const { loading, formRef, formData, rules, changePassword, resetForm } = useChangePassword()
-
-const handleChangePassword = async () => {
-  await changePassword()
-}
+const { loading, formRef, formData, rules, changePassword } = useChangePassword()
+const handleChangePassword = async () => await changePassword()
 </script>
-
-<style scoped>
-.change-password-page {
-  padding: 24px;
-}
-
-.container {
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0 0 24px 0;
-  color: #303133;
-}
-</style>

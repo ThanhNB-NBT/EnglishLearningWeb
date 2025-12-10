@@ -1,267 +1,171 @@
 <template>
-  <div class="cleanup-management-page">
-    <div class="container">
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1 class="page-title">Quản lý tài khoản chưa xác thực</h1>
-          <p class="page-subtitle">Tự động xóa tài khoản sau {{ stats.cutoffHours }} giờ</p>
+  <div class="w-full p-4 md:p-6">
+    <div class="w-full">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dọn dẹp tài khoản rác</h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" v-if="stats">
+            Tự động xóa tài khoản chưa xác thực sau {{ stats.cutoffHours }} giờ
+          </p>
         </div>
-        <div class="header-actions">
-          <el-button
-            :icon="RefreshRight"
-            @click="refreshAll"
-            :loading="loading"
-          >
+        <div class="flex gap-2">
+          <el-button :icon="RefreshRight" @click="refreshAll" :loading="loading" class="!rounded-lg">
             Làm mới
           </el-button>
           <el-button
             type="danger"
             :icon="Delete"
             :loading="cleanupLoading"
-            :disabled="preview.willBeDeleted === 0"
+            :disabled="!preview || preview.willBeDeleted === 0"
             @click="handleRunCleanup"
+            class="!rounded-lg font-bold"
           >
-            Chạy Cleanup ({{ preview.willBeDeleted }})
+            Chạy Cleanup ({{ preview?.willBeDeleted || 0 }})
           </el-button>
         </div>
       </div>
 
-      <!-- Info Alert -->
       <el-alert
+        v-if="stats"
         :type="cleanupStatus"
         :closable="false"
         show-icon
-        style="margin-bottom: 24px"
+        class="!mb-6 !bg-blue-50 dark:!bg-blue-900/20 !border-blue-200 dark:!border-blue-800"
       >
         <template #title>
-          <strong>Trạng thái Cleanup</strong>
+          <span class="font-bold text-blue-800 dark:text-blue-300">Trạng thái Cleanup</span>
         </template>
-        <div class="alert-content">
-          <p>
-            Hệ thống tự động xóa tài khoản chưa xác thực sau <strong>{{ stats.cutoffHours }} giờ</strong>.
-          </p>
-          <p>
-            Cleanup tự động chạy mỗi ngày lúc <strong>2:00 AM</strong>.
-          </p>
-          <p v-if="lastCleanupTime" class="last-cleanup">
-            Lần cleanup gần nhất: <strong>{{ formatRelativeTime(lastCleanupTime) }}</strong>
-            ({{ formatDate(lastCleanupTime) }})
+        <div class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+          <p>Hệ thống tự động xóa tài khoản chưa xác thực quá <b>{{ stats.cutoffHours }} giờ</b>.</p>
+          <p>Lịch chạy tự động: <b>2:00 AM</b> hàng ngày.</p>
+          <p v-if="lastCleanupTime" class="mt-1 pt-1 border-t border-blue-200 dark:border-blue-800 opacity-90">
+            Lần chạy cuối: {{ formatRelativeTime(lastCleanupTime) }} ({{ formatDate(lastCleanupTime) }})
           </p>
         </div>
       </el-alert>
 
-      <!-- Statistics Cards -->
-      <el-row :gutter="24" class="stats-row">
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon total">
-                <el-icon :size="32"><Warning /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ stats.totalUnverified }}</div>
-                <div class="stat-label">Tổng tài khoản chưa xác thực</div>
-                <div class="stat-meta">
-                  <el-tag size="small" type="info">Tất cả</el-tag>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-card shadow="hover" class="stat-card danger-stat">
-            <div class="stat-content">
-              <div class="stat-icon old">
-                <el-icon :size="32"><Clock /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ stats.oldUnverified }}</div>
-                <div class="stat-label">Quá {{ stats.cutoffHours }}h (sẽ bị xóa)</div>
-                <div class="stat-meta">
-                  <el-tag size="small" type="danger">{{ deletionPercentage }}%</el-tag>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon cleanup">
-                <el-icon :size="32"><CircleCheck /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ lastCleanupCount }}</div>
-                <div class="stat-label">Đã xóa lần cleanup trước</div>
-                <div class="stat-meta" v-if="lastCleanupTime">
-                  <el-tag size="small" type="success">
-                    {{ formatRelativeTime(lastCleanupTime) }}
-                  </el-tag>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-
-      <!-- Preview Card -->
-      <el-card shadow="never" class="preview-card">
-        <template #header>
-          <div class="card-header">
-            <span class="card-title">
-              <el-icon><View /></el-icon>
-              Preview Cleanup
-            </span>
-            <el-button
-              type="primary"
-              :icon="RefreshRight"
-              @click="fetchPreview"
-              size="small"
-            >
-              Làm mới Preview
-            </el-button>
+      <div v-if="stats" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="bg-white dark:bg-[#1d1d1d] p-5 rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+            <el-icon :size="24"><Warning /></el-icon>
           </div>
-        </template>
-
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="Số tài khoản sẽ bị xóa">
-            <el-tag
-              :type="preview.willBeDeleted > 0 ? 'danger' : 'success'"
-              size="large"
-              effect="dark"
-            >
-              {{ preview.willBeDeleted }} tài khoản
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Thời gian cutoff">
-            <el-text type="info">
-              {{ formatDate(preview.cutoffDate) }}
-            </el-text>
-          </el-descriptions-item>
-          <el-descriptions-item label="Giới hạn giờ">
-            <el-tag type="warning">{{ preview.cutoffHours }} giờ</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="Cập nhật lúc">
-            <el-text type="info">
-              {{ formatDate(preview.timestamp) }}
-            </el-text>
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <el-divider />
-
-        <div class="preview-actions">
-          <el-space direction="vertical" alignment="flex-start" :size="12">
-            <el-button
-              type="danger"
-              :icon="Delete"
-              :loading="cleanupLoading"
-              :disabled="preview.willBeDeleted === 0"
-              @click="handleRunCleanup"
-              size="large"
-            >
-              Xóa {{ preview.willBeDeleted }} tài khoản ngay
-            </el-button>
-            <el-text type="info" size="small">
-              * Chỉ xóa tài khoản chưa xác thực quá {{ stats.cutoffHours }} giờ
-            </el-text>
-            <el-text v-if="preview.willBeDeleted === 0" type="success" size="small">
-              ✅ Không có tài khoản nào cần xóa
-            </el-text>
-          </el-space>
+          <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.totalUnverified }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Chưa xác thực</div>
+          </div>
         </div>
-      </el-card>
 
-      <!-- Unverified Users Table -->
-      <el-card shadow="never" class="table-card">
-        <template #header>
-          <div class="card-header">
-            <span class="card-title">
-              <el-icon><List /></el-icon>
-              Danh sách tài khoản chưa xác thực
-              <el-tag type="warning" size="small" style="margin-left: 8px">
-                {{ unverifiedUsers.length }}
-              </el-tag>
-            </span>
-            <el-button
-              :icon="RefreshRight"
-              @click="fetchUnverifiedUsers"
-              :loading="loading"
-              size="small"
-            >
-              Làm mới
-            </el-button>
+        <div class="bg-white dark:bg-[#1d1d1d] p-5 rounded-xl border border-red-300 dark:border-red-800 shadow-sm flex items-center gap-4 relative overflow-hidden">
+          <div class="absolute right-0 top-0 p-2 opacity-10">
+             <el-icon :size="100" class="text-red-500"><Delete /></el-icon>
           </div>
-        </template>
+          <div class="w-12 h-12 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 z-10">
+            <el-icon :size="24"><Clock /></el-icon>
+          </div>
+          <div class="z-10">
+            <div class="text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.oldUnverified }}</div>
+            <div class="text-xs text-red-800 dark:text-red-300 uppercase font-bold">Sẽ bị xóa (>{{ stats.cutoffHours }}h)</div>
+            <div class="text-[10px] text-gray-500 mt-1">Chiếm {{ deletionPercentage }}% tổng số</div>
+          </div>
+        </div>
 
-        <!-- Empty State -->
-        <el-empty
-          v-if="!loading && unverifiedUsers.length === 0"
-          description="Không có tài khoản chưa xác thực"
-          :image-size="120"
-        >
-          <el-button type="primary" @click="fetchUnverifiedUsers">
-            Tải lại
-          </el-button>
-        </el-empty>
+        <div class="bg-white dark:bg-[#1d1d1d] p-5 rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+            <el-icon :size="24"><CircleCheck /></el-icon>
+          </div>
+          <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ lastCleanupCount }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Đã xóa lần trước</div>
+          </div>
+        </div>
+      </div>
 
-        <!-- Table -->
+      <div v-if="preview" class="mb-6 bg-white dark:bg-[#1d1d1d] rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <el-icon class="text-blue-500"><View /></el-icon> Xem trước (Preview)
+          </h3>
+          <el-button size="small" :icon="RefreshRight" @click="fetchPreview">Cập nhật Preview</el-button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+           <div class="p-3 bg-gray-50 dark:bg-[#252525] rounded-lg">
+              <div class="text-gray-500 mb-1">Số lượng sẽ xóa</div>
+              <div class="font-bold text-lg" :class="preview.willBeDeleted > 0 ? 'text-red-600' : 'text-green-600'">
+                 {{ preview.willBeDeleted }} tài khoản
+              </div>
+           </div>
+           <div class="p-3 bg-gray-50 dark:bg-[#252525] rounded-lg">
+              <div class="text-gray-500 mb-1">Mốc thời gian (Cutoff)</div>
+              <div class="font-bold text-gray-800 dark:text-gray-200">{{ formatDate(preview.cutoffDate) }}</div>
+           </div>
+           <div class="p-3 bg-gray-50 dark:bg-[#252525] rounded-lg">
+              <div class="text-gray-500 mb-1">Giới hạn</div>
+              <div class="font-bold text-gray-800 dark:text-gray-200">{{ preview.cutoffHours }} giờ</div>
+           </div>
+           <div class="p-3 bg-gray-50 dark:bg-[#252525] rounded-lg">
+              <div class="text-gray-500 mb-1">Cập nhật lúc</div>
+              <div class="font-bold text-gray-800 dark:text-gray-200">{{ formatDate(preview.timestamp) }}</div>
+           </div>
+        </div>
+      </div>
+
+      <el-card shadow="never" class="!border-gray-300 dark:!border-gray-700 !rounded-xl !overflow-visible" :body-style="{ padding: '0px' }">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#252525] flex justify-between items-center">
+           <h3 class="font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+             <el-icon><List /></el-icon> Danh sách tài khoản rác
+             <el-tag type="warning" effect="dark" round size="small">{{ unverifiedUsers.length }}</el-tag>
+           </h3>
+           <el-button size="small" :icon="RefreshRight" @click="fetchUnverifiedUsers" :loading="loading" circle />
+        </div>
+
         <el-table
-          v-else
           v-loading="loading"
           :data="paginatedUsers"
-          stripe
           style="width: 100%"
-          :default-sort="{ prop: 'hoursOld', order: 'descending' }"
+          stripe
+          :header-cell-style="{ background: '#f9fafb', color: '#6b7280', fontWeight: '600' }"
         >
-          <el-table-column type="index" label="#" width="60" />
+          <el-table-column type="index" label="#" width="60" align="center" />
 
-          <el-table-column prop="username" label="Username" width="200" />
+          <el-table-column prop="username" label="Tài khoản" min-width="200">
+             <template #default="{ row }">
+                <div>
+                   <div class="font-bold text-gray-800 dark:text-white">{{ row.username }}</div>
+                   <div class="text-xs text-gray-500">{{ row.email }}</div>
+                </div>
+             </template>
+          </el-table-column>
 
-          <el-table-column prop="email" label="Email" min-width="250" />
-
-          <el-table-column label="Ngày tạo" width="180" sortable>
+          <el-table-column label="Ngày tạo" width="180" sortable prop="createdDate">
             <template #default="{ row }">
               {{ formatDate(row.createdDate) }}
             </template>
           </el-table-column>
 
-          <el-table-column
-            label="Tuổi tài khoản"
-            width="180"
-            align="center"
-            prop="hoursOld"
-            sortable
-          >
+          <el-table-column label="Tuổi (Giờ)" width="150" align="center" prop="hoursOld" sortable>
             <template #default="{ row }">
-              <el-tag
-                :type="getAgeType(row.hoursOld)"
-                size="small"
-                effect="dark"
-              >
+              <el-tag :type="getAgeType(row.hoursOld)" effect="light">
                 {{ getAgeText(row.hoursOld) }}
               </el-tag>
             </template>
           </el-table-column>
 
-          <el-table-column label="Trạng thái" width="150" align="center">
+          <el-table-column label="Trạng thái" width="180" align="center">
             <template #default="{ row }">
-              <el-tag
-                :type="row.hoursOld >= stats.cutoffHours ? 'danger' : 'success'"
-                size="small"
-                effect="plain"
+              <span
+                class="px-2 py-1 rounded text-xs font-bold border"
+                :class="row.hoursOld >= (stats?.cutoffHours || 48)
+                  ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
+                  : 'bg-green-50 text-green-600 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'"
               >
-                {{ row.hoursOld >= stats.cutoffHours ? '⚠️ Sẽ bị xóa' : '✅ Còn thời gian' }}
-              </el-tag>
+                {{ row.hoursOld >= (stats?.cutoffHours || 48) ? '⚠️ Sẽ bị xóa' : '✅ An toàn' }}
+              </span>
             </template>
           </el-table-column>
         </el-table>
 
-        <!-- Pagination -->
-        <div class="pagination" v-if="unverifiedUsers.length > 0">
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end" v-if="unverifiedUsers.length > 0">
           <el-pagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
@@ -314,202 +218,7 @@ const {
   refreshAll,
 } = useCleanupManagement()
 
-// Lifecycle
 onMounted(async () => {
   await initialize()
 })
 </script>
-
-<style scoped>
-.cleanup-management-page {
-  padding: 24px;
-  background-color: #f5f7fa;
-  min-height: 100vh;
-}
-
-.container {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* Page Header */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  gap: 16px;
-}
-
-.header-content {
-  flex: 1;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0 0 4px 0;
-  color: #303133;
-}
-
-.page-subtitle {
-  font-size: 14px;
-  color: #909399;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-/* Alert Content */
-.alert-content {
-  line-height: 1.8;
-}
-
-.alert-content p {
-  margin: 4px 0;
-}
-
-.last-cleanup {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* Statistics Cards */
-.stats-row {
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  transition: all 0.3s;
-  cursor: default;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.stat-card.danger-stat {
-  border: 2px solid #f56c6c;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stat-icon.total {
-  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-  color: #e6a23c;
-}
-
-.stat-icon.old {
-  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-  color: #f56c6c;
-}
-
-.stat-icon.cleanup {
-  background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-  color: #409eff;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 32px;
-  font-weight: bold;
-  color: #303133;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 8px;
-}
-
-.stat-meta {
-  margin-top: 8px;
-}
-
-/* Cards */
-.preview-card,
-.table-card {
-  margin-bottom: 24px;
-  border-radius: 8px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 16px;
-}
-
-/* Preview Actions */
-.preview-actions {
-  margin-top: 16px;
-}
-
-/* Pagination */
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  .header-actions button {
-    width: 100%;
-  }
-
-  .preview-actions {
-    width: 100%;
-  }
-
-  .preview-actions button {
-    width: 100%;
-  }
-
-  .stats-row .el-col {
-    margin-bottom: 16px;
-  }
-}
-</style>

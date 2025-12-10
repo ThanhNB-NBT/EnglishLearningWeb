@@ -18,6 +18,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.thanhnb.englishlearning.repository.UserRepository;
 import com.thanhnb.englishlearning.service.user.CustomUserDetailsService;
 import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
@@ -31,6 +32,7 @@ public class SecurityConfig {
         private final JwtUtil jwtUtil;
         private final JwtBlacklistService jwtBlacklistService;
         private final CustomUserDetailsService userDetailsService;
+        private final UserRepository userRepository; // ✅ ADD THIS
 
         @Bean
         public PasswordEncoder passwordEncoder() {
@@ -39,7 +41,8 @@ public class SecurityConfig {
 
         @Bean
         public JwtAuthenticationFilter jwtAuthenticationFilter() {
-                return new JwtAuthenticationFilter(jwtUtil, jwtBlacklistService, userDetailsService);
+                // ✅ UPDATED: Pass userRepository to filter
+                return new JwtAuthenticationFilter(jwtUtil, jwtBlacklistService, userDetailsService, userRepository);
         }
 
         @Bean

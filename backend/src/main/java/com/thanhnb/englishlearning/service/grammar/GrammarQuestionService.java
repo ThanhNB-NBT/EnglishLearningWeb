@@ -3,6 +3,7 @@ package com.thanhnb.englishlearning.service.grammar;
 import com.thanhnb.englishlearning.enums.ParentType;
 import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
 import com.thanhnb.englishlearning.service.question.BaseQuestionService;
+import com.thanhnb.englishlearning.enums.LessonType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class GrammarQuestionService extends BaseQuestionService {
         orderService.reorderQuestionsAfterDelete(lessonId, deletedOrderIndex);
     }
 
-    public long countQuestionsByLessonType(Long topicId, com.thanhnb.englishlearning.enums.LessonType lessonType) {
+    public long countQuestionsByLessonType(Long topicId, LessonType lessonType) {
         return lessonRepository.findByTopicIdAndLessonTypeAndIsActiveTrueOrderByOrderIndexAsc(topicId, lessonType)
                 .stream()
                 .mapToLong(lesson -> questionRepository.countByParentTypeAndParentId(

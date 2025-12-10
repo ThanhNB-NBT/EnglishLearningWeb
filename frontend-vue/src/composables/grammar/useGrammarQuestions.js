@@ -24,7 +24,6 @@ export function useGrammarQuestionForm() {
 
   const formRules = {
     questionType: [{ required: true, message: 'Vui lòng chọn loại câu hỏi', trigger: 'change' }],
-    questionText: [{ required: true, message: 'Nội dung không được để trống', trigger: 'blur' }],
     points: [{ required: true, message: 'Nhập điểm số', trigger: 'blur' }],
     orderIndex: [{ required: true, message: 'Nhập thứ tự', trigger: 'blur' }],
   }
@@ -76,6 +75,10 @@ export function useGrammarQuestionForm() {
         if (metadata.correctAnswer === null || metadata.correctAnswer === undefined)
           return { valid: false, message: 'Chưa chọn đáp án đúng' }
         break
+
+      case 'TEXT_ANSWER':
+        if (!metadata.correctAnswer) return { valid: false, message: 'Chưa nhập đáp án đúng' }
+        break;
     }
     return { valid: true }
   }
@@ -161,7 +164,7 @@ export function useGrammarQuestionForm() {
       id: question.id,
       parentId: question.parentId,
       parentType: question.parentType || 'GRAMMAR',
-      questionText: question.questionText,
+      questionText: question.questionText || '',
       questionType: question.questionType,
       points: question.points,
       orderIndex: question.orderIndex,
@@ -189,6 +192,7 @@ export function useGrammarQuestionForm() {
   // --- Submit ---
   const handleSubmit = async (formEl) => {
     if (!formEl) return false
+
     await formEl.validate()
 
     const metaValid = validateMetadata(formData.value.questionType, formData.value.metadata)

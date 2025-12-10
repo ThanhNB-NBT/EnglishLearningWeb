@@ -1,134 +1,142 @@
+/* 1. Nạp Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 2. Cấu hình & Reset cơ bản (Thay thế Preflight) */
+:root {
+  --el-font-size-base: 14px;
+  --el-border-radius-base: 8px;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+*,
+::before,
+::after {
+  border-width: 0;
+  border-style: solid;
+  border-color: #e5e7eb; /* Màu mặc định gray-200 */
+}
+
+html,
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
-  transition: background-color 0.3s, color 0.3s;
+  /* Dùng biến màu của Element Plus để đồng bộ nền tảng */
+  background-color: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  height: 100%;
 }
 
 #app {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* ===== DARK MODE STYLES ===== */
+/* 3. Hiệu ứng chuyển màu mượt mà (Global Transition) */
+body,
+.sidebar,
+.header,
+.main-container,
+.main-content,
+.el-card {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* 4. Dark Mode Global Overrides */
 html.dark body {
   background-color: #141414;
   color: #e5eaf3;
 }
 
-/* Dark mode cho các trang content */
+/* Fix nền cho các container cũ trong Dark Mode (Hỗ trợ trang chưa refactor) */
+html.dark .main-container,
+html.dark .main-content,
 html.dark .dashboard-page,
-html.dark .grammar-page,
-html.dark .reading-page,
-html.dark .profile-page,
-html.dark .change-password-page,
-html.dark .admin-dashboard-page,
-html.dark .users-management-page,
-html.dark .grammar-management-page,
-html.dark .reading-management-page {
-  background-color: #141414;
-}
-
-/* Container backgrounds */
-html.dark .container {
-  background-color: transparent;
-}
-
-/* Text colors */
-html.dark .page-title,
-html.dark .section-title,
-html.dark .welcome-title,
-html.dark .stat-label,
-html.dark .stat-value,
-html.dark .module-title,
-html.dark .module-description,
-html.dark .feature-title,
-html.dark .feature-description,
-html.dark .user-name,
-html.dark .profile-name {
-  color: #e5eaf3;
-}
-
-html.dark .welcome-subtitle,
-html.dark .hero-subtitle,
-html.dark .progress-text {
-  color: rgba(229, 234, 243, 0.9);
-}
-
-/* Main container background */
-html.dark .main-container {
+html.dark .admin-dashboard-page {
   background-color: #141414 !important;
 }
 
-html.dark .main-content {
-  background-color: #141414 !important;
+/* --- MENU ITEM HOVER EFFECT (Vạch trái bung dọc) --- */
+.hover-left-bar {
+  position: relative;
+  /* Lưu ý: Không dùng overflow: hidden để tránh mất border-radius nếu có */
 }
 
-/* Sidebar dark mode */
-html.dark .sidebar {
-  background-color: #1d1d1d !important;
-  border-right-color: #2c2c2c !important;
+/* Tạo vạch màu ảo bên trái */
+.hover-left-bar::before {
+  content: '';
+  position: absolute;
+  left: 0; /* Dính sát lề trái */
+  top: 0;
+  bottom: 0;
+  width: 4px; /* Độ dày vạch */
+  background-color: var(--el-color-primary); /* Màu xanh chủ đạo */
+
+  /* Key logic: Ban đầu thu nhỏ chiều cao về 0, tâm ở giữa */
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 0.3s ease; /* Hiệu ứng mượt mà */
+
+  border-radius: 0 4px 4px 0; /* Bo góc phải của vạch cho mềm */
+  z-index: 10;
 }
 
-html.dark .sidebar-header {
-  border-bottom-color: #2c2c2c !important;
-  color: #409eff !important;
+/* Khi hover thì bung chiều cao ra 100% (scaleY=1) */
+.hover-left-bar:hover::before {
+  transform: scaleY(1);
 }
 
-html.dark .sidebar-footer {
-  border-top-color: #2c2c2c !important;
-  background-color: #1d1d1d !important;
+/* Khi item đang Active (đang chọn) thì giữ vạch này hiện luôn */
+.hover-left-bar.is-active::before {
+  transform: scaleY(1);
+  background-color: var(--el-color-primary); /* Giữ màu xanh */
 }
 
-/* Header dark mode */
-html.dark .header {
-  background-color: #1d1d1d !important;
-  border-bottom-color: #2c2c2c !important;
+/* Chỉnh màu nền nhẹ khi hover để làm nổi bật vạch */
+.hover-left-bar:hover {
+  background-color: var(--el-color-primary-light-9) !important;
+}
+html.dark .hover-left-bar:hover {
+  background-color: rgba(64, 158, 255, 0.15) !important;
 }
 
-/* Cards dark mode */
-html.dark .el-card {
-  background-color: #1d1d1d !important;
-  border-color: #2c2c2c !important;
+/* 5. Custom Scrollbar (Thanh cuộn đẹp) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-
-/* Stat cards icons background */
-html.dark .stat-icon {
-  opacity: 0.9;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-/* Empty state */
-html.dark .el-empty__description {
-  color: #909399;
+::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 4px;
 }
-
-/* Auth layout - không áp dụng dark mode */
-.auth-layout {
-  /* Giữ nguyên gradient đẹp */
+::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
 }
-
-/* Home page hero - không áp dụng dark mode cho hero */
-.hero-section {
-  /* Giữ nguyên gradient */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #4c4d4f;
 }
-
-/* Fix dropdown hover in dark mode */
-html.dark .user-dropdown:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Smooth transitions */
-.sidebar,
-.header,
-.main-container,
-.main-content,
-.el-card,
-body {
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #606266;
 }

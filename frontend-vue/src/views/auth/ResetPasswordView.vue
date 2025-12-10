@@ -1,17 +1,15 @@
 <template>
-  <div class="auth-page">
-    <!-- Icon -->
-    <div class="icon-wrapper">
-      <el-icon :size="64" color="#67c23a">
-        <Key />
-      </el-icon>
+  <div class="w-full">
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/30 text-green-500 mb-4">
+        <el-icon :size="32"><Key /></el-icon>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Đặt lại mật khẩu</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        Nhập mật khẩu mới cho tài khoản:<br/>
+        <strong class="text-gray-700 dark:text-gray-300">{{ email }}</strong>
+      </p>
     </div>
-
-    <h2 class="auth-title">Đặt lại mật khẩu</h2>
-    <p class="auth-subtitle">
-      Nhập mật khẩu mới cho tài khoản: <br />
-      <strong>{{ email }}</strong>
-    </p>
 
     <el-form
       ref="formRef"
@@ -20,30 +18,19 @@
       label-position="top"
       size="large"
       @submit.prevent="handleResetPassword"
+      class="space-y-4"
     >
-      <!-- Email (readonly) -->
-      <el-form-item label="Email">
-        <el-input
-          v-model="email"
-          :prefix-icon="Message"
-          readonly
-          disabled
-        />
-      </el-form-item>
-
-      <!-- New Password -->
-      <el-form-item label="Mật khẩu mới" prop="newPassword">
+      <el-form-item label="Mật khẩu mới" prop="newPassword" class="!mb-4">
         <el-input
           v-model="formData.newPassword"
           type="password"
-          placeholder="Tối thiểu 6 ký tự"
+          placeholder="Tối thiểu 8 ký tự"
           :prefix-icon="Lock"
           show-password
         />
       </el-form-item>
 
-      <!-- Confirm Password -->
-      <el-form-item label="Xác nhận mật khẩu mới" prop="confirmPassword">
+      <el-form-item label="Xác nhận mật khẩu" prop="confirmPassword" class="!mb-6">
         <el-input
           v-model="formData.confirmPassword"
           type="password"
@@ -54,24 +41,19 @@
         />
       </el-form-item>
 
-      <!-- Submit Button -->
-      <el-form-item style="margin-top: 32px">
-        <el-button
-          type="primary"
-          native-type="submit"
-          :loading="loading"
-          :disabled="loading"
-          style="width: 100%"
-          size="large"
-        >
-          Đặt lại mật khẩu
-        </el-button>
-      </el-form-item>
+      <el-button
+        type="primary"
+        native-type="submit"
+        :loading="loading"
+        :disabled="loading"
+        class="!w-full !h-11 !text-base !font-bold !rounded-lg"
+      >
+        Đặt lại mật khẩu
+      </el-button>
 
-      <!-- Back to Login -->
-      <div class="form-link">
-        <router-link to="/auth/login" class="link-primary">
-          ← Quay lại đăng nhập
+      <div class="text-center mt-4">
+        <router-link to="/auth/login" class="text-sm text-gray-500 hover:text-blue-600 no-underline transition-colors">
+          Hủy bỏ
         </router-link>
       </div>
     </el-form>
@@ -79,6 +61,7 @@
 </template>
 
 <script setup>
+// Giữ nguyên logic script, chỉ thay đổi template
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useResetPassword } from '@/composables/auth/useResetPassword'
@@ -103,51 +86,3 @@ onMounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.auth-page {
-  width: 100%;
-}
-
-.icon-wrapper {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.auth-title {
-  font-size: 28px;
-  font-weight: bold;
-  text-align: center;
-  margin: 0 0 8px 0;
-  color: #303133;
-}
-
-.auth-subtitle {
-  text-align: center;
-  color: #909399;
-  margin: 0 0 32px 0;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.auth-subtitle strong {
-  color: #67c23a;
-}
-
-.form-link {
-  text-align: center;
-  font-size: 14px;
-  color: #606266;
-  margin-top: 16px;
-}
-
-.link-primary {
-  color: #409eff;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.link-primary:hover {
-  color: #66b1ff;
-}
-</style>

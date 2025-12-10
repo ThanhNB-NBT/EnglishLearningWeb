@@ -76,7 +76,7 @@ public class GrammarLessonService {
             throw new RuntimeException("Tiêu đề bài học đã tồn tại trong topic này");
         }
 
-        if (dto.getEstimatedDuration() != null && dto.getEstimatedDuration() < 0) {
+        if (dto.getTimeLimitSeconds() != null && dto.getTimeLimitSeconds() < 0) {
             throw new RuntimeException("Thời gian ước lượng phải lớn hơn hoặc bằng 0");
         }
 
@@ -90,7 +90,7 @@ public class GrammarLessonService {
         lesson.setLessonType(dto.getLessonType());
         lesson.setContent(dto.getContent());
         lesson.setOrderIndex(dto.getOrderIndex());
-        lesson.setEstimatedDuration(dto.getEstimatedDuration() != null ? dto.getEstimatedDuration() : 30);
+        lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 30);
         lesson.setPointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 10);
         lesson.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         lesson.setCreatedAt(LocalDateTime.now());
@@ -106,12 +106,14 @@ public class GrammarLessonService {
         GrammarLesson lesson = lessonRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
 
+        String newTitle = dto.getTitle();
+
         if (lessonRepository.existsByTopicIdAndTitleIgnoreCaseAndIdNot(
-                lesson.getTopic().getId(), dto.getTitle(), id)) {
+                lesson.getTopic().getId(), newTitle, id)) {
             throw new RuntimeException("Tiêu đề bài học đã tồn tại trong topic này");
         }
 
-        if (dto.getEstimatedDuration() != null && dto.getEstimatedDuration() < 0) {
+        if (dto.getTimeLimitSeconds() != null && dto.getTimeLimitSeconds() < 0) {
             throw new RuntimeException("Thời gian ước lượng phải lớn hơn hoặc bằng 0");
         }
 
@@ -124,8 +126,8 @@ public class GrammarLessonService {
         lesson.setContent(dto.getContent());
         lesson.setOrderIndex(dto.getOrderIndex());
 
-        if (dto.getEstimatedDuration() != null) {
-            lesson.setEstimatedDuration(dto.getEstimatedDuration());
+        if (dto.getTimeLimitSeconds() != null) {
+            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
         }
         if (dto.getPointsReward() != null) {
             lesson.setPointsReward(dto.getPointsReward());
@@ -182,6 +184,15 @@ public class GrammarLessonService {
         log.info("Deactivated Grammar Lesson: {}", lesson.getTitle());
     }
 
+    public void activateLesson(Long id) {
+        GrammarLesson lesson = lessonRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
+
+        lesson.setIsActive(true);
+        lessonRepository.save(lesson);
+        log.info("Activated Grammar Lesson: {}", lesson.getTitle());
+    }
+
     public Integer getNextOrderIndex(Long topicId) {
         if (!topicRepository.existsById(topicId)) {
             throw new RuntimeException("Topic không tồn tại với id: " + topicId);
@@ -210,7 +221,7 @@ public class GrammarLessonService {
                 lesson.getContent(),
                 lesson.getOrderIndex(),
                 lesson.getPointsReward(),
-                lesson.getEstimatedDuration(),
+                lesson.getTimeLimitSeconds(),
                 lesson.getIsActive(),
                 lesson.getCreatedAt(),
                 lesson.getMetadata(),

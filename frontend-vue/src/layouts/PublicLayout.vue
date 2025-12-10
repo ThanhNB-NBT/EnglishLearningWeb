@@ -1,132 +1,104 @@
 <template>
-  <el-container class="layout-container">
-    <!-- Header -->
-    <el-header class="header">
-      <div class="header-content">
-        <!-- Logo -->
-        <router-link to="/" class="logo">
-          <span class="logo-text">English Learning</span>
+  <div class="min-h-screen flex flex-col bg-gray-50 dark:bg-[#141414] transition-colors duration-300">
+
+    <header class="sticky top-0 z-50 bg-white/80 dark:bg-[#1d1d1d]/80 backdrop-blur-md border-b border-gray-200 dark:border-[#333]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+        <router-link to="/" class="flex items-center gap-2 no-underline">
+          <span class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            English Learning
+          </span>
         </router-link>
 
-        <!-- Desktop Navigation -->
-        <el-menu
-          mode="horizontal"
-          :ellipsis="false"
-          class="desktop-menu"
-          router
-        >
-        </el-menu>
+        <nav class="hidden md:flex items-center gap-8">
+          <router-link to="/" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            Trang chủ
+          </router-link>
+          <router-link to="/grammar" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            Ngữ pháp
+          </router-link>
+          <router-link to="/reading" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            Đọc hiểu
+          </router-link>
+        </nav>
 
-        <!-- Auth Buttons / User Menu -->
-        <div class="header-right">
+        <div class="flex items-center gap-4">
           <template v-if="!isLoggedIn">
-            <el-button @click="$router.push('/auth/login')">Đăng nhập</el-button>
-            <el-button type="primary" @click="$router.push('/auth/register')">
-              Đăng ký
-            </el-button>
+            <div class="hidden sm:flex gap-3">
+              <el-button @click="$router.push('/auth/login')" class="!rounded-lg font-medium">
+                Đăng nhập
+              </el-button>
+              <el-button type="primary" @click="$router.push('/auth/register')" class="!rounded-lg font-bold shadow-md shadow-blue-500/20">
+                Đăng ký
+              </el-button>
+            </div>
           </template>
 
           <template v-else>
             <el-dropdown @command="handleCommand">
-              <span class="user-dropdown">
-                <el-avatar :size="36" class="user-avatar">
+              <div class="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c2c2c] p-1 pr-2 rounded-full transition-colors">
+                <el-avatar :size="32" class="!bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold !text-sm">
                   {{ userInitial }}
                 </el-avatar>
-                <el-icon class="el-icon--right"><arrow-down /></el-icon>
-              </span>
+                <el-icon class="text-gray-400"><ArrowDown /></el-icon>
+              </div>
               <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item disabled>
-                    <div class="user-info">
-                      <div class="user-name">{{ currentUser?.username }}</div>
-                      <div class="user-email">{{ currentUser?.email }}</div>
-                    </div>
-                  </el-dropdown-item>
-                  <el-dropdown-item divided command="dashboard">
-                    <el-icon><Odometer /></el-icon>
-                    Dashboard
-                  </el-dropdown-item>
-                  <el-dropdown-item command="profile">
-                    <el-icon><User /></el-icon>
-                    Hồ sơ
-                  </el-dropdown-item>
-                  <el-dropdown-item divided command="logout">
-                    <el-icon><SwitchButton /></el-icon>
-                    Đăng xuất
-                  </el-dropdown-item>
+                <el-dropdown-menu class="min-w-[180px]">
+                  <div class="px-4 py-2 border-b dark:border-gray-700 mb-1">
+                    <p class="font-bold text-gray-800 dark:text-white truncate">{{ currentUser?.username }}</p>
+                    <p class="text-xs text-gray-500 truncate">{{ currentUser?.email }}</p>
+                  </div>
+                  <el-dropdown-item command="dashboard" class="gap-2"><el-icon><Odometer /></el-icon> Dashboard</el-dropdown-item>
+                  <el-dropdown-item command="profile" class="gap-2"><el-icon><User /></el-icon> Hồ sơ</el-dropdown-item>
+                  <el-dropdown-item divided command="logout" class="text-red-500 gap-2"><el-icon><SwitchButton /></el-icon> Đăng xuất</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
           </template>
+
+          <button class="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2c2c2c]" @click="drawerVisible = true">
+            <el-icon :size="24"><Menu /></el-icon>
+          </button>
         </div>
-
-        <!-- Mobile Menu Button -->
-        <el-button
-          class="mobile-menu-btn"
-          :icon="Menu"
-          @click="drawerVisible = true"
-        />
       </div>
-    </el-header>
+    </header>
 
-    <!-- Mobile Drawer -->
-    <el-drawer
-      v-model="drawerVisible"
-      title="Menu"
-      direction="ltr"
-      size="70%"
-    >
-      <el-menu router @select="drawerVisible = false">
-        <el-menu-item index="/">
-          <el-icon><HomeFilled /></el-icon>
-          <span>Trang chủ</span>
-        </el-menu-item>
-        <el-menu-item index="/grammar">
-          <el-icon><Reading /></el-icon>
-          <span>Ngữ pháp</span>
-        </el-menu-item>
-        <el-menu-item index="/reading">
-          <el-icon><Document /></el-icon>
-          <span>Đọc hiểu</span>
-        </el-menu-item>
-
-        <el-divider v-if="!isLoggedIn" />
-
-        <template v-if="!isLoggedIn">
-          <el-menu-item index="/auth/login">
-            <el-icon><User /></el-icon>
-            <span>Đăng nhập</span>
-          </el-menu-item>
-          <el-menu-item index="/auth/register">
-            <el-icon><UserFilled /></el-icon>
-            <span>Đăng ký</span>
-          </el-menu-item>
-        </template>
-      </el-menu>
-    </el-drawer>
-
-    <!-- Main Content -->
-    <el-main class="main-content">
+    <main class="flex-1 w-full">
       <router-view />
-    </el-main>
+    </main>
 
-    <!-- Footer -->
-    <el-footer class="footer">
-      <div class="footer-content">
-        <span>© 2025 English Learning Platform. All rights reserved.</span>
+    <footer class="bg-white dark:bg-[#1d1d1d] border-t border-gray-200 dark:border-[#333] py-8">
+      <div class="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
+        <p>&copy; 2025 English Learning Platform. All rights reserved.</p>
       </div>
-    </el-footer>
-  </el-container>
+    </footer>
+
+    <el-drawer v-model="drawerVisible" title="Menu" direction="ltr" size="80%" class="!rounded-r-2xl">
+      <div class="flex flex-col gap-2">
+        <router-link to="/" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2c2c2c] text-gray-700 dark:text-gray-200 no-underline" @click="drawerVisible = false">
+          <el-icon><HomeFilled /></el-icon> Trang chủ
+        </router-link>
+        <router-link to="/grammar" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2c2c2c] text-gray-700 dark:text-gray-200 no-underline" @click="drawerVisible = false">
+          <el-icon><Reading /></el-icon> Ngữ pháp
+        </router-link>
+        <router-link to="/reading" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2c2c2c] text-gray-700 dark:text-gray-200 no-underline" @click="drawerVisible = false">
+          <el-icon><Document /></el-icon> Đọc hiểu
+        </router-link>
+
+        <div v-if="!isLoggedIn" class="mt-4 pt-4 border-t border-gray-100 dark:border-[#333] flex flex-col gap-3">
+          <el-button @click="$router.push('/auth/login'); drawerVisible = false" class="w-full !rounded-lg !h-10">Đăng nhập</el-button>
+          <el-button type="primary" @click="$router.push('/auth/register'); drawerVisible = false" class="w-full !rounded-lg !h-10 font-bold">Đăng ký</el-button>
+        </div>
+      </div>
+    </el-drawer>
+  </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import {
-  Menu, ArrowDown, Odometer, User, SwitchButton,
-  HomeFilled, Reading, Document, UserFilled
-} from '@element-plus/icons-vue'
+import { Menu, ArrowDown, Odometer, User, SwitchButton, HomeFilled, Reading, Document } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -137,162 +109,12 @@ const currentUser = computed(() => authStore.currentUser)
 const userInitial = computed(() => currentUser.value?.username?.charAt(0).toUpperCase() || 'U')
 
 const handleCommand = (command) => {
-  switch (command) {
-    case 'dashboard':
-      router.push('/dashboard')
-      break
-    case 'profile':
-      router.push('/profile')
-      break
-    case 'logout':
-      handleLogout()
-      break
-  }
+  if (command === 'logout') handleLogout()
+  else router.push('/' + (command === 'dashboard' ? 'user/dashboard' : 'user/profile'))
 }
 
 const handleLogout = async () => {
   await authStore.logout()
-  router.push({ name: 'home' })
+  router.push('/')
 }
 </script>
-
-<style scoped>
-.layout-container {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.header {
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 0;
-  height: 64px;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-.header-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  height: 100%;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: #409eff;
-  font-size: 20px;
-  font-weight: bold;
-  white-space: nowrap;
-}
-
-.logo-icon {
-  font-size: 28px;
-}
-
-.desktop-menu {
-  flex: 1;
-  border: none;
-  background: transparent;
-}
-
-.desktop-menu :deep(.el-menu-item) {
-  border-bottom: none;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-dropdown {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-.user-dropdown:hover {
-  background: #f5f7fa;
-}
-
-.user-avatar {
-  background: #409eff;
-  color: white;
-  font-weight: bold;
-}
-
-.user-info {
-  padding: 8px 0;
-}
-
-.user-name {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.user-email {
-  font-size: 12px;
-  color: #909399;
-}
-
-.mobile-menu-btn {
-  display: none;
-}
-
-.main-content {
-  flex: 1;
-  padding: 0;
-  background: #f5f7fa;
-}
-
-.footer {
-  background: #fff;
-  border-top: 1px solid #e4e7ed;
-  height: 60px;
-  padding: 0;
-}
-
-.footer-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  height: 100%;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #909399;
-  font-size: 14px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .desktop-menu {
-    display: none;
-  }
-
-  .header-right > .el-button {
-    display: none;
-  }
-
-  .mobile-menu-btn {
-    display: flex;
-  }
-
-  .logo-text {
-    display: none;
-  }
-}
-</style>

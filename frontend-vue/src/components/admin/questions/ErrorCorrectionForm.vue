@@ -1,87 +1,59 @@
 <template>
-  <div class="error-correction-form">
-    <el-alert title="Cách tạo câu hỏi tìm lỗi sai" type="warning" :closable="false" show-icon class="mb-4">
-      <template #default>
-        Hệ thống sẽ gạch chân phần sai hoặc yêu cầu người dùng click vào từ sai.<br>
-        Nhập chính xác <b>từ/cụm từ sai</b> có trong câu hỏi.
-      </template>
-    </el-alert>
+  <div class="w-full">
+    <div class="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl p-4 mb-5">
+      <div class="flex items-center gap-2 text-red-700 dark:text-red-400 font-bold text-sm mb-2">
+        <el-icon><Warning /></el-icon> Cấu hình lỗi sai
+      </div>
 
-    <el-form-item label="Chi tiết lỗi sai" required>
-      <el-card shadow="never" class="error-card">
-        <el-form-item label="Từ/Cụm từ sai (Trong bài)" class="mb-3">
-          <el-input v-model="localMetadata.errorText" placeholder="VD: go (trong câu 'He go to school')"
-            @input="emitUpdate">
-            <template #prefix><el-icon class="text-danger">
-                <CloseBold />
-              </el-icon></template>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Từ/Cụm từ sai</label>
+          <el-input
+            v-model="localMetadata.errorText"
+            placeholder="VD: go (trong câu 'He go')"
+            @input="emitUpdate"
+          >
+            <template #prefix><el-icon class="text-red-500"><CloseBold /></el-icon></template>
           </el-input>
-        </el-form-item>
+        </div>
 
-        <el-form-item label="Sửa lại cho đúng" class="mb-0">
-          <el-input v-model="localMetadata.correction" placeholder="VD: goes" @input="emitUpdate">
-            <template #prefix><el-icon class="text-success"><Select /></el-icon></template>
+        <div>
+          <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Sửa lại đúng</label>
+          <el-input
+            v-model="localMetadata.correction"
+            placeholder="VD: goes"
+            @input="emitUpdate"
+          >
+            <template #prefix><el-icon class="text-green-500"><Select /></el-icon></template>
           </el-input>
-        </el-form-item>
-      </el-card>
-    </el-form-item>
+        </div>
+      </div>
+    </div>
 
     <el-form-item label="Giải thích chi tiết">
-      <el-input v-model="localMetadata.explanation" type="textarea" :rows="3"
-        placeholder="Tại sao lại sai? (VD: Chủ ngữ số ít 'He' thì động từ phải thêm 'es')..." @input="emitUpdate" />
+      <el-input
+        v-model="localMetadata.explanation"
+        type="textarea"
+        :rows="3"
+        placeholder="Giải thích ngữ pháp: Tại sao lại sai? Quy tắc đúng là gì?"
+        @input="emitUpdate"
+      />
     </el-form-item>
   </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
-import { CloseBold, Select } from '@element-plus/icons-vue'
+import { CloseBold, Select, Warning } from '@element-plus/icons-vue'
 
 const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
-const localMetadata = ref({
-  errorText: props.metadata?.errorText || '',
-  correction: props.metadata?.correction || '',
-  explanation: props.metadata?.explanation || ''
-})
+const localMetadata = ref({ errorText: '', correction: '', explanation: '' })
 
 watch(() => props.metadata, (newVal) => {
-  if (newVal) {
-    localMetadata.value = {
-      errorText: newVal.errorText || '',
-      correction: newVal.correction || '',
-      explanation: newVal.explanation || ''
-    }
-  }
-}, { deep: true })
+  if (newVal) localMetadata.value = { ...newVal }
+}, { immediate: true, deep: true })
 
 const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
-
-<style scoped>
-.error-correction-form {
-  padding: 10px 0;
-}
-
-.error-card {
-  background-color: #fff6f6;
-  border-color: #fab6b6;
-}
-
-.text-danger {
-  color: #f56c6c;
-}
-
-.text-success {
-  color: #67c23a;
-}
-
-.mb-3 {
-  margin-bottom: 12px;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
-}
-</style>

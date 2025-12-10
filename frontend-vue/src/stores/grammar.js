@@ -169,6 +169,22 @@ export const useGrammarStore = defineStore('grammar', {
       }
     },
 
+    async activateTopic(id) {
+      try {
+        const response = await grammarAdminAPI.activateTopic(id)
+        if (response.data.success) {
+          const topic = this.topics.find((t) => t.id === id)
+          if (topic) topic.isActive = true
+          if (this.currentTopic?.id === id) this.currentTopic.isActive = true
+          ElMessage.success(' Đã kích hoạt topic!')
+        }
+      } catch (error) {
+        console.error('Error activating topic:', error)
+        ElMessage.error('Không thể kích hoạt topic')
+        throw error
+      }
+    },
+
     async deactivateTopic(id) {
       try {
         const response = await grammarAdminAPI.deactivateTopic(id)
@@ -335,6 +351,22 @@ export const useGrammarStore = defineStore('grammar', {
       }
     },
 
+    async activateLesson(id) {
+      try {
+        const response = await grammarAdminAPI.activateLesson(id)
+        if (response.data.success) {
+          const lesson = this.lessons.find((l) => l.id === id)
+          if (lesson) lesson.isActive = true
+          if (this.currentLesson?.id === id) this.currentLesson.isActive = true
+          ElMessage.success(' Đã kích hoạt lesson!')
+        }
+      } catch (error) {
+        console.error(' Error activating lesson:', error)
+        ElMessage.error('Không thể kích hoạt lesson')
+        throw error
+      }
+    },
+
     async deactivateLesson(id) {
       try {
         const response = await grammarAdminAPI.deactivateLesson(id)
@@ -400,23 +432,37 @@ export const useGrammarStore = defineStore('grammar', {
       this.questionsLoading = true
       try {
         const { page = 0, size = 10, sort = 'orderIndex,asc' } = params
-        console.log('Fetching questions for lessonId:', lessonId, { page, size, sort })
+        console.log('📡 Fetching questions for lessonId:', lessonId, { page, size, sort })
 
         const response = await grammarAdminAPI.getQuestionsByLesson(lessonId, { page, size, sort })
 
         if (response.data.success) {
           const data = response.data.data
-          this.questions = data.content || []
+
+          // 🔧 FIX: Parse metadata cho tất cả questions
+          const questions = (data.content || []).map(question => {
+            if (question.metadata && typeof question.metadata === 'string') {
+              try {
+                question.metadata = JSON.parse(question.metadata)
+              } catch (e) {
+                console.error(`❌ Failed to parse metadata for question ${question.id}:`, e)
+                question.metadata = {}
+              }
+            }
+            return question
+          })
+
+          this.questions = questions
           this.questionsPagination = {
             page: data.page ?? page,
             size: data.size ?? size,
             totalElements: data.totalElements ?? 0,
             totalPages: data.totalPages ?? 0,
           }
-          console.log('Fetched questions:', this.questions.length)
+          console.log('✅ Fetched questions:', this.questions.length)
         }
       } catch (error) {
-        console.error('Error fetching questions:', error)
+        console.error('❌ Error fetching questions:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể tải danh sách questions')
         this.questions = []
         this.questionsPagination = { page: 0, size: 10, totalElements: 0, totalPages: 0 }
@@ -431,12 +477,28 @@ export const useGrammarStore = defineStore('grammar', {
       try {
         const response = await grammarAdminAPI.getQuestionById(questionId)
         if (response.data.success) {
-          this.currentQuestion = response.data.data
-          console.log('Fetched question:', this.currentQuestion.questionText)
+          const question = response.data.data
+
+          // 🔧 FIX: Parse metadata nếu là string
+          if (question.metadata && typeof question.metadata === 'string') {
+            try {
+              question.metadata = JSON.parse(question.metadata)
+              console.log('✅ Parsed metadata from string to object')
+            } catch (e) {
+              console.error('❌ Failed to parse metadata:', e)
+              question.metadata = {}
+            }
+          }
+
+          this.currentQuestion = question
+          console.log('📝 Fetched question:', this.currentQuestion.questionText)
+          console.log('🔍 Metadata type:', typeof this.currentQuestion.metadata)
+          console.log('📦 Metadata:', this.currentQuestion.metadata)
+
           return this.currentQuestion
         }
       } catch (error) {
-        console.error('Error fetching question:', error)
+        console.error('❌ Error fetching question:', error)
         ElMessage.error('Không thể tải chi tiết question')
         throw error
       } finally {

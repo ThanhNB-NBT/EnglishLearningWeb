@@ -52,6 +52,10 @@ public class GrammarAdminService {
         topicService.deleteTopic(id);
     }
 
+    public void activateTopic(Long id) {
+        topicService.activateTopic(id);
+    }
+
     public void deactivateTopic(Long id) {
         topicService.deactivateTopic(id);
     }
@@ -82,6 +86,10 @@ public class GrammarAdminService {
 
     public void deleteLesson(Long id, boolean cascade) {
         lessonService.deleteLesson(id, cascade);
+    }
+
+    public void activateLesson(Long id) {
+        lessonService.activateLesson(id);
     }
 
     public void deactivateLesson(Long id) {

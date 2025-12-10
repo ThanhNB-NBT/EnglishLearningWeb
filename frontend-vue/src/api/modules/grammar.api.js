@@ -56,6 +56,7 @@ export const grammarAdminAPI = {
   createTopic: (topicData) => apiClient.post('/api/admin/grammar/topics', topicData),
   updateTopic: (id, topicData) => apiClient.put(`/api/admin/grammar/topics/${id}`, topicData),
   deleteTopic: (id) => apiClient.delete(`/api/admin/grammar/topics/${id}`),
+  activateTopic: (id) => apiClient.patch(`/api/admin/grammar/topics/${id}/activate`),
   deactivateTopic: (id) => apiClient.patch(`/api/admin/grammar/topics/${id}/deactivate`),
   getNextTopicOrderIndex: () => apiClient.get('/api/admin/grammar/topics/next-order'),
 
@@ -72,6 +73,7 @@ export const grammarAdminAPI = {
   deleteLesson: (id, cascade = false) => {
     return apiClient.delete(`/api/admin/grammar/lessons/${id}`, { params: { cascade } })
   },
+  activateLesson: (id) => apiClient.patch(`/api/admin/grammar/lessons/${id}/activate`),
   deactivateLesson: (id) => apiClient.patch(`/api/admin/grammar/lessons/${id}/deactivate`),
   getNextLessonOrderIndex: (topicId) =>
     apiClient.get(`/api/admin/grammar/topics/${topicId}/lessons/next-order`),

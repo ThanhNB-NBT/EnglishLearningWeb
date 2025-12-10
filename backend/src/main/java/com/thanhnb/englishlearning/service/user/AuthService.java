@@ -90,6 +90,7 @@ public class AuthService {
     /**
      * Đăng nhập USER
      * Kiểm tra: tài khoản phải là USER role và đã verify email
+     * Cập nhật lastLoginDate TRƯỚC khi tạo token
      */
     public AuthResponse loginUser(LoginRequest request, String ipAddress, String userAgent) {
         // Kiểm tra account lockout
@@ -110,8 +111,12 @@ public class AuthService {
         }
 
         // Kiểm tra tài khoản đã được kích hoạt (verified email)
-        if (!user.getIsActive() || !user.getIsVerified()) {
+        if (!user.getIsVerified()) {
             throw new UserNotVerifiedException("Tài khoản chưa được kích hoạt. Vui lòng xác thực email");
+        }
+
+        if (!user.getIsActive()) {
+            throw new UserNotVerifiedException("Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên");
         }
 
         // Reset login attempts khi đăng nhập thành công
@@ -119,12 +124,19 @@ public class AuthService {
 
         updateStreakOnLogin(user);
 
-        // Tạo JWT token
-        String token = jwtUtil.generateToken(user.getUsername());
-
-        // Cập nhật last login
+        // ✅ FIX: Cập nhật last login TRƯỚC khi tạo token
         user.setLastLoginDate(LocalDateTime.now());
         userRepository.save(user);
+
+        // ✅ CRITICAL: Wait 2ms để đảm bảo token issued time > lastLoginDate
+        try {
+            Thread.sleep(2);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Tạo JWT token SAU khi đã update lastLoginDate
+        String token = jwtUtil.generateToken(user.getUsername());
 
         log.info("User logged in successfully: {} from IP: {}", user.getUsername(), ipAddress);
 
@@ -184,6 +196,10 @@ public class AuthService {
      * Đăng nhập ADMIN
      * KHÔNG CẦN verify email, chỉ cần username/password đúng
      */
+    /**
+     * ✅ FIXED: Đăng nhập ADMIN
+     * Cập nhật lastLoginDate TRƯỚC khi tạo token để tránh race condition
+     */
     public AuthResponse loginAdmin(LoginRequest request, String ipAddress, String userAgent) {
         // Kiểm tra account lockout
         if (loginAttemptService.isBlocked(request.getUsernameOrEmail())) {
@@ -209,12 +225,20 @@ public class AuthService {
         // Reset login attempts
         loginAttemptService.loginSucceeded(request.getUsernameOrEmail());
 
-        // Tạo JWT token
-        String token = jwtUtil.generateToken(admin.getUsername());
-
-        // Cập nhật last login
+        // ✅ FIX: Cập nhật last login TRƯỚC khi tạo token
+        // Điều này đảm bảo token luôn issued AFTER lastLoginDate
         admin.setLastLoginDate(LocalDateTime.now());
         userRepository.save(admin);
+
+        // ✅ CRITICAL: Wait 1ms để đảm bảo token issued time > lastLoginDate
+        try {
+            Thread.sleep(2);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Tạo JWT token SAU khi đã update lastLoginDate
+        String token = jwtUtil.generateToken(admin.getUsername());
 
         log.info("Admin logged in successfully: {} from IP: {}", admin.getUsername(), ipAddress);
 

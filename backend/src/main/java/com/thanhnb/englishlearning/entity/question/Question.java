@@ -35,7 +35,7 @@ public class Question {
     @Column(name = "parent_id", nullable = false)
     private Long parentId; //lesson_id hoặc topic_id
 
-    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "question_text", columnDefinition = "TEXT")
     private String questionText;
 
     @Enumerated(EnumType.STRING)

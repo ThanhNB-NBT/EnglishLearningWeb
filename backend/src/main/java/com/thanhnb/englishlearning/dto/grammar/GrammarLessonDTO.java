@@ -49,7 +49,7 @@ public class GrammarLessonDTO {
 
     @Min(value = 10, message = "Thời gian ước tính phải >= 10 giây")
     @Schema(description = "Thời gian ước tính (giây)", example = "30")
-    private Integer estimatedDuration = 30;
+    private Integer timeLimitSeconds = 30;
 
     @Schema(description = "Trạng thái hoạt động", example = "true")
     private Boolean isActive = true;
@@ -116,7 +116,7 @@ public class GrammarLessonDTO {
      */
     public static GrammarLessonDTO full(Long id, Long topicId, String title, 
             LessonType lessonType, String content, Integer orderIndex, 
-            Integer pointsReward, Integer estimatedDuration, Boolean isActive, 
+            Integer pointsReward, Integer timeLimitSeconds, Boolean isActive, 
             LocalDateTime createdAt, Map<String, Object> metadata, String topicName) {
         GrammarLessonDTO dto = new GrammarLessonDTO();
         dto.setId(id);
@@ -126,7 +126,7 @@ public class GrammarLessonDTO {
         dto.setContent(content);
         dto.setOrderIndex(orderIndex);
         dto.setPointsReward(pointsReward);
-        dto.setEstimatedDuration(estimatedDuration);
+        dto.setTimeLimitSeconds(timeLimitSeconds);
         dto.setIsActive(isActive);
         dto.setCreatedAt(createdAt);
         dto.setMetadata(metadata);

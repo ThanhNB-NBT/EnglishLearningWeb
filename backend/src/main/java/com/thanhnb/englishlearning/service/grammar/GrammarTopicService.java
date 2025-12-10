@@ -1,6 +1,7 @@
 package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.GrammarTopicDTO;
+import com.thanhnb.englishlearning.entity.grammar.GrammarLesson;
 import com.thanhnb.englishlearning.entity.grammar.GrammarTopic;
 import com.thanhnb.englishlearning.repository.grammar.GrammarTopicRepository;
 import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ public class GrammarTopicService {
 
     private final GrammarTopicRepository topicRepository;
     private final GrammarLessonRepository lessonRepository;
+    private final GrammarLessonService lessonService;
     private final GrammarOrderService orderService;
 
     public Page<GrammarTopicDTO> getAllTopicsPaginated(Pageable pageable) {
@@ -80,9 +83,17 @@ public class GrammarTopicService {
         GrammarTopic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Topic không tồn tại với id: " + id));
 
-        long lessonCount = lessonRepository.countByTopicId(id);
-        if (lessonCount > 0) {
-            throw new RuntimeException("Không thể xóa topic vì có " + lessonCount + " bài học thuộc topic này");
+        // --- CASCADE DELETE LOGIC ---
+        // 1. Lấy tất cả lessons thuộc topic này
+        List<GrammarLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(id);
+        
+        if (!lessons.isEmpty()) {
+            log.info("Deleting {} lessons inside topic {}", lessons.size(), topic.getName());
+            // 2. Xóa từng lesson (sử dụng cascade=true để xóa Question và Progress)
+            for (GrammarLesson lesson : lessons) {
+                // Gọi service lesson để đảm bảo logic xóa question/progress được thực thi đúng
+                lessonService.deleteLesson(lesson.getId(), true);
+            }
         }
 
         Integer deletedOrderIndex = topic.getOrderIndex();
@@ -99,6 +110,15 @@ public class GrammarTopicService {
         topic.setIsActive(false);
         topicRepository.save(topic);
         log.info("Deactivated Grammar Topic: {}", topic.getName());
+    }
+
+    public void activateTopic(Long id) {
+        GrammarTopic topic = topicRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Topic không tồn tại với id: " + id));
+
+        topic.setIsActive(true);
+        topicRepository.save(topic);
+        log.info("Activated Grammar Topic: {}", topic.getName());
     }
 
     public Integer getNextOrderIndex() {

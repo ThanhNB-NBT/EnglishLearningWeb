@@ -1,69 +1,76 @@
 <template>
-  <el-card
-    class="topic-card"
-    :body-style="{ padding: '0px', height: '100%', display: 'flex', flexDirection: 'column' }"
-    shadow="hover"
+  <div
+    class="group h-full bg-white dark:bg-[#1d1d1d] border border-gray-300 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-200 flex flex-col relative"
   >
-    <div class="topic-header" :class="getLevelClass(topic.levelRequired)">
-      <div class="header-content">
-        <span class="topic-level-badge">{{ topic.levelRequired }}</span>
+    <div class="h-12 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#252525]">
+      <div
+        class="text-xs font-bold px-2 py-1 rounded uppercase tracking-wide border"
+        :class="getLevelClass(topic.levelRequired)"
+      >
+        {{ topic.levelRequired }}
       </div>
 
-      <div class="header-switch" @click.stop>
-        <el-tooltip :content="topic.isActive ? 'Đang hoạt động' : 'Đã tắt'" placement="top">
-          <el-switch
-            v-model="localActive"
-            size="small"
-            style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
-            @change="handleToggleActive"
-          />
-        </el-tooltip>
+      <div @click.stop>
+        <el-switch
+          v-model="localActive"
+          size="small"
+          inline-prompt
+          active-text="ON"
+          inactive-text="OFF"
+          style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
+          @change="handleToggleActive"
+        />
       </div>
     </div>
 
-    <div class="topic-body">
-      <h3 class="topic-title" :title="topic.name">{{ topic.name }}</h3>
+    <div class="p-5 flex-1 flex flex-col">
+      <h3
+        class="text-base font-bold text-gray-800 dark:text-white mb-2 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+        :title="topic.name"
+      >
+        {{ topic.name }}
+      </h3>
 
-      <p class="topic-desc">
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2 h-10 leading-relaxed">
         {{ topic.description || 'Chưa có mô tả.' }}
       </p>
 
-      <div class="topic-meta">
-        <span class="meta-item">
+      <div class="mt-auto flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500 font-medium">
+        <span class="flex items-center gap-1.5">
           <el-icon><Document /></el-icon> {{ topic.totalLessons || 0 }} bài
         </span>
-        <span class="meta-item">
+        <span class="flex items-center gap-1.5">
           <el-icon><Timer /></el-icon> STT: {{ topic.orderIndex }}
         </span>
       </div>
     </div>
 
-    <div class="topic-footer">
+    <div class="px-4 py-3 bg-gray-50 dark:bg-[#252525] border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
       <el-button
         type="primary"
-        plain
+        link
         size="small"
-        class="manage-btn"
+        class="!font-bold"
         @click="$emit('view-lessons', topic)"
       >
         Quản lý bài học
       </el-button>
 
-      <div class="footer-actions">
-        <el-tooltip content="Chỉnh sửa" placement="top">
-          <el-button link type="primary" class="icon-btn" @click="$emit('edit', topic)">
-            <el-icon :size="18"><Edit /></el-icon>
+      <div class="flex gap-1">
+        <el-tooltip content="Chỉnh sửa" placement="top" :hide-after="0">
+          <el-button link type="primary" class="!px-2" @click="$emit('edit', topic)">
+            <el-icon :size="16"><Edit /></el-icon>
           </el-button>
         </el-tooltip>
 
-        <el-tooltip content="Xóa" placement="top">
-          <el-button link type="danger" class="icon-btn" @click="$emit('delete', topic)">
-            <el-icon :size="18"><Delete /></el-icon>
+        <el-tooltip content="Xóa" placement="top" :hide-after="0">
+          <el-button link type="danger" class="!px-2" @click="$emit('delete', topic)">
+            <el-icon :size="16"><Delete /></el-icon>
           </el-button>
         </el-tooltip>
       </div>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
@@ -87,115 +94,11 @@ const handleToggleActive = (val) => {
 }
 
 const getLevelClass = (level) => {
-  switch(level) {
-    case 'BEGINNER': return 'bg-beginner';
-    case 'INTERMEDIATE': return 'bg-intermediate';
-    case 'ADVANCED': return 'bg-advanced';
-    default: return 'bg-beginner';
+  const map = {
+    'BEGINNER': 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+    'INTERMEDIATE': 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800',
+    'ADVANCED': 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
   }
+  return map[level] || 'bg-gray-100 text-gray-700 border-gray-200'
 }
 </script>
-
-<style scoped>
-.topic-card {
-  height: 100%;
-  transition: transform 0.2s ease-in-out;
-  border-radius: 12px; /* Bo góc mềm mại hơn */
-  border: 1px solid var(--el-border-color-light);
-  overflow: hidden;
-}
-.topic-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--el-box-shadow-light);
-}
-
-/* Header: Tăng Padding */
-.topic-header {
-  height: 50px;
-  padding: 0 20px; /* Padding rộng hơn */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.bg-beginner { background-color: #f0f9eb; border-left: 4px solid #67c23a; }
-.bg-intermediate { background-color: #fdf6ec; border-left: 4px solid #e6a23c; }
-.bg-advanced { background-color: #ecf5ff; border-left: 4px solid #409eff; }
-
-html.dark .bg-beginner { background-color: #1e2b20; border-left-color: #467a4b; }
-html.dark .bg-intermediate { background-color: #2b2318; border-left-color: #916d31; }
-html.dark .bg-advanced { background-color: #18222c; border-left-color: #335d88; }
-
-.topic-level-badge {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--el-text-color-regular);
-}
-
-/* Body: Tăng Padding */
-.topic-body {
-  padding: 20px; /* Padding rộng hơn cho nội dung */
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.topic-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 10px;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.topic-desc {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 20px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  height: 42px;
-}
-
-.topic-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-  margin-top: auto;
-}
-.meta-item { display: flex; align-items: center; gap: 6px; }
-
-/* Footer: Tăng Padding & Spacing */
-.topic-footer {
-  padding: 12px 20px; /* Padding rộng hơn */
-  background-color: #f9faFc;
-  border-top: 1px solid var(--el-border-color-lighter);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Footer Dark Mode */
-html.dark .topic-footer {
-  background-color: #1d1e1f;
-  border-top-color: #363637;
-}
-
-.footer-actions {
-  display: flex;
-  gap: 12px; /* Khoảng cách giữa các nút icon */
-}
-
-.icon-btn {
-  padding: 6px; /* Tăng vùng click */
-  margin-left: 0 !important;
-}
-</style>

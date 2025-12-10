@@ -1,751 +1,393 @@
 <template>
-  <div class="ai-parsing-panel">
-    <el-steps :active="activeStep" finish-status="success" simple class="mb-4">
-      <el-step title="Upload & Cấu hình" icon="Upload" />
-      <el-step title="Review & Lưu" icon="View" />
-    </el-steps>
+  <div class="w-full h-full flex flex-col items-center justify-center p-4">
+    <div
+      v-if="!parsedResult"
+      class="w-full max-w-3xl bg-white dark:bg-[#1d1d1d] p-8 rounded-2xl shadow-sm border border-gray-300 dark:border-gray-700 text-center"
+    >
+      <div class="mb-6">
+        <div
+          class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 dark:text-indigo-400"
+        >
+          <el-icon :size="24"><MagicStick /></el-icon>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">AI Grammar Parser</h2>
+        <p class="text-gray-500 dark:text-gray-400">
+          Tải lên tài liệu (PDF, Word, Ảnh) để AI tự động trích xuất bài học.
+        </p>
+      </div>
 
-    <div v-if="activeStep === 0" class="step-content">
-      <el-card shadow="never" class="upload-card">
-        <el-form label-position="top" class="config-form">
+      <div
+        class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-1 cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-[#252525] transition-all mb-6 relative group"
+        @click="triggerFileInput"
+        @drop.prevent="handleDrop"
+        @dragover.prevent
+      >
+        <input
+          type="file"
+          ref="fileInput"
+          class="hidden"
+          @change="handleFileChange"
+          accept=".pdf,.docx,.jpg,.png,.jpeg"
+        />
 
-          <el-form-item label="Chọn Chủ đề (Topic)" required>
-            <el-select
-              v-model="selectedTopicId"
-              placeholder="Chọn chủ đề để thêm bài học..."
-              filterable
-              style="width: 100%"
-            >
-              <el-option
-                v-for="topic in topics"
-                :key="topic.id"
-                :label="topic.name"
-                :value="topic.id"
-              >
-                <span style="float: left">{{ topic.name }}</span>
-                <el-tag size="small" type="info" style="float: right">{{ topic.levelRequired }}</el-tag>
-              </el-option>
-            </el-select>
-          </el-form-item>
+        <div v-if="selectedFile" class="flex flex-col items-center animate-fade-in">
+          <el-icon class="text-green-500 mb-2" :size="24"><CircleCheckFilled /></el-icon>
+          <div class="font-bold text-gray-800 dark:text-white text-lg">{{ selectedFile.name }}</div>
+          <div class="text-sm text-gray-500 mb-3">
+            {{ (selectedFile.size / 1024 / 1024).toFixed(2) }} MB
+          </div>
 
-          <el-form-item label="File tài liệu (PDF, DOCX, Ảnh)" required>
-            <el-upload
-              class="upload-area"
-              drag
-              action="#"
-              :auto-upload="false"
-              :on-change="handleFileChange"
-              :on-remove="handleFileRemove"
-              :limit="1"
-              accept=".pdf,.docx,.jpg,.jpeg,.png,.webp"
-            >
-              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-              <div class="el-upload__text">
-                Kéo thả file hoặc <em>nhấn để tải lên</em>
-              </div>
-              <template #tip>
-                <div class="el-upload__tip">
-                  Hỗ trợ PDF, DOCX, JPG, PNG (Max 20MB)
-                </div>
-              </template>
-            </el-upload>
-          </el-form-item>
-
-          <!-- ✅ ADVANCED OPTIONS COLLAPSE -->
-          <el-collapse v-model="advancedOpen" class="advanced-options">
-            <el-collapse-item name="advanced">
-              <template #title>
-                <div class="flex items-center">
-                  <el-icon class="mr-2"><Setting /></el-icon>
-                  <span class="font-semibold">Tùy chọn nâng cao</span>
-                  <el-tag size="small" type="info" class="ml-2">Không bắt buộc</el-tag>
-                </div>
-              </template>
-
-              <!-- Page Range (PDF only) -->
-              <el-form-item label="Chọn trang cụ thể (Chỉ dành cho PDF)">
-                <el-input
-                  v-model="pageRange"
-                  placeholder="VD: 1,3,5-10 (Để trống để parse toàn bộ)"
-                  clearable
-                >
-                  <template #prefix><el-icon><Document /></el-icon></template>
-                </el-input>
-                <div class="text-xs text-gray-400 mt-1">
-                  * Hỗ trợ chọn trang rời rạc (1,2) hoặc khoảng (1-5).
-                </div>
-              </el-form-item>
-
-              <!-- ✅ PARSING CONTEXT (NEW) -->
-              <el-form-item>
-                <template #label>
-                  <div class="flex items-center justify-between w-full">
-                    <span>Hướng dẫn phân tích (Parsing Context)</span>
-                    <el-popover placement="top" :width="400" trigger="hover">
-                      <template #reference>
-                        <el-button link size="small">
-                          <el-icon><QuestionFilled /></el-icon>
-                          Hướng dẫn
-                        </el-button>
-                      </template>
-                      <div class="parsing-help">
-                        <h4 class="font-bold mb-2">💡 Cách sử dụng Parsing Context:</h4>
-                        <ul class="text-sm space-y-1">
-                          <li>• Giúp AI hiểu rõ hơn về cấu trúc file của bạn</li>
-                          <li>• Chỉ định phần nào cần parse, phần nào bỏ qua</li>
-                          <li>• Hướng dẫn cách tách bài học và câu hỏi</li>
-                        </ul>
-
-                        <h5 class="font-semibold mt-3 mb-1">📝 Ví dụ:</h5>
-                        <pre class="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded">Parse ONLY sections I, II and exercises.
-SKIP section III about -s endings.
-Each exercise should be a SEPARATE lesson.</pre>
-
-                        <h5 class="font-semibold mt-3 mb-1">🎯 Mẫu sẵn:</h5>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                          <el-tag
-                            v-for="(template, key) in contextTemplates"
-                            :key="key"
-                            size="small"
-                            class="cursor-pointer hover:opacity-80"
-                            @click="applyTemplate(key)"
-                          >
-                            {{ key }}
-                          </el-tag>
-                        </div>
-                      </div>
-                    </el-popover>
-                  </div>
-                </template>
-
-                <el-input
-                  v-model="parsingContext"
-                  type="textarea"
-                  :rows="5"
-                  placeholder="Ví dụ: Parse sections I, II và các bài tập. Bỏ qua section III về đuôi -s. Mỗi Exercise là một lesson riêng."
-                  clearable
-                  show-word-limit
-                  maxlength="500"
-                >
-                  <template #prepend>
-                    <el-icon><EditPen /></el-icon>
-                  </template>
-                </el-input>
-
-                <!-- Quick Templates -->
-                <div class="template-buttons mt-2 flex flex-wrap gap-2">
-                  <el-button
-                    v-for="(template, key) in contextTemplates"
-                    :key="key"
-                    size="small"
-                    @click="applyTemplate(key)"
-                  >
-                    {{ key }}
-                  </el-button>
-                </div>
-              </el-form-item>
-
-            </el-collapse-item>
-          </el-collapse>
-
-          <el-button
-            type="primary"
-            size="large"
-            class="w-full mt-4"
-            :loading="parsing"
-            :disabled="!canParse"
-            @click="handleParse"
-          >
-            <el-icon class="mr-2"><MagicStick /></el-icon>
-            Bắt đầu Phân tích (AI)
+          <el-button type="danger" size="small" round @click.stop="selectedFile = null">
+            <el-icon class="mr-1"><Delete /></el-icon> Chọn file khác
           </el-button>
-        </el-form>
-      </el-card>
+        </div>
+
+        <div v-else class="group-hover:scale-105 transition-transform duration-300">
+          <div class="text-gray-600 dark:text-gray-300 font-medium text-lg">
+            Kéo thả file hoặc
+            <span class="text-indigo-600 font-bold underline decoration-2 underline-offset-4"
+              >Click để tải lên</span
+            >
+          </div>
+          <div class="text-xs text-gray-400 mt-2">Hỗ trợ PDF, DOCX, JPG, PNG (Max 10MB)</div>
+        </div>
+      </div>
+
+      <div
+        class="text-left bg-gray-50 dark:bg-[#252525] p-5 rounded-xl border border-gray-200 dark:border-gray-700 mb-6"
+      >
+        <div class="flex justify-between items-center mb-3">
+          <label class="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <el-icon><ChatLineSquare /></el-icon> Hướng dẫn AI (Parsing Context)
+          </label>
+
+          <el-dropdown trigger="click" @command="applyTemplate">
+            <el-button type="primary" link size="small">
+              <el-icon class="mr-1"><Notebook /></el-icon> Chọn mẫu câu lệnh
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu class="w-72">
+                <el-dropdown-item
+                  v-for="(tpl, idx) in promptTemplates"
+                  :key="idx"
+                  :command="tpl.value"
+                >
+                  <div class="flex flex-col py-1">
+                    <span class="font-bold text-gray-700 dark:text-gray-200">{{ tpl.label }}</span>
+                    <span class="text-xs text-gray-400 truncate">{{ tpl.desc }}</span>
+                  </div>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+
+        <el-input
+          v-model="parsingContext"
+          type="textarea"
+          :rows="4"
+          placeholder="Nhập hướng dẫn cụ thể cho AI. Ví dụ: 'Chỉ lấy 10 câu trắc nghiệm đầu tiên', 'Bỏ qua phần giới thiệu'..."
+          class="!text-base"
+          resize="none"
+        />
+
+        <div class="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <el-tag
+            v-for="tag in quickTags"
+            :key="tag"
+            type="info"
+            size="small"
+            effect="plain"
+            class="cursor-pointer hover:!border-indigo-400 transition-colors shrink-0"
+            @click="appendContext(tag)"
+          >
+            + {{ tag }}
+          </el-tag>
+        </div>
+      </div>
+
+      <div class="flex flex-col md:flex-row gap-4">
+        <el-select
+          v-model="selectedTopicId"
+          placeholder="Chọn Chủ đề để lưu bài học..."
+          filterable
+          class="!w-full md:!w-2/3"
+          size="large"
+        >
+          <template #prefix
+            ><el-icon><Folder /></el-icon
+          ></template>
+          <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
+        </el-select>
+
+        <el-button
+          type="primary"
+          size="large"
+          :loading="loading"
+          :disabled="!selectedFile || !selectedTopicId"
+          class="!w-full md:!w-1/3 !font-bold !rounded-lg shadow-lg shadow-indigo-500/30"
+          @click="handleParse"
+        >
+          <span v-if="!loading">Bắt đầu Phân tích</span>
+          <span v-else>Đang xử lý...</span>
+        </el-button>
+      </div>
     </div>
 
-    <div v-if="activeStep === 1" class="step-content">
-
-      <div class="selection-toolbar flex justify-between items-center mb-4 p-3 bg-gray-50 rounded border">
-        <div class="left-tools">
-          <el-checkbox
-            v-model="checkAll"
-            :indeterminate="isIndeterminate"
-            @change="handleCheckAllChange"
+    <div v-else class="w-full max-w-6xl h-full flex flex-col animate-fade-in-up">
+      <div
+        class="flex justify-between items-center mb-4 shrink-0 bg-white dark:bg-[#1d1d1d] p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600"
           >
-            Chọn tất cả ({{ parsedLessons.length }})
-          </el-checkbox>
-          <span class="ml-4 text-sm text-gray-500">
-            Đã chọn: <strong>{{ selectedCount }}</strong> bài
-          </span>
+            <el-icon :size="20"><CircleCheckFilled /></el-icon>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white">Kết quả phân tích</h3>
+            <p class="text-xs text-gray-500">
+              Tìm thấy {{ parsedResult.lessons?.length || 0 }} bài học
+            </p>
+          </div>
         </div>
-        <div class="right-tools">
-           <el-tag type="warning">Review kỹ trước khi lưu</el-tag>
+        <div class="flex gap-3">
+          <el-button @click="reset" :icon="RefreshLeft">Thử lại</el-button>
+          <el-button type="success" :loading="saving" @click="handleSave" class="!font-bold px-6">
+            Lưu vào Database
+          </el-button>
         </div>
       </div>
 
-      <div class="lessons-preview">
-        <el-collapse v-model="activeNames">
-          <el-collapse-item
-            v-for="(lesson, index) in parsedLessons"
-            :key="index"
-            :name="index"
-            :class="{ 'is-selected': lesson.isSelected }"
+      <div
+        class="flex-1 overflow-y-auto bg-gray-50 dark:bg-[#121212] p-4 rounded-xl border border-gray-300 dark:border-gray-700 shadow-inner"
+      >
+        <div
+          v-if="!parsedResult.lessons?.length"
+          class="flex flex-col items-center justify-center h-full text-gray-400"
+        >
+          <el-icon :size="48" class="mb-2"><DocumentDelete /></el-icon>
+          <p>Không tìm thấy nội dung nào phù hợp.</p>
+        </div>
+
+        <div v-else class="space-y-6">
+          <div
+            v-for="(lesson, idx) in parsedResult.lessons"
+            :key="idx"
+            class="bg-white dark:bg-[#1d1d1d] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm"
           >
-            <template #title>
-              <div class="lesson-header w-full flex items-center pr-4" @click.stop>
-                <el-checkbox v-model="lesson.isSelected" size="large" class="mr-3" />
-
-                <el-tag :type="lesson.lessonType === 'THEORY' ? 'success' : 'warning'" size="small" class="mr-2">
-                  {{ lesson.lessonType }}
-                </el-tag>
-
-                <span class="font-bold mr-2 flex-1 truncate">{{ lesson.title }}</span>
-
-                <el-tag v-if="lesson.createQuestions?.length" size="small" type="danger" effect="dark">
-                  {{ lesson.createQuestions.length }} câu hỏi
-                </el-tag>
+            <div
+              class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-[#252525]"
+            >
+              <div class="flex items-center gap-3">
+                <span class="bg-indigo-600 text-white font-bold px-2.5 py-0.5 rounded text-xs"
+                  >Lesson {{ idx + 1 }}</span
+                >
+                <h4 class="text-base font-bold text-gray-800 dark:text-white">
+                  {{ lesson.title }}
+                </h4>
               </div>
-            </template>
+              <el-tag
+                effect="plain"
+                :type="lesson.lessonType === 'THEORY' ? 'success' : 'warning'"
+                class="!rounded-full"
+                >{{ lesson.lessonType }}</el-tag
+              >
+            </div>
 
-            <div class="lesson-body p-4 bg-white">
-              <el-form-item label="Tiêu đề bài học">
-                <el-input v-model="lesson.title" />
-              </el-form-item>
-
-              <div v-if="lesson.content" class="content-section mb-4">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="label font-semibold">Nội dung bài học</span>
-                  <el-switch
-                    v-model="lesson.showHtmlSource"
-                    active-text="Sửa HTML"
-                    inactive-text="Xem trước"
-                    size="small"
-                  />
-                </div>
-
-                <el-input
-                  v-if="lesson.showHtmlSource"
-                  v-model="lesson.content"
-                  type="textarea"
-                  :rows="6"
-                  placeholder="Nhập mã HTML..."
-                />
-
+            <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div v-if="lesson.content">
+                <div class="text-xs font-bold text-gray-400 uppercase mb-2">Nội dung bài học</div>
                 <div
-                  v-else
-                  class="html-preview-box"
-                  v-html="lesson.content"
-                ></div>
+                  class="bg-gray-50 dark:bg-[#252525] p-4 rounded-lg text-sm border border-gray-200 dark:border-gray-600 max-h-60 overflow-y-auto custom-scrollbar"
+                >
+                  <div class="ql-editor !p-0" v-html="lesson.content"></div>
+                </div>
               </div>
 
-              <div v-if="lesson.createQuestions?.length" class="questions-list mt-4">
-                <div class="label font-semibold mb-2 text-blue-600">
-                  Danh sách câu hỏi ({{ lesson.createQuestions.length }})
-                  <!-- ✅ Show question type distribution -->
-                  <div class="question-stats mt-2">
-                    <el-tag
-                      v-for="(count, type) in getQuestionTypeStats(lesson.createQuestions)"
-                      :key="type"
-                      size="small"
-                      class="mr-1"
-                    >
-                      {{ type }}: {{ count }}
-                    </el-tag>
+              <div v-if="lesson.createQuestions?.length > 0">
+                <div class="text-xs font-bold text-gray-400 uppercase mb-2">
+                  Câu hỏi ({{ lesson.createQuestions.length }})
+                </div>
+                <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                  <div
+                    v-for="(q, qIdx) in lesson.createQuestions"
+                    :key="qIdx"
+                    class="bg-white dark:bg-[#2c2c2c] p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-indigo-300 transition-colors"
+                  >
+                    <div class="flex justify-between mb-1.5">
+                      <span class="font-bold text-indigo-600 text-xs">{{ q.questionType }}</span>
+                      <span class="text-xs font-bold text-orange-500">+{{ q.points }}</span>
+                    </div>
+                    <div
+                      class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2"
+                      v-html="q.questionText"
+                    ></div>
                   </div>
                 </div>
-                <el-table :data="lesson.createQuestions" size="small" border stripe style="width: 100%">
-                   <el-table-column type="index" width="50" align="center" />
-                   <el-table-column prop="questionType" label="Loại" width="150">
-                      <template #default="{ row }">
-                        <el-tag size="small" :type="getQuestionTypeColor(row.questionType)">
-                          {{ row.questionType }}
-                        </el-tag>
-                      </template>
-                   </el-table-column>
-                   <el-table-column prop="questionText" label="Nội dung câu hỏi" show-overflow-tooltip />
-                   <el-table-column label="Chi tiết" width="80" align="center">
-                      <template #default="{ row }">
-                         <el-popover placement="left" title="Question Details" :width="400" trigger="hover">
-                            <template #reference>
-                               <el-button size="small" link><el-icon><View /></el-icon></el-button>
-                            </template>
-                            <div class="question-detail-popup">
-                              <div class="mb-2">
-                                <strong>Type:</strong>
-                                <el-tag size="small" class="ml-1">{{ row.questionType }}</el-tag>
-                              </div>
-                              <div class="mb-2">
-                                <strong>Question:</strong>
-                                <div class="mt-1 text-sm">{{ row.questionText }}</div>
-                              </div>
-
-                              <!-- Show type-specific fields -->
-                              <div v-if="row.options" class="mb-2">
-                                <strong>Options ({{ row.options.length }}):</strong>
-                                <ul class="text-xs mt-1 pl-4">
-                                  <li v-for="opt in row.options" :key="opt.order">
-                                    {{ opt.text }}
-                                    <el-tag v-if="opt.isCorrect" size="small" type="success">✓</el-tag>
-                                  </li>
-                                </ul>
-                              </div>
-
-                              <div v-if="row.words" class="mb-2">
-                                <strong>Words:</strong> {{ row.words.join(', ') }}
-                              </div>
-
-                              <div v-if="row.categories" class="mb-2">
-                                <strong>Categories:</strong> {{ row.categories.join(', ') }}
-                              </div>
-                            </div>
-                         </el-popover>
-                      </template>
-                   </el-table-column>
-                </el-table>
-              </div>
-              <div v-else class="text-gray-400 text-sm italic py-2 text-center border border-dashed rounded mt-2">
-                 (Không tìm thấy câu hỏi nào trong phần này)
               </div>
             </div>
-          </el-collapse-item>
-        </el-collapse>
-      </div>
-
-      <div class="actions-footer mt-4 flex justify-end gap-3 sticky bottom-0 bg-white p-4 border-t z-10 shadow-up">
-        <el-button @click="activeStep = 0">Hủy & Quay lại</el-button>
-        <el-button
-          type="success"
-          :loading="saving"
-          :disabled="selectedCount === 0"
-          @click="handleSave"
-          icon="Check"
-        >
-          Lưu {{ selectedCount }} bài đã chọn
-        </el-button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useGrammarStore } from '@/stores/grammar'
-import { grammarAdminAPI } from '@/api/modules/grammar.api'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted } from 'vue'
 import {
   UploadFilled,
   MagicStick,
-  Document,
-  Check,
-  View,
-  Setting,
-  QuestionFilled,
-  EditPen
+  CircleCheckFilled,
+  InfoFilled,
+  Delete,
+  RefreshLeft,
+  DocumentDelete,
+  ChatLineSquare,
+  Notebook,
+  Folder,
 } from '@element-plus/icons-vue'
+import { useGrammarStore } from '@/stores/grammar'
+import { grammarAdminAPI } from '@/api/modules/grammar.api'
+import { ElMessage } from 'element-plus'
+import 'quill/dist/quill.snow.css'
 
 const store = useGrammarStore()
-
-// State
-const activeStep = ref(0)
+const fileInput = ref(null)
+const selectedFile = ref(null)
 const selectedTopicId = ref(null)
-const file = ref(null)
-const pageRange = ref('')
-const parsingContext = ref('') // ✅ NEW: Parsing context
-const advancedOpen = ref([]) // Collapse control
-const parsing = ref(false)
+const parsingContext = ref('')
+const loading = ref(false)
 const saving = ref(false)
+const parsedResult = ref(null)
 
-// Result Data
-const parsedLessons = ref([])
-const activeNames = ref([0])
-
-// Checkbox Logic
-const checkAll = ref(true)
-const isIndeterminate = ref(false)
-
-// ✅ PARSING CONTEXT TEMPLATES
-const contextTemplates = ref({
-  'Pronunciation': `Parse sections I, II and all exercises.
-Each Exercise should be a SEPARATE lesson.
-SKIP section III about -s endings.
-Questions format "A. word B. word C. word" are MULTIPLE_CHOICE type.`,
-
-  'Grammar Full': `Parse ALL content including theory and exercises.
-Split each exercise into separate lessons.
-Maintain question order as in the original document.`,
-
-  'Theory Only': `Parse ONLY theory sections (I, II, III).
-SKIP all exercises and practice sections.
-Create ONE theory lesson with all content.`,
-
-  'Exercises Only': `SKIP all theory sections.
-Parse ONLY exercises and practice questions.
-Each exercise is a separate PRACTICE lesson.`
-})
-
-// Computed
 const topics = computed(() => store.topics)
-const canParse = computed(() => selectedTopicId.value && file.value)
-const selectedCount = computed(() => parsedLessons.value.filter(l => l.isSelected).length)
 
-// --- Methods ---
+// --- PROMPT LIBRARY ---
+const promptTemplates = [
+  { label: 'Tự động (Mặc định)', value: '', desc: 'AI tự động nhận diện cấu trúc' },
+  {
+    label: 'Trắc nghiệm (Multiple Choice)',
+    value:
+      'Chỉ trích xuất các câu hỏi trắc nghiệm (Multiple Choice). Đảm bảo lấy đủ 4 đáp án A, B, C, D và đáp án đúng.',
+    desc: 'Ưu tiên lấy câu hỏi trắc nghiệm',
+  },
+  {
+    label: 'Bài đọc hiểu (Reading)',
+    value:
+      'Đây là bài đọc hiểu. Hãy trích xuất đoạn văn (Passage) vào nội dung bài học, sau đó là các câu hỏi liên quan.',
+    desc: 'Tách bài đọc và câu hỏi',
+  },
+  {
+    label: 'Bài tập điền từ',
+    value:
+      'Trích xuất bài tập điền từ (Fill in the blank). Giữ nguyên định dạng chỗ trống là "___".',
+    desc: 'Dạng bài Fill Blank',
+  },
+  {
+    label: 'Chỉ lấy bài tập (Bỏ lý thuyết)',
+    value: 'Bỏ qua phần lý thuyết giải thích. Chỉ trích xuất các bài tập thực hành.',
+    desc: 'Lọc bỏ nội dung thừa',
+  },
+]
 
-const handleFileChange = (uploadFile) => {
-  file.value = uploadFile.raw
+const quickTags = [
+  'Bỏ qua trang bìa',
+  'Chỉ lấy 10 câu đầu',
+  'Format dạng HTML',
+  'Ưu tiên câu hỏi khó',
+]
+
+const applyTemplate = (val) => {
+  parsingContext.value = val
 }
 
-const handleFileRemove = () => {
-  file.value = null
+const appendContext = (tag) => {
+  parsingContext.value = parsingContext.value ? `${parsingContext.value}. ${tag}` : tag
 }
 
-const parsePageRange = (str) => {
-  if (!str || !str.trim()) return null
-  const pages = new Set()
-  const parts = str.split(',')
-
-  parts.forEach(part => {
-    if (part.includes('-')) {
-      const [start, end] = part.split('-').map(Number)
-      if (!isNaN(start) && !isNaN(end)) {
-        for (let i = start; i <= end; i++) pages.add(i)
-      }
-    } else {
-      const num = Number(part)
-      if (!isNaN(num)) pages.add(num)
-    }
-  })
-  return Array.from(pages).sort((a, b) => a - b)
+// ... (Các hàm handle file, parse, save giữ nguyên như cũ) ...
+const triggerFileInput = () => fileInput.value.click()
+const handleFileChange = (e) => {
+  selectedFile.value = e.target.files[0]
 }
-
-// ✅ Apply template
-const applyTemplate = (templateKey) => {
-  parsingContext.value = contextTemplates.value[templateKey]
-  ElMessage.success(`Đã áp dụng template: ${templateKey}`)
+const handleDrop = (e) => {
+  selectedFile.value = e.dataTransfer.files[0]
 }
-
-// ✅ Get question type statistics
-const getQuestionTypeStats = (questions) => {
-  const stats = {}
-  questions.forEach(q => {
-    stats[q.questionType] = (stats[q.questionType] || 0) + 1
-  })
-  return stats
-}
-
-// ✅ Get color for question type tag
-const getQuestionTypeColor = (type) => {
-  const colorMap = {
-    'MULTIPLE_CHOICE': 'primary',
-    'PRONUNCIATION': 'warning',
-    'TRUE_FALSE': 'success',
-    'FILL_BLANK': 'info',
-    'SENTENCE_TRANSFORMATION': 'danger',
-    'SENTENCE_BUILDING': '',
-    'MATCHING': 'warning',
-    'ERROR_CORRECTION': 'danger'
-  }
-  return colorMap[type] || ''
-}
-
-// --- API ACTIONS ---
 
 const handleParse = async () => {
-  if (!file.value) return
-
-  parsing.value = true
+  if (!selectedFile.value || !selectedTopicId.value) return
+  loading.value = true
   try {
-    const pages = parsePageRange(pageRange.value)
-
-    // ✅ Call API with parsing context (4 parameters)
-    const response = await grammarAdminAPI.parseFile(
-      selectedTopicId.value,     // topicId
-      file.value,                 // file
-      pages,                      // pages array or null
-      parsingContext.value.trim() || null // ✅ parsingContext
+    const res = await grammarAdminAPI.parseFile(
+      selectedTopicId.value,
+      selectedFile.value,
+      null,
+      parsingContext.value,
     )
-
-    if (response.data.success) {
-      parsedLessons.value = response.data.data.parsedData.lessons.map(l => ({
-        ...l,
-        isSelected: true,
-        showHtmlSource: false
-      }))
-
-      activeNames.value = [0]
-      activeStep.value = 1
-
-      // ✅ Show parsing stats
-      const stats = {}
-      parsedLessons.value.forEach(lesson => {
-        if (lesson.createQuestions) {
-          lesson.createQuestions.forEach(q => {
-            stats[q.questionType] = (stats[q.questionType] || 0) + 1
-          })
-        }
-      })
-
-      ElMessage.success({
-        message: `Tìm thấy ${parsedLessons.value.length} bài học. Question types: ${JSON.stringify(stats)}`,
-        duration: 5000
-      })
+    if (res.data.success) {
+      parsedResult.value = res.data.data.parsedData
+      ElMessage.success(`Phân tích xong! Tìm thấy ${parsedResult.value.lessons.length} bài học.`)
     }
-  } catch (error) {
-    console.error(error)
-    ElMessage.error(error.response?.data?.message || 'Lỗi khi phân tích file. Vui lòng thử lại.')
+  } catch (e) {
+    ElMessage.error('Lỗi phân tích: ' + (e.response?.data?.message || e.message))
   } finally {
-    parsing.value = false
+    loading.value = false
   }
 }
 
-// Logic Select All Checkbox
-const handleCheckAllChange = (val) => {
-  parsedLessons.value.forEach(item => (item.isSelected = val))
-  isIndeterminate.value = false
-}
-
-watch(parsedLessons, (newVal) => {
-  if (newVal.length === 0) return
-  const checkedCount = newVal.filter(l => l.isSelected).length
-  checkAll.value = checkedCount === newVal.length
-  isIndeterminate.value = checkedCount > 0 && checkedCount < newVal.length
-}, { deep: true })
-
 const handleSave = async () => {
-  const lessonsToSave = parsedLessons.value.filter(l => l.isSelected)
-
-  if (lessonsToSave.length === 0) return
-
+  if (!parsedResult.value) return
+  saving.value = true
   try {
-    await ElMessageBox.confirm(
-      `Bạn có chắc muốn lưu ${lessonsToSave.length} bài học đã chọn vào CSDL?`,
-      'Xác nhận lưu',
-      { confirmButtonText: 'Lưu ngay', cancelButtonText: 'Hủy', type: 'warning' }
-    )
-
-    saving.value = true
-
-    const payload = {
-      lessons: lessonsToSave
-    }
-
-    const response = await grammarAdminAPI.saveParsedLessons(selectedTopicId.value, payload)
-
-    if (response.data.success) {
-      ElMessage.success(response.data.message)
-      // Reset
-      file.value = null
-      pageRange.value = ''
-      parsingContext.value = ''
-      parsedLessons.value = []
-      activeStep.value = 0
-      advancedOpen.value = []
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error(error)
-      ElMessage.error(error.response?.data?.message || 'Lỗi khi lưu dữ liệu.')
-    }
+    await grammarAdminAPI.saveParsedLessons(selectedTopicId.value, parsedResult.value)
+    ElMessage.success('Lưu thành công!')
+    reset()
+  } catch (e) {
+    ElMessage.error('Lỗi lưu dữ liệu')
   } finally {
     saving.value = false
   }
 }
 
+const reset = () => {
+  parsedResult.value = null
+  selectedFile.value = null
+  parsingContext.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
+
 onMounted(async () => {
-  if (store.topics.length === 0) {
-    await store.fetchTopics({ size: 100 })
-  }
+  if (topics.value.length === 0) await store.fetchTopics({ size: 100 })
 })
 </script>
 
 <style scoped>
-.ai-parsing-panel {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
-
-.upload-card {
-  padding: 20px;
-  text-align: center;
-  background-color: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-.config-form {
-  text-align: left;
-  max-width: 600px;
-  margin: 0 auto;
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
 }
-
-.upload-area :deep(.el-upload-dragger) {
-  width: 100%;
-  background-color: var(--el-bg-color);
-  border-color: var(--el-border-color);
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-/* ✅ ADVANCED OPTIONS STYLING */
-.advanced-options {
-  margin-top: 16px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 6px;
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
 }
-
-.advanced-options :deep(.el-collapse-item__header) {
-  padding: 12px 16px;
-  background-color: var(--el-fill-color-lighter);
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-
-.advanced-options :deep(.el-collapse-item__content) {
-  padding: 16px;
-  background-color: var(--el-bg-color-overlay);
-}
-
-.template-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.parsing-help ul {
-  padding-left: 0;
-  list-style: none;
-}
-
-.parsing-help pre {
-  margin-top: 8px;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.question-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.question-detail-popup {
-  font-size: 13px;
-}
-
-.question-detail-popup strong {
-  color: var(--el-text-color-primary);
-}
-
-/* --- SELECTION TOOLBAR --- */
-.selection-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--el-border-color);
-  background-color: var(--el-fill-color-light);
-}
-
-/* --- LESSON ITEM STYLES --- */
-.lesson-header {
-  user-select: none;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding-right: 16px;
-}
-
-.lesson-body {
-  padding: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  background-color: var(--el-bg-color-overlay);
-}
-
-/* --- CONTENT SECTION --- */
-.content-section {
-  margin-bottom: 16px;
-}
-
-.label {
-  font-weight: 600;
-  color: var(--el-text-color-regular);
-}
-
-.html-preview-box {
-  padding: 15px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  min-height: 80px;
-  max-height: 300px;
-  overflow-y: auto;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  line-height: 1.6;
-  background-color: var(--el-fill-color-lighter);
-  color: var(--el-text-color-primary);
-}
-
-.html-preview-box :deep(h2), .html-preview-box :deep(h3) {
-  font-weight: bold;
-  margin-bottom: 0.5em;
-  color: var(--el-text-color-primary);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  padding-bottom: 5px;
-}
-
-.html-preview-box :deep(p) { margin-bottom: 0.8em; }
-.html-preview-box :deep(ul) { list-style-type: disc; padding-left: 20px; margin-bottom: 1em; }
-.html-preview-box :deep(table) { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-.html-preview-box :deep(td), .html-preview-box :deep(th) {
-  border: 1px solid var(--el-border-color);
-  padding: 6px;
-}
-
-/* --- QUESTIONS LIST --- */
-.questions-list {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px dashed var(--el-border-color);
-}
-
-/* Footer Actions */
-.actions-footer {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  position: sticky;
-  bottom: 0;
-  padding: 16px;
-  z-index: 10;
-  background-color: var(--el-bg-color);
-  border-top: 1px solid var(--el-border-color);
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-}
-
-/* --- SELECTED STATE --- */
-:deep(.is-selected .el-collapse-item__header) {
-  background-color: var(--el-color-success-light-9);
-}
-
-html.dark :deep(.is-selected .el-collapse-item__header) {
-  background-color: var(--el-color-success-dark-2);
-}
-
-/* Utilities */
-.w-full { width: 100%; }
-.mb-4 { margin-bottom: 16px; }
-.mt-4 { margin-top: 16px; }
-.mt-1 { margin-top: 4px; }
-.mt-2 { margin-top: 8px; }
-.mr-1 { margin-right: 4px; }
-.mr-2 { margin-right: 8px; }
-.mr-3 { margin-right: 12px; }
-.ml-2 { margin-left: 8px; }
-.ml-4 { margin-left: 16px; }
-.flex { display: flex; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.flex-wrap { flex-wrap: wrap; }
-.gap-2 { gap: 8px; }
-.cursor-pointer { cursor: pointer; }
-.hover\:opacity-80:hover { opacity: 0.8; }
-.space-y-1 > * + * { margin-top: 4px; }
 </style>
