@@ -1,5 +1,7 @@
 package com.thanhnb.englishlearning.config;
 
+import com.thanhnb.englishlearning.entity.User;
+import com.thanhnb.englishlearning.repository.UserRepository;
 import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
 import com.thanhnb.englishlearning.service.user.CustomUserDetailsService;
@@ -16,6 +18,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -24,6 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final JwtBlacklistService jwtBlacklistService;
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository; // ✅ ADD THIS
 
     @Override
     protected void doFilterInternal(
@@ -40,30 +44,65 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractTokenFromRequest(request);
 
             if (token != null) {
+                // 1. Check if token is blacklisted
                 if (jwtBlacklistService.isTokenBlacklisted(token)) {
                     log.debug("Token is blacklisted, request denied");
-                    sendErrorResponse(response, "Token has been revoked");
+                    sendErrorResponse(response, "Token đã bị vô hiệu hóa");
                     return;
                 }
 
+                // 2. Validate token format and expiration
                 if (jwtUtil.isTokenValid(token)) {
                     String username = jwtUtil.getUsernameFromToken(token);
+                    
+                    // 3. ✅ CRITICAL: Load user and check account status
+                    Optional<User> userOpt = userRepository.findByUsername(username);
+                    if (userOpt.isEmpty()) {
+                        log.warn("Token for non-existent user: {}", username);
+                        sendErrorResponse(response, "Tài khoản không tồn tại");
+                        return;
+                    }
+                    
+                    User user = userOpt.get();
+                    
+                    // ✅ CHECK 1: User must be active (not blocked)
+                    if (!user.getIsActive()) {
+                        log.warn("Blocked user attempted access: {}", username);
+                        sendErrorResponse(response, "Tài khoản đã bị khóa");
+                        return;
+                    }
+                    
+                    // ✅ CHECK 2: User must be verified (for USER role only)
+                    if (user.getRole().name().equals("USER") && !user.getIsVerified()) {
+                        log.warn("Unverified user attempted access: {}", username);
+                        sendErrorResponse(response, "Tài khoản chưa được xác thực");
+                        return;
+                    }
+                    
+                    // ✅ CHECK 3: Token must be issued after last login/password change
+                    if (jwtUtil.isTokenIssuedBeforeLastUpdate(token, user.getLastLoginDate())) {
+                        log.warn("Token issued before last update for user: {}", username);
+                        sendErrorResponse(response, "Phiên đăng nhập đã hết hạn");
+                        return;
+                    }
+                    
+                    // 4. All checks passed - set authentication
                     setAuthenticationContext(username, request);
                     log.debug("JWT authentication successful for user: {}", username);
                 } else {
                     log.debug("JWT token validation failed");
-                    sendErrorResponse(response, "Invalid or expired token");
+                    sendErrorResponse(response, "Token không hợp lệ hoặc đã hết hạn");
                     return;
                 }
             } else {
                 log.debug("No JWT token found in request");
-                sendErrorResponse(response, "Missing authentication token");
+                sendErrorResponse(response, "Thiếu token xác thực");
                 return;
             }
         } catch (Exception e) {
             log.error("JWT authentication error: {}", e.getMessage());
             log.error("Critical Auth Error on path: {}", request.getRequestURI(), e);
-            sendErrorResponse(response, "Authentication error");
+            sendErrorResponse(response, "Lỗi xác thực");
             return;
         }
 
@@ -108,9 +147,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
+        response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(String.format("{\"error\": \"%s\"}", message));
+        response.getWriter().write(String.format(
+            "{\"success\":false,\"message\":\"%s\",\"statusCode\":401}", 
+            message
+        ));
     }
 
     @Override

@@ -7,61 +7,79 @@
     destroy-on-close
     :close-on-click-modal="false"
     @close="handleClose"
-    class="lesson-dialog"
+    class="!rounded-xl"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="formRules"
-      label-width="120px"
-      label-position="top"
-    >
-      <el-form-item label="Tiêu đề bài học" prop="title">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-position="top" class="p-2">
+      <el-form-item label="Tiêu đề bài học" prop="title" class="!mb-5">
         <el-input
           v-model="formData.title"
           placeholder="Nhập tiêu đề bài học..."
           maxlength="200"
           show-word-limit
+          size="large"
         />
       </el-form-item>
 
-      <div class="form-row">
-        <el-form-item label="Loại bài học" prop="lessonType" style="flex: 1">
-          <el-select v-model="formData.lessonType" style="width: 100%">
-            <el-option label="Lý thuyết (Theory)" value="THEORY" />
-            <el-option label="Thực hành (Practice)" value="PRACTICE" />
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        <el-form-item label="Loại bài học" prop="lessonType">
+          <el-select v-model="formData.lessonType" class="!w-full" size="large">
+            <el-option label="Lý thuyết (Theory)" value="THEORY">
+              <span class="flex items-center gap-2"
+                ><el-icon><Reading /></el-icon> Lý thuyết</span
+              >
+            </el-option>
+            <el-option label="Thực hành (Practice)" value="PRACTICE">
+              <span class="flex items-center gap-2"
+                ><el-icon><EditPen /></el-icon> Thực hành</span
+              >
+            </el-option>
           </el-select>
         </el-form-item>
 
-        <el-form-item label="Thứ tự" prop="orderIndex" style="width: 120px">
-          <el-input-number v-model="formData.orderIndex" :min="1" style="width: 100%" />
-        </el-form-item>
-      </div>
-
-      <div class="form-row">
-        <el-form-item label="Thời gian ước tính (Giây)" prop="estimatedDuration" style="flex: 1">
+        <el-form-item label="Thứ tự hiển thị" prop="orderIndex">
           <el-input-number
-            v-model="formData.estimatedDuration"
+            v-model="formData.orderIndex"
+            :min="1"
+            class="!w-full"
+            size="large"
+            controls-position="right"
+          />
+        </el-form-item>
+
+        <el-form-item label="Thời gian ước tính (Giây)" prop="timeLimitSeconds">
+          <el-input-number
+            v-model="formData.timeLimitSeconds"
             :min="0"
             :step="10"
-            style="width: 100%"
+            class="!w-full"
+            size="large"
+            controls-position="right"
           />
-          <div class="help-text">
-            ~ {{ (formData.estimatedDuration / 60).toFixed(1) }} phút
+          <div class="text-xs text-gray-400 mt-1">
+            ~ {{ (formData.timeLimitSeconds / 60).toFixed(1) }} phút
           </div>
         </el-form-item>
 
-        <el-form-item label="Điểm thưởng" prop="pointsReward" style="flex: 1">
-          <el-input-number v-model="formData.pointsReward" :min="0" style="width: 100%" />
+        <el-form-item label="Điểm thưởng" prop="pointsReward">
+          <el-input-number
+            v-model="formData.pointsReward"
+            :min="0"
+            class="!w-full"
+            size="large"
+            controls-position="right"
+          />
         </el-form-item>
       </div>
 
-      <el-form-item label="Nội dung bài học" prop="content">
-        <QuillRichEditor
-          v-model="formData.content"
-          placeholder="Soạn thảo nội dung bài học..."
-          height="300px"
-        />
+      <el-form-item label="Nội dung bài học" prop="content" class="!mb-5">
+        <div class="w-full border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+          <QuillRichEditor
+            v-model="formData.content"
+            placeholder="Soạn thảo nội dung bài học..."
+            height="300px"
+            :toolbar="formData.lessonType === 'THEORY' ? 'full' : 'basic'"
+          />
+        </div>
       </el-form-item>
 
       <el-form-item label="Trạng thái">
@@ -69,14 +87,20 @@
           v-model="formData.isActive"
           active-text="Kích hoạt"
           inactive-text="Ẩn"
+          style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
         />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="handleClose">Hủy</el-button>
-        <el-button type="primary" :loading="loading" @click="onSubmit">
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <el-button @click="handleClose" class="!rounded-lg">Hủy</el-button>
+        <el-button
+          type="primary"
+          :loading="loading"
+          @click="onSubmit"
+          class="!rounded-lg !font-bold px-6"
+        >
           {{ submitButtonText }}
         </el-button>
       </div>
@@ -88,10 +112,11 @@
 import { ref } from 'vue'
 import { useGrammarStore } from '@/stores/grammar'
 import { useGrammarLessonForm } from '@/composables/grammar/useGrammarLessons'
-import QuillRichEditor from '@/components/common/QuillRichEditor.vue' // Import Editor
+import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
+import { Reading, EditPen } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  topicId: { type: Number, default: null }
+  topicId: { type: Number, default: null },
 })
 
 const emit = defineEmits(['success'])
@@ -108,7 +133,7 @@ const {
   submitButtonText,
   openCreateDialog,
   openEditDialog,
-  closeDialog
+  closeDialog,
 } = useGrammarLessonForm()
 
 const handleOpenCreate = async () => {
@@ -117,7 +142,7 @@ const handleOpenCreate = async () => {
 
 defineExpose({
   openCreate: handleOpenCreate,
-  openEdit: (lesson) => openEditDialog(lesson)
+  openEdit: (lesson) => openEditDialog(lesson),
 })
 
 const handleClose = () => {
@@ -151,28 +176,3 @@ const onSubmit = async () => {
   })
 }
 </script>
-
-<style scoped>
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-.help-text {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-  font-style: italic;
-}
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-@media (max-width: 600px) {
-  .form-row {
-    flex-direction: column;
-    gap: 0;
-  }
-}
-</style>

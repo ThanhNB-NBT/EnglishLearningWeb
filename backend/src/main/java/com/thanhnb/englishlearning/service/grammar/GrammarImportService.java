@@ -67,13 +67,13 @@ public class GrammarImportService {
                 if (lessonDTO.getPointsReward() == null || lessonDTO.getPointsReward() == 0) {
                     lessonDTO.setPointsReward(lessonDTO.getLessonType() == LessonType.THEORY ? 10 : 15);
                 }
-                if (lessonDTO.getEstimatedDuration() == null || lessonDTO.getEstimatedDuration() == 0) {
-                    int duration = lessonDTO.getLessonType() == LessonType.THEORY ? 180 : 300;
+                if (lessonDTO.getTimeLimitSeconds() == null || lessonDTO.getTimeLimitSeconds() == 0) {
+                    int duration = lessonDTO.getLessonType() == LessonType.THEORY ? 30 : 300;
                     if (lessonDTO.getContent() != null && lessonDTO.getContent().length() > 5000)
                         duration += 120;
                     if (lessonDTO.getQuestions() != null && lessonDTO.getQuestions().size() > 5)
                         duration += lessonDTO.getQuestions().size() * 30;
-                    lessonDTO.setEstimatedDuration(duration);
+                    lessonDTO.setTimeLimitSeconds(duration);
                 }
                 if (lessonDTO.getIsActive() == null)
                     lessonDTO.setIsActive(true);
@@ -85,7 +85,7 @@ public class GrammarImportService {
                 lesson.setLessonType(lessonDTO.getLessonType());
                 lesson.setContent(lessonDTO.getContent());
                 lesson.setOrderIndex(lessonDTO.getOrderIndex());
-                lesson.setEstimatedDuration(lessonDTO.getEstimatedDuration());
+                lesson.setTimeLimitSeconds(lessonDTO.getTimeLimitSeconds());
                 lesson.setPointsReward(lessonDTO.getPointsReward());
                 lesson.setIsActive(lessonDTO.getIsActive());
                 lesson.setCreatedAt(LocalDateTime.now());
@@ -154,7 +154,7 @@ public class GrammarImportService {
                 lesson.getContent(),
                 lesson.getOrderIndex(),
                 lesson.getPointsReward(),
-                lesson.getEstimatedDuration(),
+                lesson.getTimeLimitSeconds(),
                 lesson.getIsActive(),
                 lesson.getCreatedAt(),
                 lesson.getMetadata(),

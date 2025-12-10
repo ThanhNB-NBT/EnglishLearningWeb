@@ -299,6 +299,17 @@ public class GrammarAdminController {
                 }
         }
 
+        @PatchMapping("/topics/{id}/activate")
+        @Operation(summary = "Kích hoạt topic (set isActive = true)")
+        public ResponseEntity<CustomApiResponse<String>> activateTopic(@PathVariable Long id) {
+                try {
+                        grammarAdminService.activateTopic(id);
+                        return ResponseEntity.ok(CustomApiResponse.success("Đã kích hoạt topic", "Đã kích hoạt topic"));
+                } catch (Exception e) {
+                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                }
+        }
+
         @PatchMapping("/topics/{id}/deactivate")
         @Operation(summary = "Tắt topic (set isActive = false)")
         public ResponseEntity<CustomApiResponse<String>> deactivateTopic(@PathVariable Long id) {
@@ -394,6 +405,17 @@ public class GrammarAdminController {
                 try {
                         grammarAdminService.deleteLesson(id, cascade);
                         return ResponseEntity.ok(CustomApiResponse.success("Xóa thành công", "Xóa thành công"));
+                } catch (Exception e) {
+                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                }
+        }
+
+        @PatchMapping("/lessons/{id}/activate")
+        @Operation(summary = "Kích hoạt lesson (set isActive = true)")
+        public ResponseEntity<CustomApiResponse<String>> activateLesson(@PathVariable Long id) {
+                try {
+                        grammarAdminService.activateLesson(id);
+                        return ResponseEntity.ok(CustomApiResponse.success("Đã kích hoạt lesson", "Đã kích hoạt lesson"));
                 } catch (Exception e) {
                         return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
                 }

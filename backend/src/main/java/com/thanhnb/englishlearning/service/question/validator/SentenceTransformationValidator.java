@@ -27,7 +27,7 @@ public class SentenceTransformationValidator implements AnswerValidator {
     @SuppressWarnings("unchecked")
     public QuestionResultDTO validate(Map<String, Object> meta, Object userAnswer, QuestionResultDTO.QuestionResultDTOBuilder builder) {
         // 1. Lấy dữ liệu từ metadata
-        String originalSentence = (String) meta.get("originalSentence");
+        // String originalSentence = (String) meta.get("originalSentence");
         List<String> correctAnswers = (List<String>) meta.get("correctAnswers");
         String explanation = (String) meta.get("explanation");
 

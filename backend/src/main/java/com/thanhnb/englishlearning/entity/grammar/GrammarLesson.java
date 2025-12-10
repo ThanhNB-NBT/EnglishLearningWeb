@@ -44,11 +44,15 @@ public class GrammarLesson {
     @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
 
-    //Thời gian ước tính hoàn thành bài học
-    @Column(name = "estimated_duration", nullable = false)
-    private Integer estimatedDuration = 30;
+    /**
+     * Thời gian giới hạn (giây):
+     * - THEORY: Thời gian đọc tối thiểu để hoàn thành
+     * - PRACTICE: Thời gian làm bài tối đa (đếm ngược, hết giờ auto-submit)
+     */
+    @Column(name = "time_limit_seconds", nullable = false)
+    private Integer timeLimitSeconds = 30;
 
-    //Điểm thưởng khi hoàn thành bài học
+    // Điểm thưởng khi hoàn thành bài học
     @Column(name = "points_reward")
     private Integer pointsReward = 10;
 
@@ -63,7 +67,7 @@ public class GrammarLesson {
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
-    //Relationships
+    // Relationships
     @OneToMany(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id", referencedColumnName = "id", insertable = false, updatable = false)
     @org.hibernate.annotations.SQLRestriction("parent_type = 'GRAMMAR'")
@@ -71,4 +75,12 @@ public class GrammarLesson {
 
     @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<UserGrammarProgress> userProgresses;
+
+    public Integer getReadingTimeRequired() {
+        return lessonType == LessonType.THEORY ? timeLimitSeconds : null;
+    }
+
+    public Integer getPracticeTimeLimit() {
+        return lessonType == LessonType.PRACTICE ? timeLimitSeconds : null;
+    }
 }

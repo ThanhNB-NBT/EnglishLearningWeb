@@ -12,8 +12,8 @@ const router = createRouter({
       children: [
         {
           path: '',
-          name: 'home',
-          component: () => import('@/views/HomeView.vue'),
+          name: 'welcome',
+          component: () => import('@/views/WelcomeView.vue'),
         },
       ],
     },
@@ -28,7 +28,7 @@ const router = createRouter({
         // CHỈ REDIRECT nếu đã login USER
         if (userToken) {
           console.log('Auth route: User already logged in, redirect to dashboard')
-          return next('/user/dashboard')
+          return next('/user/home')
         }
 
         // CHO PHÉP truy cập - admin có thể vào để login user
@@ -67,33 +67,44 @@ const router = createRouter({
     // ==================== USER ROUTES (Auth Required) ====================
     {
       path: '/user',
-      component: () => import('@/layouts/DashboardLayout.vue'),
+      component: () => import('@/layouts/HomeLayout.vue'),
       beforeEnter: authGuard,
       children: [
         {
-          path: 'dashboard',
-          name: 'dashboard',
-          component: () => import('@/views/user/DashboardView.vue'),
+          path: 'home',
+          name: 'home',
+          component: () => import('@/views/user/HomeView.vue'),
+          meta: { title: 'Home' },
         },
         {
           path: 'profile',
           name: 'profile',
-          component: () => import('@/views/ProfileView.vue'), // ✅ SHARED
+          component: () => import('@/views/ProfileView.vue'),
+          meta: { title: 'Profile' },
         },
         {
           path: 'change-password',
           name: 'change-password',
-          component: () => import('@/views/ChangePasswordView.vue'), // ✅ SHARED
+          component: () => import('@/views/ChangePasswordView.vue'),
+          meta: { title: 'Change Password' },
         },
         {
           path: 'grammar',
-          name: 'grammar',
-          component: () => import('@/views/user/GrammarView.vue'),
+          name: 'user-grammar', // Danh sách chủ đề
+          component: () => import('@/views/user/grammar/GrammarTopicsView.vue'),
+          meta: { title: 'Grammar Topics' },
+        },
+        {
+          path: 'grammar/lesson/:lessonId',
+          name: 'user-grammar-lesson', // Màn hình học (Lý thuyết/Thực hành)
+          component: () => import('@/views/user/grammar/LessonPlayerView.vue'),
+          meta: { title: 'Grammar Lesson' },
         },
         {
           path: 'reading',
           name: 'reading',
           component: () => import('@/views/user/ReadingView.vue'),
+          meta: { title: 'Reading' },
         },
       ],
     },
@@ -127,56 +138,44 @@ const router = createRouter({
           path: 'dashboard',
           name: 'admin-dashboard',
           component: () => import('@/views/admin/AdminDashboardView.vue'),
+          meta: { title: 'Dashboard' },
         },
         {
           path: 'profile',
           name: 'admin-profile',
           component: () => import('@/views/ProfileView.vue'), // ✅ SHARED
+          meta: { title: 'Profile' },
         },
         {
           path: 'change-password',
           name: 'admin-change-password',
           component: () => import('@/views/ChangePasswordView.vue'), // ✅ SHARED
+          meta: { title: 'Change Password' },
         },
         {
           path: 'users',
           name: 'admin-users',
           component: () => import('@/views/admin/UsersManagementView.vue'),
+          meta: { title: 'Users Management' },
         },
         {
           path: 'grammar',
           name: 'admin-grammar',
           // redirect: '/admin/grammar', // Redirect to topics by default
           component: () => import('@/views/admin/GrammarManagementView.vue'),
-          // children: [
-          //   {
-          //     path: 'topics',
-          //     name: 'admin-grammar-topics',
-          //     component: () => import('@/views/admin/grammar/TopicManagementView.vue'),
-          //   },
-          //   {
-          //     path: 'topics/:topicId/lessons',
-          //     name: 'admin-grammar-lessons',
-          //     component: () => import('@/views/admin/grammar/LessonManagementView.vue'),
-          //     props: true, // Pass topicId as prop
-          //   },
-          //   {
-          //     path: 'lessons/:lessonId/questions',
-          //     name: 'admin-grammar-questions',
-          //     component: () => import('@/views/admin/grammar/QuestionManagementView.vue'),
-          //     props: true, // Pass lessonId as prop
-          //   },
-          // ],
+          meta: { title: 'Grammar Management' },
         },
         {
           path: 'reading',
           name: 'admin-reading',
           component: () => import('@/views/admin/ReadingManagementView.vue'),
+          meta: { title: 'Reading Management' },
         },
         {
           path: 'cleanup-user',
           name: 'admin-cleanup-user',
           component: () => import('@/views/admin/CleanupManagementView.vue'),
+          meta: { title: 'Cleanup User' },
         },
       ],
     },

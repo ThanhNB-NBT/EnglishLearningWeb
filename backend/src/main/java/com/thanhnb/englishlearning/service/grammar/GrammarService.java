@@ -69,25 +69,29 @@ public class GrammarService extends BaseLearningService<GrammarLesson, UserGramm
 
                 // Lấy tất cả topics active
                 List<GrammarTopic> topics = grammarTopicRepository.findByIsActiveTrueOrderByOrderIndexAsc();
-                if (topics.isEmpty()) return Collections.emptyList();
+                if (topics.isEmpty())
+                        return Collections.emptyList();
 
                 List<Long> topicIds = topics.stream().map(GrammarTopic::getId).toList();
 
                 // Lấy tất cả progress của user trong các topics này
-                List<UserGrammarProgress> allProgress = userGrammarProgressRepository.findByUserIdAndTopicIdIn(userId, topicIds);
+                List<UserGrammarProgress> allProgress = userGrammarProgressRepository.findByUserIdAndTopicIdIn(userId,
+                                topicIds);
 
                 // Gom nhóm progress theo topicId
                 Map<Long, List<UserGrammarProgress>> progressByTopicMap = allProgress.stream()
-                        .collect(Collectors.groupingBy(p -> p.getLesson().getTopic().getId()));
+                                .collect(Collectors.groupingBy(p -> p.getLesson().getTopic().getId()));
 
                 // Map dữ liệu (Xử lí progress cho từng lesson trong topic)
                 return topics.stream().map(topic -> {
                         GrammarTopicDTO dto = convertTopicToDTO(topic);
 
                         // Lấy list progress tương ứng với topic từ map
-                        List<UserGrammarProgress> topicProgress = progressByTopicMap.getOrDefault(topic.getId(), Collections.emptyList());
+                        List<UserGrammarProgress> topicProgress = progressByTopicMap.getOrDefault(topic.getId(),
+                                        Collections.emptyList());
 
-                        long completedLessons = topicProgress.stream().filter(UserGrammarProgress::getIsCompleted).count();
+                        long completedLessons = topicProgress.stream().filter(UserGrammarProgress::getIsCompleted)
+                                        .count();
                         int totalLessons = topic.getLessons().size();
 
                         dto.setCompletedLessons((int) completedLessons);
@@ -245,11 +249,13 @@ public class GrammarService extends BaseLearningService<GrammarLesson, UserGramm
                                 .findByUserIdAndLessonId(userId, lesson.getId())
                                 .orElseGet(() -> createNewProgress(user, lesson));
 
-                long cooldown = progressService.checkSubmitCooldown(
-                                progress.getUpdatedAt(), SUBMIT_COOLDOWN_SECONDS);
+                if (progress.getId() != null) {
+                        long cooldown = progressService.checkSubmitCooldown(
+                                        progress.getUpdatedAt(), SUBMIT_COOLDOWN_SECONDS);
 
-                if (cooldown > 0) {
-                        throw new RuntimeException("Vui lòng đợi " + cooldown + " giây trước khi nộp lại");
+                        if (cooldown > 0) {
+                                throw new RuntimeException("Vui lòng đợi " + cooldown + " giây trước khi nộp lại");
+                        }
                 }
 
                 int totalScore = 0;
@@ -278,9 +284,9 @@ public class GrammarService extends BaseLearningService<GrammarLesson, UserGramm
 
                 } else if (lesson.getLessonType() == LessonType.THEORY) {
                         if (request.getReadingTimeSecond() == null
-                                        || request.getReadingTimeSecond() < lesson.getEstimatedDuration()) {
+                                        || request.getReadingTimeSecond() < lesson.getTimeLimitSeconds()) {
                                 throw new RuntimeException(
-                                                "Bạn cần dành ít nhất " + lesson.getEstimatedDuration()
+                                                "Bạn cần dành ít nhất " + lesson.getTimeLimitSeconds()
                                                                 + " giây để đọc bài lý thuyết");
                         }
 
@@ -417,7 +423,7 @@ public class GrammarService extends BaseLearningService<GrammarLesson, UserGramm
                                 lesson.getContent(),
                                 lesson.getOrderIndex(),
                                 lesson.getPointsReward(),
-                                lesson.getEstimatedDuration(),
+                                lesson.getTimeLimitSeconds(),
                                 lesson.getIsActive(),
                                 lesson.getCreatedAt(),
                                 lesson.getMetadata(),

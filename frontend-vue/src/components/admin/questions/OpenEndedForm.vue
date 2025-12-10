@@ -1,21 +1,34 @@
 <template>
-  <div class="open-ended-form">
-    <el-alert title="Câu hỏi mở" type="info" :closable="false" class="mb-4" show-icon>
-      <template #default>
-        Dạng câu hỏi này không có đáp án đúng sai tuyệt đối (VD: Speaking, Interview).<br>
-        Bạn có thể cung cấp gợi ý trả lời để người học tham khảo.
-      </template>
-    </el-alert>
+  <div class="w-full">
+    <el-alert
+      title="Câu hỏi mở (Speaking/Writing)"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb-4"
+    />
 
-    <el-form-item label="Gợi ý trả lời (Suggested Answer)">
-      <el-input v-model="localMetadata.suggestedAnswer" type="textarea" :rows="4"
-        placeholder="Nhập các ý chính hoặc câu trả lời mẫu..." @input="emitUpdate" />
-    </el-form-item>
+    <div class="bg-gray-50 dark:bg-[#1d1d1d] p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+      <el-form-item label="Gợi ý câu trả lời (Suggested Answer)">
+        <el-input
+          v-model="localMetadata.suggestedAnswer"
+          type="textarea"
+          :rows="4"
+          placeholder="Nhập dàn ý hoặc câu trả lời mẫu để người học tham khảo..."
+          @input="emitUpdate"
+        />
+      </el-form-item>
 
-    <el-form-item label="Ghi chú / Giải thích thêm">
-      <el-input v-model="localMetadata.explanation" type="textarea" :rows="2" placeholder="Lưu ý khi chấm điểm..."
-        @input="emitUpdate" />
-    </el-form-item>
+      <el-form-item label="Lưu ý chấm điểm">
+        <el-input
+          v-model="localMetadata.explanation"
+          type="textarea"
+          :rows="2"
+          placeholder="Các tiêu chí đánh giá (Grammar, Vocabulary...)"
+          @input="emitUpdate"
+        />
+      </el-form-item>
+    </div>
   </div>
 </template>
 
@@ -25,19 +38,11 @@ import { ref, watch } from 'vue'
 const props = defineProps({ metadata: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['update:metadata'])
 
-const localMetadata = ref({
-  suggestedAnswer: props.metadata?.suggestedAnswer || '',
-  explanation: props.metadata?.explanation || ''
-})
+const localMetadata = ref({ suggestedAnswer: '', explanation: '' })
 
 watch(() => props.metadata, (newVal) => {
   if (newVal) localMetadata.value = { ...newVal }
-}, { deep: true })
+}, { immediate: true, deep: true })
 
 const emitUpdate = () => emit('update:metadata', { ...localMetadata.value })
 </script>
-
-<style scoped>
-.open-ended-form { padding: 10px 0; }
-.mb-4 { margin-bottom: 16px; }
-</style>

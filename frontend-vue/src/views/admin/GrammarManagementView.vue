@@ -1,112 +1,94 @@
-<!-- src/views/admin/GrammarManagementView.vue - FIXED -->
 <template>
-  <div class="grammar-management-view">
-    <!-- Tabs -->
-    <el-tabs v-model="activeTab" type="border-card" class="compact-tabs">
-      <!-- Topics Tab -->
-      <el-tab-pane label="Topics" name="topics">
+  <div class="w-full h-full bg-gray-50 dark:bg-[#0f0f0f]">
+    <el-tabs v-model="activeTab" type="border-card"
+      class="grammar-tabs shadow-sm !border-none overflow-hidden">
+      <el-tab-pane name="topics" lazy>
         <template #label>
-          <span class="tab-label">
-            <el-icon><Collection /></el-icon>
-            <span v-if="!isMobile">Topics</span>
+          <span class="flex items-center gap-2 px-2 py-1">
+            <el-icon>
+              <Collection />
+            </el-icon> Chủ đề (Topics)
           </span>
         </template>
-        <TopicsList
-          @view-lessons="handleSwitchToLessons"
-          @add-lesson="handleAddLessonFromTopic"
-        />
+        <div class="p-4">
+          <TopicsList @view-lessons="handleSwitchToLessons" @add-lesson="handleAddLessonFromTopic" />
+        </div>
       </el-tab-pane>
 
-      <!-- Lessons Tab -->
-      <el-tab-pane label="Lessons" name="lessons">
+      <el-tab-pane name="lessons" lazy>
         <template #label>
-          <span class="tab-label">
-            <el-icon><Document /></el-icon>
-            <span v-if="!isMobile">Lessons</span>
+          <span class="flex items-center gap-2 px-2 py-1">
+            <el-icon>
+              <Document />
+            </el-icon> Bài học (Lessons)
           </span>
         </template>
-        <LessonsList
-          ref="lessonListRef"
-          :init-topic-id="selectedTopicIdForLesson"
-          @view-questions="handleSwitchToQuestions"
-        />
+        <div class="p-4">
+          <LessonsList ref="lessonListRef" :init-topic-id="selectedTopicIdForLesson"
+            @view-questions="handleSwitchToQuestions" />
+        </div>
       </el-tab-pane>
 
-      <!-- Questions Tab -->
-      <el-tab-pane label="Questions" name="questions">
+      <el-tab-pane name="questions" lazy>
         <template #label>
-          <span class="tab-label">
-            <el-icon><QuestionFilled /></el-icon>
-            <span v-if="!isMobile">Questions</span>
+          <span class="flex items-center gap-2 px-2 py-1">
+            <el-icon>
+              <QuestionFilled />
+            </el-icon> Câu hỏi (Questions)
           </span>
         </template>
-        <QuestionList
-          ref="questionListRef"
-          :init-lesson-id="selectedLessonIdForQuestion"
-        />
+        <div class="p-4">
+          <QuestionList ref="questionListRef" :init-lesson-id="selectedLessonIdForQuestion" />
+        </div>
       </el-tab-pane>
 
-      <!-- AI Parsing Tab (Coming soon) -->
-      <el-tab-pane label="AI Parsing" name="parsing">
+      <el-tab-pane name="parsing" lazy>
         <template #label>
-          <span class="tab-label">
-            <el-icon><MagicStick /></el-icon>
-            <span v-if="!isMobile">AI Parsing</span>
+          <span class="flex items-center gap-2 px-2 py-1">
+            <el-icon>
+              <MagicStick />
+            </el-icon> AI Import
           </span>
         </template>
-
-        <AIParsingPanel />
+        <div class="p-4">
+          <AIParsingPanel />
+        </div>
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { nextTick, ref, computed, defineAsyncComponent } from 'vue'
-import { Collection, Document, QuestionFilled, MagicStick } from '@element-plus/icons-vue'
+import { ref, defineAsyncComponent, nextTick } from 'vue'
+import { Collection, Document, QuestionFilled, MagicStick, Reading } from '@element-plus/icons-vue'
 import TopicsList from '@/components/admin/grammar/TopicList.vue'
 import LessonsList from '@/components/admin/grammar/LessonList.vue'
 import QuestionList from '@/components/admin/grammar/QuestionList.vue'
-const AIParsingPanel = defineAsyncComponent(() =>
-  import('@/components/admin/grammar/AIParsingPanel.vue')
-)
-// Responsive
-const isMobile = computed(() => window.innerWidth < 768)
+const AIParsingPanel = defineAsyncComponent(() => import('@/components/admin/grammar/AIParsingPanel.vue'))
 
-// Active tab
 const activeTab = ref('topics')
 const selectedTopicIdForLesson = ref(null)
 const selectedLessonIdForQuestion = ref(null)
 const lessonListRef = ref(null)
-const questionListRef = ref(null)
 
-// Switch to Lessons tab from Topics
 const handleSwitchToLessons = (topic) => {
-  console.log('Switching to lessons for topic:', topic.id, topic.name)
-  if (topic && topic.id) {
+  if (topic?.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
   }
 }
 
-// Add lesson from Topics tab
 const handleAddLessonFromTopic = async (topic) => {
-  console.log('Adding lesson for topic:', topic.id)
-  if (topic && topic.id) {
+  if (topic?.id) {
     selectedTopicIdForLesson.value = topic.id
     activeTab.value = 'lessons'
-
     await nextTick()
-    if (lessonListRef.value) {
-      lessonListRef.value.openCreateDialog()
-    }
+    if (lessonListRef.value?.openCreate) lessonListRef.value.openCreate()
   }
 }
 
-// Switch to Questions tab from Lessons (FIXED - Emit instead of router)
 const handleSwitchToQuestions = (lesson) => {
-  console.log('Switching to questions for lesson:', lesson.id, lesson.title)
-  if (lesson && lesson.id) {
+  if (lesson?.id) {
     selectedLessonIdForQuestion.value = lesson.id
     activeTab.value = 'questions'
   }
@@ -114,60 +96,44 @@ const handleSwitchToQuestions = (lesson) => {
 </script>
 
 <style scoped>
-.grammar-management-view {
-  padding: 0;
-}
-
-.compact-tabs {
-  border: none;
-  box-shadow: var(--el-box-shadow-light);
-}
-
-.tab-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-}
-
+/* Override Element Plus Tabs để đẹp hơn với Tailwind */
 :deep(.el-tabs__content) {
   padding: 0;
+  background-color: var(--el-bg-color);
 }
 
-:deep(.el-tabs__header) {
-  margin: 0 0 12px;
+:deep(.el-tabs--border-card) {
+  background-color: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
 }
 
-:deep(.el-tabs__item) {
-  padding: 0 16px;
-  height: 40px;
-  line-height: 40px;
+:deep(.el-tabs--border-card>.el-tabs__header) {
+  background-color: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--el-border-color);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .tab-label {
-    font-size: 12px;
-    gap: 4px;
-  }
-
-  :deep(.el-tabs__item) {
-    padding: 0 8px;
-    font-size: 12px;
-  }
-
-  :deep(.el-tabs__nav-scroll) {
-    overflow-x: auto;
-  }
+:deep(.el-tabs--border-card>.el-tabs__header .el-tabs__item.is-active) {
+  background-color: var(--el-bg-color);
+  border-right-color: var(--el-border-color);
+  border-left-color: var(--el-border-color);
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 
-@media (max-width: 480px) {
-  .tab-label {
-    font-size: 11px;
-  }
+/* Dark mode specifics */
+html.dark :deep(.el-tabs--border-card) {
+  border-color: #333;
+}
 
-  :deep(.el-tabs__item) {
-    padding: 0 6px;
-  }
+html.dark :deep(.el-tabs--border-card>.el-tabs__header) {
+  background-color: #1a1a1a;
+  border-bottom-color: #333;
+}
+
+html.dark :deep(.el-tabs--border-card>.el-tabs__header .el-tabs__item.is-active) {
+  background-color: #141414;
+  border-right-color: #333;
+  border-left-color: #333;
+  color: #409eff;
 }
 </style>

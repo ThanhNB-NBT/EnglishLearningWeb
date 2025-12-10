@@ -80,14 +80,4 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
 
        // Đếm số lesson theo lesson type trong topic
        long countByTopicIdAndLessonTypeAndIsActiveTrue(Long topicId, LessonType lessonType);
-
-       // Tìm lesson theo estimated duration (ví dụ: cho quick practice)
-       @Query("SELECT gl FROM GrammarLesson gl " +
-                     "WHERE gl.topic.id = :topicId " +
-                     "AND gl.estimatedDuration <= :maxDuration " +
-                     "AND gl.isActive = true " +
-                     "ORDER BY gl.orderIndex ASC")
-       List<GrammarLesson> findShortLessonsInTopic(@Param("topicId") Long topicId,
-                     @Param("maxDuration") Integer maxDuration);
-
 }

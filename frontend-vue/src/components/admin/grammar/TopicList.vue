@@ -1,11 +1,17 @@
 <template>
-  <div class="topic-list-container">
-    <div class="header-actions">
-      <div class="left-actions">
-        <el-input v-model="searchQuery" placeholder="Tìm kiếm chủ đề..." :prefix-icon="Search" clearable
-          class="search-input" />
+  <div class="w-full">
+    <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#1d1d1d] p-4 rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm">
 
-        <el-select v-model="filterLevel" placeholder="Lọc theo Level" clearable class="filter-select">
+      <div class="flex flex-wrap gap-3 w-full md:w-auto">
+        <el-input
+          v-model="searchQuery"
+          placeholder="Tìm chủ đề..."
+          :prefix-icon="Search"
+          clearable
+          class="!w-full md:!w-64"
+        />
+
+        <el-select v-model="filterLevel" placeholder="Level" clearable class="!w-40">
           <el-option label="Tất cả" value="" />
           <el-option label="Beginner" value="BEGINNER" />
           <el-option label="Intermediate" value="INTERMEDIATE" />
@@ -13,58 +19,56 @@
         </el-select>
       </div>
 
-      <div class="right-actions">
-        <el-button type="primary" :icon="Plus" @click="handleCreate">
-          Tạo Topic
+      <div class="flex gap-2">
+        <el-button type="primary" :icon="Plus" @click="handleCreate" class="!rounded-lg font-bold">
+          Thêm chủ đề
         </el-button>
-        <el-button :icon="Refresh" @click="loadTopics">
-          Làm mới
-        </el-button>
-        <el-tooltip content="Kiểm tra và sửa lỗi thứ tự sắp xếp" placement="top">
-          <el-button :icon="Tools" @click="handleValidateOrder">
-            Validate
-          </el-button>
+
+        <el-tooltip content="Làm mới" placement="top">
+          <el-button :icon="Refresh" circle @click="loadTopics" />
+        </el-tooltip>
+
+        <el-tooltip content="Sửa lỗi thứ tự" placement="top">
+          <el-button :icon="Tools" circle @click="handleValidateOrder" />
         </el-tooltip>
       </div>
     </div>
 
-    <el-skeleton :rows="3" v-if="loading" animated />
+    <el-skeleton :rows="5" v-if="loading" animated />
 
-    <el-empty v-else-if="filteredTopics.length === 0" description="Không tìm thấy chủ đề nào" />
+    <el-empty v-else-if="filteredTopics.length === 0" description="Không tìm thấy chủ đề nào" :image-size="120" />
 
-    <div v-else class="topic-grid">
-      <el-row :gutter="24">
-        <el-col v-for="topic in paginatedTopics" :key="topic.id" :xs="24" :sm="12" :md="8" class="mb-6">
-          <TopicCard
-            :topic="topic"
-            @edit="handleEdit"
-            @delete="handleDelete"
-            @view-lessons="handleViewLessons"
-            @toggle-active="handleToggleActive" />
-        </el-col>
-      </el-row>
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+      <TopicCard
+         v-for="topic in paginatedTopics"
+         :key="topic.id"
+         :topic="topic"
+         @edit="handleEdit"
+         @delete="handleDelete"
+         @view-lessons="handleViewLessons"
+         @toggle-active="handleToggleActive"
+      />
     </div>
 
-    <div class="pagination-wrapper"
-      v-if="filteredTopics.length > 0">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[6, 9, 12, 24]"
-        :total="filteredTopics.length"
-        layout="total, sizes, prev, pager, next"
-        @size-change="handleSizeChange"
-        @current-change="handlePageChange" />
+    <div class="flex justify-center p-4">
+       <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[8, 12, 24, 48]"
+          :total="filteredTopics.length"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+       />
     </div>
 
-    <TopicForm
-      ref="topicFormRef"
-      @success="handleFormSuccess"
-    />
+    <TopicForm ref="topicFormRef" @success="handleFormSuccess" />
   </div>
 </template>
 
 <script setup>
+// Script giữ nguyên logic cũ
 import { ref, computed, onMounted } from 'vue'
 import { Plus, Refresh, Search, Tools } from '@element-plus/icons-vue'
 import { useGrammarStore } from '@/stores/grammar'
@@ -75,166 +79,60 @@ import TopicForm from './TopicForm.vue'
 const emit = defineEmits(['view-lessons'])
 const store = useGrammarStore()
 const topicFormRef = ref(null)
-
 const loading = ref(false)
 const searchQuery = ref('')
 const filterLevel = ref('')
 const currentPage = ref(1)
-const pageSize = ref(9)
+const pageSize = ref(12) // Default size cho Grid
 
-// --- Actions (Xử lý sự kiện) ---
-
-// Mở form tạo mới
-const handleCreate = () => {
-  if (topicFormRef.value) {
-    topicFormRef.value.openCreate()
-  }
-}
-
-// Mở form chỉnh sửa
-const handleEdit = (topic) => {
-  if (topicFormRef.value) {
-    topicFormRef.value.openEdit(topic)
-  }
-}
-
-// Khi form submit thành công
-const handleFormSuccess = async () => {
-  await loadTopics()
-}
-
-// Các hàm khác giữ nguyên
+const handleCreate = () => topicFormRef.value?.openCreate()
+const handleEdit = (topic) => topicFormRef.value?.openEdit(topic)
+const handleFormSuccess = async () => await loadTopics()
 const loadTopics = async () => {
   loading.value = true
-  try {
-    await store.fetchTopics({ size: 100 })
-  } finally {
-    loading.value = false
-  }
+  try { await store.fetchTopics({ size: 100 }) } finally { loading.value = false }
 }
-
-const handleValidateOrder = async () => {
-  try {
-    await store.validateTopicsOrder()
-  } catch (e) {
-    console.error(e)
-  }
-}
+const handleValidateOrder = async () => { try { await store.validateTopicsOrder() } catch(e){} }
 
 const filteredTopics = computed(() => {
   let result = store.topics
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(t => t.name.toLowerCase().includes(query))
-  }
-  if (filterLevel.value) {
-    result = result.filter(t => t.levelRequired === filterLevel.value)
-  }
+  if (searchQuery.value) result = result.filter(t => t.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
+  if (filterLevel.value) result = result.filter(t => t.levelRequired === filterLevel.value)
   return result
 })
-
 const paginatedTopics = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return filteredTopics.value.slice(start, start + pageSize.value)
 })
 
 const handleToggleActive = async (topic) => {
+  const newStatus = topic.isActive; // Giá trị này do v-model ở Card gửi lên
+  const actionName = newStatus ? 'kích hoạt' : 'tắt';
+
   try {
-    if (topic.isActive) {
-      await store.updateTopic(topic.id, { ...topic, isActive: true })
+    if (newStatus) {
+      await store.activateTopic(topic.id)
     } else {
       await store.deactivateTopic(topic.id)
     }
+    ElMessage.success(`Đã ${actionName} chủ đề "${topic.name}"`)
   } catch (e) {
-    ElMessage.error('Có lỗi xảy ra khi cập nhật trạng thái topic.')
+    // Revert UI nếu lỗi (do v-model đã update trước đó)
+    topic.isActive = !newStatus
+    ElMessage.error(`Lỗi khi ${actionName} chủ đề.`)
     console.error(e)
   }
 }
-
 const handleDelete = async (topic) => {
   try {
-    await ElMessageBox.confirm(`Bạn có chắc muốn xóa topic "${topic.name}"?`, 'Cảnh báo', {
-      type: 'warning', confirmButtonText: 'Xóa', cancelButtonText: 'Hủy'
-    })
+    await ElMessageBox.confirm(`Xóa chủ đề "${topic.name}"?`, 'Cảnh báo', { type: 'warning', confirmButtonText: 'Xóa' })
     await store.deleteTopic(topic.id)
-
     await loadTopics()
-  } catch (e) {
-    ElMessage.error('Xóa topic thất bại.')
-    console.error(e)
-  }
+  } catch(e) {}
 }
-
-const handleViewLessons = (topic) => emit('view-lessons', topic)
+const handleViewLessons = (t) => emit('view-lessons', t)
 const handleSizeChange = () => currentPage.value = 1
 const handlePageChange = (val) => currentPage.value = val
 
 onMounted(loadTopics)
 </script>
-
-<style scoped>
-.topic-list-container {
-  padding: 16px;
-}
-
-.header-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.left-actions {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-  min-width: 300px;
-}
-
-.right-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.search-input {
-  flex: 2;
-}
-
-.mb-6 {
-  margin-bottom: 24px;
-}
-
-.filter-select {
-  flex: 1;
-  min-width: 140px;
-}
-
-.pagination-wrapper {
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .topic-list-container {
-    padding: 16px;
-  }
-
-  .header-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .left-actions {
-    flex-direction: column;
-    min-width: 100%;
-  }
-
-  .right-actions {
-    justify-content: flex-end;
-    margin-top:12px;
-  }
-}
-</style>

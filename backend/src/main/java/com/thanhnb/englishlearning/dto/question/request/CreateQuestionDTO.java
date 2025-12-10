@@ -38,7 +38,7 @@ import lombok.*;
 public abstract class CreateQuestionDTO {
     @NotNull private com.thanhnb.englishlearning.enums.ParentType parentType;
     @NotNull private Long parentId;
-    @NotBlank private String questionText;
+    private String questionText;
     private String explanation;
     @NotNull @Min(1) private Integer points = 1;
     @NotNull @Min(0) private Integer orderIndex = 0;

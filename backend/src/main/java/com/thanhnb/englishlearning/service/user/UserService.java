@@ -49,13 +49,31 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * ✅ ENHANCED: Delete user and invalidate all tokens
+     */
     public User deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        
+        // ✅ Invalidate all user tokens before deleting
+        // Update lastLoginDate to make all existing tokens invalid
+        try {
+            user.setLastLoginDate(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("Invalidated all tokens for deleted user: {}", user.getUsername());
+        } catch (Exception e) {
+            log.warn("Failed to invalidate tokens for user: {}", user.getUsername());
+        }
+        
         userRepository.delete(user);
+        log.info("User deleted: {}", user.getUsername());
         return user;
     }
 
+    /**
+     * ✅ ENHANCED: Change password and invalidate all existing tokens
+     */
     public void changePassword(Long userId, ChangePasswordRequest changePasswordRequest) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
@@ -77,23 +95,46 @@ public class UserService {
 
         // Update new password
         user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
+        
+        // ✅ CRITICAL: Invalidate all existing tokens by updating lastLoginDate
+        // This forces user to login again with new password
+        user.setLastLoginDate(LocalDateTime.now());
         userRepository.save(user);
 
-        log.info("Password changed successfully for user ID: {}", userId);
+        log.info("Password changed successfully for user ID: {} (all tokens invalidated)", userId);
     }
 
+    /**
+     * ✅ ENHANCED: Block user and force logout from all devices
+     */
     public void blockUser(long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        
+        // Set inactive
         user.setIsActive(false);
+        
+        // ✅ CRITICAL: Force logout by updating lastLoginDate
+        // This will invalidate all existing JWT tokens
+        // Next API call will fail with "Tài khoản đã bị khóa"
+        user.setLastLoginDate(LocalDateTime.now());
+        
         userRepository.save(user);
+        
+        log.info("User {} has been BLOCKED and all sessions INVALIDATED", user.getUsername());
     }
 
+    /**
+     * ✅ ENHANCED: Unblock user
+     */
     public void unblockUser(long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        
         user.setIsActive(true);
         userRepository.save(user);
+        
+        log.info("User {} has been UNBLOCKED", user.getUsername());
     }
 
     public void updateLastLogin(Long id) {

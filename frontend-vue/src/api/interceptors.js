@@ -1,117 +1,189 @@
-// Sửa file interceptors.js theo nội dung này
+// File: src/api/interceptors.js - DEBUG VERSION
 import apiClient from './config'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import router from '@/router'
 
 export function setupInterceptors() {
-  // Request interceptor: thêm token header
+  // ==================== REQUEST INTERCEPTOR ====================
   apiClient.interceptors.request.use(
     (config) => {
       const authStore = useAuthStore()
 
-      const isLogoutEndpoint = config.url?.includes('/logout')
-      //Không gửi token cho các endpoint AUTH (login, register, forgot-password...)
-      const isAuthEndpoint = config.url?.includes('/auth/') && !isLogoutEndpoint
+      console.group('📤 REQUEST INTERCEPTOR')
+      console.log('URL:', config.url)
+      console.log('Method:', config.method)
+      console.log('Current route:', router.currentRoute.value.path)
 
+      const isLogoutEndpoint = config.url?.includes('/logout')
+      const isAuthEndpoint = config.url?.includes('/auth/') && !isLogoutEndpoint
       const isAdminCreate = config.url?.includes('/auth/admin/create')
 
+      // Skip token cho public auth endpoints
       if (isAuthEndpoint && !isAdminCreate) {
-        console.log('⚪ Auth endpoint detected, skipping token:', config.url)
-        return config // Không thêm token cho login/register
+        console.log('⚪ Auth endpoint - SKIP TOKEN')
+        console.groupEnd()
+        return config
       }
 
       // Nếu đang logout, không thêm token
       if (authStore.isLoggingOut && !isLogoutEndpoint) {
+        console.log('⚠️ Logging out - SKIP TOKEN')
+        console.groupEnd()
         return config
       }
 
+      // Determine which token to use
       const isAdminRoute = router.currentRoute.value.path.startsWith('/admin')
       const token = isAdminRoute ? authStore.adminToken : authStore.userToken
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
-        console.log('Token added to request:', config.url)
+        console.log('✅ TOKEN ADDED')
       } else {
-        console.log('No token available for:', config.url)
+        console.error('❌ NO TOKEN AVAILABLE!')
       }
 
+      console.groupEnd()
       return config
     },
-    (error) => Promise.reject(error),
+    (error) => {
+      console.error('❌ Request interceptor error:', error)
+      return Promise.reject(error)
+    },
   )
 
-  // Response interceptor
+  // ==================== RESPONSE INTERCEPTOR ====================
   apiClient.interceptors.response.use(
-    (response) => response,
+    (response) => {
+      console.log('✅ Response OK:', response.config.url, response.status)
+      return response
+    },
     async (error) => {
       const authStore = useAuthStore()
       const toast = useToast()
       const originalRequest = error.config || {}
 
       const status = error.response?.status
+      const errorData = error.response?.data || {}
+      const errorMessage = errorData?.message || ''
 
-      // Nếu là 401 Unauthorized
+      console.group('❌ RESPONSE ERROR')
+      console.log('Status:', status)
+      console.log('URL:', originalRequest.url)
+      console.log('Message:', errorMessage)
+      console.log('Full error data:', errorData)
+      console.log('Is retry:', originalRequest.__isRetry)
+      console.groupEnd()
+
+      // ✅ HANDLE 401: Unauthorized
       if (status === 401) {
         const requestUrl = (originalRequest.url || '').toLowerCase()
 
-        // Nếu là login endpoint bị 401, KHÔNG clear auth (đó là lỗi credentials)
+        // ✅ CASE 1: Login endpoint failed
         if (requestUrl.includes('/login')) {
-          console.error('Login failed - invalid credentials')
-          return Promise.reject(error) // Để LoginView xử lý
-        }
-
-        // If logout endpoint itself failed (or we've already retried), just clear local state and redirect
-        if (requestUrl.includes('/logout') || originalRequest.__isRetry) {
-          try {
-            authStore.clearLocalAuth()
-          } catch (e) {
-            console.error('clearLocalAuth error:', e)
-          }
-          toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-          const isAdmin = router.currentRoute.value.path.startsWith('/admin')
-          router.push(isAdmin ? '/admin/login' : '/auth/login')
+          console.log('Case: LOGIN FAILED - do not clear auth')
+          console.groupEnd()
           return Promise.reject(error)
         }
 
-        // Mark as retried to avoid loops
+        // ✅ CASE 2: Logout failed or retry
+        if (requestUrl.includes('/logout') || originalRequest.__isRetry) {
+          console.log('Case: LOGOUT FAILED or RETRY')
+          try {
+            authStore.clearLocalAuth()
+            console.log('✅ Auth cleared')
+          } catch (e) {
+            console.error('❌ Error clearing auth:', e)
+          }
+
+          toast.error(getErrorMessage(errorMessage))
+          redirectToLogin()
+          console.groupEnd()
+          return Promise.reject(error)
+        }
+
+        // Mark as retried
         originalRequest.__isRetry = true
 
-        // Nếu đang logout (đã set cờ) thì chỉ clear
+        // ✅ CASE 3: During logout
         if (authStore.isLoggingOut) {
+          console.log('Case: DURING LOGOUT')
           try {
             authStore.clearLocalAuth()
           } catch (e) {
-            console.error('Error clearing auth on 401 during logout:', e)
+            console.error('Error clearing auth:', e)
           }
-          toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-          const isAdmin = router.currentRoute.value.path.startsWith('/admin')
-          router.push(isAdmin ? '/admin/login' : '/auth/login')
+          toast.error('Phiên đăng nhập đã hết hạn')
+          redirectToLogin()
+          console.groupEnd()
           return Promise.reject(error)
         }
 
-        // Bình thường: clear local state (không gọi logout API để tránh gây thêm 401)
+        // ✅ CASE 4: Normal 401
+        console.log('Case: NORMAL 401 - clearing auth')
+
         try {
           authStore.clearLocalAuth()
+          console.log('✅ Auth cleared successfully')
         } catch (e) {
-          console.error('Error clearing auth on 401:', e)
+          console.error('❌ Error clearing auth:', e)
         }
 
-        toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-        const isAdmin = router.currentRoute.value.path.startsWith('/admin')
-        router.push(isAdmin ? '/admin/login' : '/auth/login')
+        const message = getErrorMessage(errorMessage)
+        console.log('Toast message:', message)
+        toast.error(message)
 
+        redirectToLogin()
+        console.groupEnd()
         return Promise.reject(error)
       }
 
-      // 403 Forbidden
+      // ✅ HANDLE 403
       if (status === 403) {
-        toast.error('Bạn không có quyền truy cập tài nguyên này.')
+        console.warn('🚫 403 Forbidden')
+        toast.error('Bạn không có quyền truy cập')
         router.push('/')
+        return Promise.reject(error)
       }
 
-      // Các lỗi khác
       return Promise.reject(error)
     },
   )
+}
+
+function getErrorMessage(backendMessage) {
+  if (!backendMessage) {
+    return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+  }
+
+  const messageMap = {
+    'Tài khoản đã bị khóa': 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.',
+    'Tài khoản không tồn tại': 'Tài khoản không tồn tại trong hệ thống.',
+    'Tài khoản chưa được xác thực': 'Vui lòng xác thực email trước khi đăng nhập.',
+    'Phiên đăng nhập đã hết hạn': 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+    'Token đã bị vô hiệu hóa': 'Phiên đăng nhập không còn hợp lệ.',
+    'Token không hợp lệ': 'Phiên đăng nhập không hợp lệ.',
+    'Thiếu token xác thực': 'Vui lòng đăng nhập để tiếp tục.',
+    'Invalid or expired token': 'Phiên đăng nhập đã hết hạn.',
+    'Token has been revoked': 'Phiên đăng nhập đã bị thu hồi.',
+    'Missing authentication token': 'Vui lòng đăng nhập để tiếp tục.',
+  }
+
+  for (const [key, value] of Object.entries(messageMap)) {
+    if (backendMessage.includes(key)) {
+      return value
+    }
+  }
+
+  return backendMessage
+}
+
+function redirectToLogin() {
+  const isAdminRoute = router.currentRoute.value.path.startsWith('/admin')
+  const loginPath = isAdminRoute ? '/admin/login' : '/auth/login'
+
+  if (router.currentRoute.value.path !== loginPath) {
+    router.push(loginPath)
+  }
 }
