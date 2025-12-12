@@ -49,7 +49,6 @@ public class ReadingSubmitResponse {
         @Schema(description = "⚠️ Deprecated: Dùng isPassed thay thế", example = "true")
         private Boolean completed;
 
-        // ✅ FIX: Thêm getter method cho backward compatibility
         public Boolean isCompleted() {
                 return this.isPassed != null ? this.isPassed : this.completed;
         }

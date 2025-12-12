@@ -218,10 +218,80 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    const payload = questionList.value.map(({ isCollapsed, ...rest }, idx) => ({
-      ...rest,
-      orderIndex: idx + 1,
-    }))
+    const payload = questionList.value.map((q, idx) => {
+      const { isCollapsed, metadata, ...rest } = q
+
+      const dto = {
+        ...rest,
+        orderIndex: null, // Đặt thứ tự dựa trên vị trí trong danh sách
+      }
+
+      if (metadata) {
+        switch (dto.questionType) {
+          case 'MULTIPLE_CHOICE':
+          case 'TRUE_FALSE':
+            dto.options = metadata.options
+            break
+
+          case 'FILL_BLANK':
+          case 'VERB_FORM':
+            dto.blanks = metadata.blanks
+            if (metadata.wordBank) dto.wordBank = metadata.wordBank
+            break
+
+          case 'TEXT_ANSWER':
+            if (metadata.correctAnswer) {
+              dto.blanks = [
+                {
+                  position: 1,
+                  correctAnswers: metadata.correctAnswer.split('|'), // Hỗ trợ nhiều đáp án cách nhau bởi |
+                },
+              ]
+            } else if (metadata.blanks) {
+              dto.blanks = metadata.blanks
+            }
+            break
+
+          case 'SENTENCE_TRANSFORMATION':
+            dto.originalSentence = metadata.originalSentence
+            dto.beginningPhrase = metadata.beginningPhrase
+            dto.correctAnswers = metadata.correctAnswers
+            break
+
+          case 'SENTENCE_BUILDING':
+            dto.words = metadata.words
+            dto.correctSentence = metadata.correctSentence
+            break
+
+          case 'MATCHING':
+            dto.pairs = (metadata.pairs || metadata.matchingPairs || []).map((p, i) => ({
+              ...p,
+              order: p.order || i + 1,
+            }))
+            break
+
+          case 'ERROR_CORRECTION':
+            dto.errorText = metadata.errorText
+            dto.correction = metadata.correction
+            break
+
+          case 'PRONUNCIATION':
+            dto.words = metadata.words
+            dto.categories = metadata.categories
+            dto.classifications = metadata.classifications
+            break
+
+          case 'OPEN_ENDED':
+            dto.suggestedAnswer = metadata.suggestedAnswer
+            dto.timeLimitSeconds = metadata.timeLimitSeconds
+            dto.minWord = metadata.minWord
+            dto.maxWord = metadata.maxWord
+            break
+        }
+      }
+
+      return dto
+    })
 
     await store.createQuestionsInBulk(props.lessonId, payload)
     ElMessage.success(`Đã tạo thành công ${payload.length} câu hỏi`)

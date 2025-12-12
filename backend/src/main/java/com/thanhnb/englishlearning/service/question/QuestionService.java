@@ -156,11 +156,6 @@ public class QuestionService {
             throw new RuntimeException("Bài này cần có câu trả lời");
         }
 
-        if (answers.size() < expectedCount) {
-            throw new RuntimeException(
-                    String.format("Vui lòng trả lời tất cả %d câu hỏi", expectedCount));
-        }
-
         log.debug("Validated {} answers (expected: {})", answers.size(), expectedCount);
     }
 

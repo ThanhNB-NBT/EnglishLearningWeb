@@ -162,20 +162,37 @@ public class GrammarAdminController {
                         @Parameter(description = "ParseResult từ endpoint parse-file", required = true) @RequestBody ParseResult parsedResult) {
 
                 try {
-                        log.info("💾 Saving {} parsed lessons for topicId={}",
+                        log.info("Saving {} parsed lessons for topicId={}",
                                         parsedResult.lessons != null ? parsedResult.lessons.size() : 0, topicId);
 
                         if (parsedResult == null || parsedResult.lessons == null || parsedResult.lessons.isEmpty()) {
-                                log.warn("⚠️ Empty parsed result");
+                                log.warn("Empty parsed result");
                                 return ResponseEntity.badRequest()
                                                 .body(CustomApiResponse.badRequest("Không có lesson nào để import"));
+                        }
+
+                        List<String> errors = new ArrayList<>();
+                        for (int i = 0; i < parsedResult.lessons.size(); i++) {
+                                GrammarLessonDTO lesson = parsedResult.lessons.get(i);
+                                if (lesson.getTitle() == null || lesson.getTitle().trim().isEmpty()) {
+                                        errors.add(String.format("Lesson #%d: Missing title", i + 1));
+                                }
+                                if (lesson.getLessonType() == null) {
+                                        errors.add(String.format("Lesson #%d: Missing type", i + 1));
+                                }
+                        }
+
+                        if (!errors.isEmpty()) {
+                                return ResponseEntity.badRequest()
+                                                .body(CustomApiResponse.badRequest(
+                                                                "Invalid lessons: " + String.join(", ", errors)));
                         }
 
                         List<GrammarLessonDTO> savedLessons = grammarAdminService.importLessonsFromFile(
                                         topicId, parsedResult.lessons);
 
                         if (savedLessons.isEmpty()) {
-                                log.warn("⚠️ No lessons were saved");
+                                log.warn("No lessons were saved");
                                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                                 .body(CustomApiResponse
                                                                 .badRequest("Không thể lưu lessons vào database"));
@@ -207,7 +224,7 @@ public class GrammarAdminController {
                         result.put("summary", summary);
                         result.put("lessons", savedLessons);
 
-                        log.info("✅ Save success: {} lessons ({} theory, {} practice), {} questions created",
+                        log.info("Save success: {} lessons ({} theory, {} practice), {} questions created",
                                         savedLessons.size(), theoryCount, practiceCount, totalQuestionsCreated);
 
                         return ResponseEntity.ok(
@@ -216,12 +233,12 @@ public class GrammarAdminController {
                                                                         savedLessons.size(), totalQuestionsCreated)));
 
                 } catch (RuntimeException e) {
-                        log.error("❌ Business logic error: {}", e.getMessage());
+                        log.error("Business logic error: {}", e.getMessage());
                         return ResponseEntity.badRequest()
                                         .body(CustomApiResponse.badRequest(String.format("Lỗi: %s", e.getMessage())));
 
                 } catch (Exception e) {
-                        log.error("❌ Unexpected error: ", e);
+                        log.error("Unexpected error: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                         .body(CustomApiResponse.badRequest(
                                                         String.format("Lỗi khi lưu bài học: %s",
@@ -415,7 +432,8 @@ public class GrammarAdminController {
         public ResponseEntity<CustomApiResponse<String>> activateLesson(@PathVariable Long id) {
                 try {
                         grammarAdminService.activateLesson(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Đã kích hoạt lesson", "Đã kích hoạt lesson"));
+                        return ResponseEntity
+                                        .ok(CustomApiResponse.success("Đã kích hoạt lesson", "Đã kích hoạt lesson"));
                 } catch (Exception e) {
                         return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
                 }
@@ -527,7 +545,7 @@ public class GrammarAdminController {
         @PutMapping("/questions/{id}")
         @Operation(summary = "Cập nhật question")
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> updateQuestion(
-                        @PathVariable Long id, @Valid @RequestBody QuestionResponseDTO dto) {
+                        @PathVariable Long id, @Valid @RequestBody CreateQuestionDTO dto) {
                 try {
                         QuestionResponseDTO updated = grammarAdminService.updateQuestion(id, dto);
                         return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));

@@ -120,7 +120,7 @@ public class GrammarAdminService {
         return questionService.createQuestion(dto);
     }
 
-    public QuestionResponseDTO updateQuestion(Long id, QuestionResponseDTO dto) {
+    public QuestionResponseDTO updateQuestion(Long id, CreateQuestionDTO dto) {
         return questionService.updateQuestion(id, dto);
     }
 

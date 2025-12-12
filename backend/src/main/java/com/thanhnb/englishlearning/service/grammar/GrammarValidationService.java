@@ -35,21 +35,29 @@ public class GrammarValidationService {
      */
     public Map<String, Object> validateAllTopicsOrderIndex() {
         List<GrammarTopic> topics = topicRepository.findAllByOrderIndexAsc();
-        
+
         Map<String, Object> result = new HashMap<>();
         List<String> issues = new ArrayList<>();
         int fixedCount = 0;
 
         Set<Integer> seenIndexes = new HashSet<>();
-        
+
         for (int i = 0; i < topics.size(); i++) {
             GrammarTopic topic = topics.get(i);
             int expectedIndex = i + 1;
-            int actualIndex = topic.getOrderIndex();
+
+            Integer orderIndexObj = topic.getOrderIndex();
+            if (orderIndexObj == null) {
+                issues.add(String.format("Topic '%s' has NULL orderIndex", topic.getName()));
+                topic.setOrderIndex(expectedIndex);
+                fixedCount++;
+                continue;
+            }
+            int actualIndex = orderIndexObj;
 
             // Check gap
             if (actualIndex != expectedIndex) {
-                issues.add(String.format("Topic '%s' has orderIndex=%d, expected=%d", 
+                issues.add(String.format("Topic '%s' has orderIndex=%d, expected=%d",
                         topic.getName(), actualIndex, expectedIndex));
                 topic.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -57,7 +65,7 @@ public class GrammarValidationService {
 
             // Check duplicate
             if (seenIndexes.contains(actualIndex)) {
-                issues.add(String.format("Duplicate orderIndex=%d found at topic '%s'", 
+                issues.add(String.format("Duplicate orderIndex=%d found at topic '%s'",
                         actualIndex, topic.getName()));
                 topic.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -68,7 +76,7 @@ public class GrammarValidationService {
 
         if (fixedCount > 0) {
             topicRepository.saveAll(topics);
-            log.info("✅ Fixed {} orderIndex issues across all topics", fixedCount);
+            log.info("Fixed {} orderIndex issues across all topics", fixedCount);
         }
 
         result.put("totalTopics", topics.size());
@@ -97,7 +105,7 @@ public class GrammarValidationService {
         int fixedCount = 0;
 
         Set<Integer> seenIndexes = new HashSet<>();
-        
+
         for (int i = 0; i < lessons.size(); i++) {
             GrammarLesson lesson = lessons.get(i);
             int expectedIndex = i + 1;
@@ -105,7 +113,7 @@ public class GrammarValidationService {
 
             // Check gap
             if (actualIndex != expectedIndex) {
-                issues.add(String.format("Lesson '%s' has orderIndex=%d, expected=%d", 
+                issues.add(String.format("Lesson '%s' has orderIndex=%d, expected=%d",
                         lesson.getTitle(), actualIndex, expectedIndex));
                 lesson.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -113,7 +121,7 @@ public class GrammarValidationService {
 
             // Check duplicate
             if (seenIndexes.contains(actualIndex)) {
-                issues.add(String.format("Duplicate orderIndex=%d found at lesson '%s'", 
+                issues.add(String.format("Duplicate orderIndex=%d found at lesson '%s'",
                         actualIndex, lesson.getTitle()));
                 lesson.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -124,7 +132,7 @@ public class GrammarValidationService {
 
         if (fixedCount > 0) {
             lessonRepository.saveAll(lessons);
-            log.info("✅ Fixed {} orderIndex issues in topic {}", fixedCount, topicId);
+            log.info("Fixed {} orderIndex issues in topic {}", fixedCount, topicId);
         }
 
         result.put("topicId", topicId);
@@ -141,7 +149,7 @@ public class GrammarValidationService {
      */
     public Map<String, Object> validateAllLessonsOrderIndex() {
         List<GrammarTopic> allTopics = topicRepository.findAll();
-        
+
         Map<String, Object> globalResult = new HashMap<>();
         List<Map<String, Object>> topicResults = new ArrayList<>();
         int totalIssuesFixed = 0;
@@ -150,18 +158,17 @@ public class GrammarValidationService {
 
         for (GrammarTopic topic : allTopics) {
             Map<String, Object> topicResult = validateLessonsOrderIndex(topic.getId());
-            
+
             totalIssuesFixed += (int) topicResult.get("issuesFixed");
             totalIssuesFound += (int) topicResult.get("issuesFound");
             totalLessons += (int) topicResult.get("totalLessons");
-            
+
             if ((int) topicResult.get("issuesFound") > 0) {
                 topicResults.add(Map.of(
-                    "topicId", topic.getId(),
-                    "topicName", topic.getName(),
-                    "issuesFixed", topicResult.get("issuesFixed"),
-                    "issues", topicResult.get("issues")
-                ));
+                        "topicId", topic.getId(),
+                        "topicName", topic.getName(),
+                        "issuesFixed", topicResult.get("issuesFixed"),
+                        "issues", topicResult.get("issues")));
             }
         }
 
@@ -171,7 +178,7 @@ public class GrammarValidationService {
         globalResult.put("totalIssuesFixed", totalIssuesFixed);
         globalResult.put("topicsWithIssues", topicResults);
 
-        log.info("✅ Validated all lessons across {} topics, fixed {} issues", 
+        log.info("✅ Validated all lessons across {} topics, fixed {} issues",
                 allTopics.size(), totalIssuesFixed);
 
         return globalResult;
@@ -195,7 +202,7 @@ public class GrammarValidationService {
         int fixedCount = 0;
 
         Set<Integer> seenIndexes = new HashSet<>();
-        
+
         for (int i = 0; i < questions.size(); i++) {
             Question question = questions.get(i);
             int expectedIndex = i + 1;
@@ -203,7 +210,7 @@ public class GrammarValidationService {
 
             // Check gap
             if (actualIndex != expectedIndex) {
-                issues.add(String.format("Question '%s' has orderIndex=%d, expected=%d", 
+                issues.add(String.format("Question '%s' has orderIndex=%d, expected=%d",
                         truncateText(question.getQuestionText(), 50), actualIndex, expectedIndex));
                 question.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -211,7 +218,7 @@ public class GrammarValidationService {
 
             // Check duplicate
             if (seenIndexes.contains(actualIndex)) {
-                issues.add(String.format("Duplicate orderIndex=%d found at question '%s'", 
+                issues.add(String.format("Duplicate orderIndex=%d found at question '%s'",
                         actualIndex, truncateText(question.getQuestionText(), 50)));
                 question.setOrderIndex(expectedIndex);
                 fixedCount++;
@@ -222,7 +229,7 @@ public class GrammarValidationService {
 
         if (fixedCount > 0) {
             questionRepository.saveAll(questions);
-            log.info("✅ Fixed {} orderIndex issues in lesson {}", fixedCount, lessonId);
+            log.info("Fixed {} orderIndex issues in lesson {}", fixedCount, lessonId);
         }
 
         result.put("lessonId", lessonId);
@@ -244,7 +251,7 @@ public class GrammarValidationService {
 
         List<GrammarLesson> lessons = lessonRepository
                 .findByTopicIdOrderByOrderIndexAsc(topicId);
-        
+
         Map<String, Object> globalResult = new HashMap<>();
         List<Map<String, Object>> lessonResults = new ArrayList<>();
         int totalIssuesFixed = 0;
@@ -253,18 +260,17 @@ public class GrammarValidationService {
 
         for (GrammarLesson lesson : lessons) {
             Map<String, Object> lessonResult = validateQuestionsOrderIndex(lesson.getId());
-            
+
             totalIssuesFixed += (int) lessonResult.get("issuesFixed");
             totalIssuesFound += (int) lessonResult.get("issuesFound");
             totalQuestions += (int) lessonResult.get("totalQuestions");
-            
+
             if ((int) lessonResult.get("issuesFound") > 0) {
                 lessonResults.add(Map.of(
-                    "lessonId", lesson.getId(),
-                    "lessonTitle", lesson.getTitle(),
-                    "issuesFixed", lessonResult.get("issuesFixed"),
-                    "issues", lessonResult.get("issues")
-                ));
+                        "lessonId", lesson.getId(),
+                        "lessonTitle", lesson.getTitle(),
+                        "issuesFixed", lessonResult.get("issuesFixed"),
+                        "issues", lessonResult.get("issues")));
             }
         }
 
@@ -275,7 +281,7 @@ public class GrammarValidationService {
         globalResult.put("totalIssuesFixed", totalIssuesFixed);
         globalResult.put("lessonsWithIssues", lessonResults);
 
-        log.info("✅ Validated all questions in topic {}, fixed {} issues", 
+        log.info("✅ Validated all questions in topic {}, fixed {} issues",
                 topicId, totalIssuesFixed);
 
         return globalResult;
@@ -286,7 +292,7 @@ public class GrammarValidationService {
      */
     public Map<String, Object> validateAllQuestionsOrderIndex() {
         List<GrammarTopic> allTopics = topicRepository.findAll();
-        
+
         Map<String, Object> globalResult = new HashMap<>();
         List<Map<String, Object>> topicResults = new ArrayList<>();
         int totalIssuesFixed = 0;
@@ -296,19 +302,18 @@ public class GrammarValidationService {
 
         for (GrammarTopic topic : allTopics) {
             Map<String, Object> topicResult = validateAllQuestionsInTopic(topic.getId());
-            
+
             totalIssuesFixed += (int) topicResult.get("totalIssuesFixed");
             totalIssuesFound += (int) topicResult.get("totalIssuesFound");
             totalQuestions += (int) topicResult.get("totalQuestions");
             totalLessons += (int) topicResult.get("totalLessonsChecked");
-            
+
             if ((int) topicResult.get("totalIssuesFound") > 0) {
                 topicResults.add(Map.of(
-                    "topicId", topic.getId(),
-                    "topicName", topic.getName(),
-                    "issuesFixed", topicResult.get("totalIssuesFixed"),
-                    "lessonsWithIssues", topicResult.get("lessonsWithIssues")
-                ));
+                        "topicId", topic.getId(),
+                        "topicName", topic.getName(),
+                        "issuesFixed", topicResult.get("totalIssuesFixed"),
+                        "lessonsWithIssues", topicResult.get("lessonsWithIssues")));
             }
         }
 
@@ -319,7 +324,7 @@ public class GrammarValidationService {
         globalResult.put("totalIssuesFixed", totalIssuesFixed);
         globalResult.put("topicsWithIssues", topicResults);
 
-        log.info("✅ Validated ALL questions across {} topics, fixed {} issues", 
+        log.info("✅ Validated ALL questions across {} topics, fixed {} issues",
                 allTopics.size(), totalIssuesFixed);
 
         return globalResult;
@@ -328,7 +333,8 @@ public class GrammarValidationService {
     // ===== HELPER =====
 
     private String truncateText(String text, int maxLength) {
-        if (text == null) return "";
+        if (text == null)
+            return "";
         return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
     }
 }

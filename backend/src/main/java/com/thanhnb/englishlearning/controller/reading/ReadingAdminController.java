@@ -234,7 +234,7 @@ public class ReadingAdminController {
         @Operation(summary = "Cập nhật question", description = "Cập nhật question theo ID")
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> updateQuestion(
                         @PathVariable Long id,
-                        @Valid @RequestBody Object dto) {
+                        @Valid @RequestBody CreateQuestionDTO dto) {
                 try {
                         QuestionResponseDTO updated = questionService.updateQuestion(id, dto);
                         return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));

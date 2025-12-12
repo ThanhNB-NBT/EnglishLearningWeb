@@ -26,8 +26,10 @@ public class CreateMatchingDTO extends CreateQuestionDTO {
     public static class PairDTO {
         @NotBlank
         private String left;
+
         @NotBlank
         private String right;
+        
         @NotNull
         @Min(1)
         private Integer order;

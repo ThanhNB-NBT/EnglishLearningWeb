@@ -37,7 +37,7 @@ public class GrammarOrderService {
         int affected = questionRepository.shiftOrderAfterDelete(ParentType.GRAMMAR, lessonId, deletedPosition);
         log.info("Reordered {} questions after deletion at position {}", affected, deletedPosition);
     }
-
+    
     public int reorderLessons(Long topicId, Integer insertPosition, Long excludeLessonId) {
         if (!topicRepository.existsById(topicId)) {
             throw new IllegalArgumentException("Topic không tồn tại với id: " + topicId);

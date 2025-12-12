@@ -43,7 +43,7 @@ public class GrammarLessonService {
                             lesson.getId());
 
                     // Log ra kiểm tra xem số đúng chưa
-                    log.info("Lesson {} has {} questions", lesson.getTitle(), count);
+                    log.debug("[List] Lesson '{}' has {} questions", lesson.getTitle(), count);
 
                     dto.setQuestionCount((int) count);
                     return dto;
@@ -61,7 +61,7 @@ public class GrammarLessonService {
                 lesson.getId());
 
         // Log ra kiểm tra xem số đúng chưa
-        log.info("Lesson {} has {} questions", lesson.getTitle(), count);
+        log.debug("[Detail] Lesson '{}' has {} questions", lesson.getTitle(), count);
 
         dto.setQuestionCount((int) count);
 

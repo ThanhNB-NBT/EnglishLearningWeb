@@ -38,63 +38,60 @@ export const readingAdminAPI = {
   parseFile: (file) => {
     const formData = new FormData()
     formData.append('file', file)
-    return api.post('/admin/reading/lessons/parse-file', formData, {
+    return api.post('/api/admin/reading/lessons/parse-file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 600000, // 10 phút
     })
   },
   saveParsedLesson: (parsedLesson) =>
-    api.post('/admin/reading/lessons/save-parsed-lesson', parsedLesson),
+    api.post('/api/admin/reading/lessons/save-parsed-lesson', parsedLesson),
 
   // === Lessons ===
   getAllLessons: (params = {}) => {
     const { page = 0, size = 10, sort = 'orderIndex,asc' } = params
-    return api.get('/admin/reading/lessons', { params: { page, size, sort } })
+    return api.get('/api/admin/reading/lessons', { params: { page, size, sort } })
   },
-  getLessonDetail: (lessonId) => api.get(`/admin/reading/lessons/${lessonId}`),
-  createLesson: (lessonData) => api.post('/admin/reading/lessons', lessonData),
-  updateLesson: (id, lessonData) => api.put(`/admin/reading/lessons/${id}`, lessonData),
-  deleteLesson: (id) => api.delete(`/admin/reading/lessons/${id}`),
-  toggleLessonStatus: (lessonId) =>
-    api.post(`/admin/reading/lessons/${lessonId}/toggle-status`),
-
+  getLessonDetail: (lessonId) => api.get(`/api/admin/reading/lessons/${lessonId}`),
+  createLesson: (lessonData) => api.post('/api/admin/reading/lessons', lessonData),
+  updateLesson: (id, lessonData) => api.put(`/api/admin/reading/lessons/${id}`, lessonData),
+  deleteLesson: (id) => api.delete(`/api/admin/reading/lessons/${id}`),
+  toggleLessonStatus: (lessonId) => api.post(`/api/admin/reading/lessons/${lessonId}/toggle-status`),
   // === Order ===
-  getNextLessonOrderIndex: () => api.get('/admin/reading/lessons/next-order'),
+  getNextLessonOrderIndex: () => api.get('/api/admin/reading/lessons/next-order'),
   reorderLesson: (lessonId, newOrderIndex) =>
-    api.post(`/admin/reading/lessons/${lessonId}/reorder`, null, {
+    api.post(`/api/admin/reading/lessons/${lessonId}/reorder`, null, {
       params: { newOrderIndex },
     }),
   swapLessons: (lessonId1, lessonId2) =>
-    api.post(`/admin/reading/lessons/${lessonId1}/swap/${lessonId2}`),
-
+    api.post(`/api/admin/reading/lessons/${lessonId1}/swap/${lessonId2}`),
   // === Questions ===
   getQuestionsByLesson: (lessonId, params = {}) => {
     const { page = 0, size = 10, sort = 'orderIndex,asc' } = params
-    return api.get(`/admin/reading/lessons/${lessonId}/questions`, {
+    return api.get(`/api/admin/reading/lessons/${lessonId}/questions`, {
       params: { page, size, sort },
     })
   },
-  createQuestion: (questionData) => api.post('/admin/reading/questions', questionData),
-  updateQuestion: (id, questionData) => api.put(`/admin/reading/questions/${id}`, questionData),
-  deleteQuestion: (id) => api.delete(`/admin/reading/questions/${id}`),
+  getQuestionById: (questionId) => api.get(`/api/admin/reading/questions/${questionId}`),
+  createQuestion: (questionData) => api.post('/api/admin/reading/questions', questionData),
+  updateQuestion: (id, questionData) => api.put(`/api/admin/reading/questions/${id}`, questionData),
+  deleteQuestion: (id) => api.delete(`/api/admin/reading/questions/${id}`),
   bulkDeleteQuestions: (questionIds) =>
-    api.post('/admin/reading/questions/bulk-delete', { questionIds }),
+    api.post('/api/admin/reading/questions/bulk-delete', { questionIds }),
   getNextQuestionOrderIndex: (lessonId) =>
-    api.get(`/admin/reading/lessons/${lessonId}/questions/next-order`),
+    api.get(`/api/admin/reading/lessons/${lessonId}/questions/next-order`),
   createQuestionsInBulk: (lessonId, questions) =>
-    api.post(`/admin/reading/lessons/${lessonId}/questions/bulk`, questions),
+    api.post(`/api/admin/reading/lessons/${lessonId}/questions/bulk`, questions),
   copyQuestions: (sourceLessonId, targetLessonId) =>
-    api.post(`/admin/reading/lessons/${sourceLessonId}/copy-to/${targetLessonId}`),
+    api.post(`/api/admin/reading/lessons/${sourceLessonId}/copy-to/${targetLessonId}`),
 
   // === Statistics ===
-  getLessonStatistics: (lessonId) =>
-    api.get(`/admin/reading/lessons/${lessonId}/statistics`),
-  getModuleStatistics: () => api.get('/admin/reading/statistics'),
+  getLessonStatistics: (lessonId) => api.get(`/api/admin/reading/lessons/${lessonId}/statistics`),
+  getModuleStatistics: () => api.get('/api/admin/reading/statistics'),
 
   // === Validation ===
-  validateAllLessonsOrder: () => api.post('/admin/reading/lessons/validate-all-order'),
+  validateAllLessonsOrder: () => api.post('/api/admin/reading/lessons/validate-all-order'),
   validateQuestionsOrder: (lessonId) =>
-    api.post(`/admin/reading/lessons/${lessonId}/questions/validate-order`),
-  validateAllQuestionsOrder: () => api.post('/admin/reading/questions/validate-all-order'),
-  healthCheck: () => api.post('/admin/reading/health-check'),
+    api.post(`/api/admin/reading/lessons/${lessonId}/questions/validate-order`),
+  validateAllQuestionsOrder: () => api.post('/api/admin/reading/questions/validate-all-order'),
+  healthCheck: () => api.post('/api/admin/reading/health-check'),
 }
