@@ -28,7 +28,8 @@ public class QuestionConverter {
     // =========================================================================
 
     public QuestionResponseDTO toResponseDTO(Question question) {
-        if (question == null) return null;
+        if (question == null)
+            return null;
 
         QuestionResponseDTO dto = new QuestionResponseDTO();
         dto.setId(question.getId());
@@ -51,7 +52,8 @@ public class QuestionConverter {
     }
 
     public List<QuestionResponseDTO> toResponseDTOs(List<Question> questions) {
-        if (questions == null) return List.of();
+        if (questions == null)
+            return List.of();
         return questions.stream().map(this::toResponseDTO).toList();
     }
 
@@ -82,7 +84,8 @@ public class QuestionConverter {
     public CreateQuestionDTO toCreateDTO(QuestionResponseDTO responseDTO) {
         QuestionType type = responseDTO.getQuestionType();
         Map<String, Object> meta = responseDTO.getMetadata();
-        if (meta == null) meta = new HashMap<>();
+        if (meta == null)
+            meta = new HashMap<>();
 
         CreateQuestionDTO createDTO = switch (type) {
             // --- NHÓM LỰA CHỌN (Gộp True/False, Conversation vào MultipleChoice) ---
@@ -100,7 +103,7 @@ public class QuestionConverter {
             case PRONUNCIATION -> convertToPronunciationDTO(meta);
             case OPEN_ENDED -> convertToOpenEndedDTO(meta);
             case SENTENCE_TRANSFORMATION -> convertToSentenceTransformationDTO(meta);
-            
+
             // Mặc định fallback
             default -> throw new IllegalArgumentException("Chưa hỗ trợ clone loại câu hỏi: " + type);
         };
@@ -125,26 +128,19 @@ public class QuestionConverter {
         // Sử dụng Pattern Matching for switch (Java 17+) hoặc instanceof truyền thống
         if (dto instanceof CreateMultipleChoiceDTO mcDto) {
             buildMultipleChoiceMetadata(mcDto, metadata);
-        } 
-        else if (dto instanceof CreateFillBlankDTO fbDto) {
+        } else if (dto instanceof CreateFillBlankDTO fbDto) {
             buildFillBlankMetadata(fbDto, metadata);
-        }
-        else if (dto instanceof CreateMatchingDTO mDto) {
+        } else if (dto instanceof CreateMatchingDTO mDto) {
             buildMatchingMetadata(mDto, metadata);
-        }
-        else if (dto instanceof CreateSentenceBuildingDTO sbDto) {
+        } else if (dto instanceof CreateSentenceBuildingDTO sbDto) {
             buildSentenceBuildingMetadata(sbDto, metadata);
-        }
-        else if (dto instanceof CreateErrorCorrectionDTO ecDto) {
+        } else if (dto instanceof CreateErrorCorrectionDTO ecDto) {
             buildErrorCorrectionMetadata(ecDto, metadata);
-        }
-        else if (dto instanceof CreatePronunciationsDTO pDto) {
+        } else if (dto instanceof CreatePronunciationsDTO pDto) {
             buildPronunciationMetadata(pDto, metadata);
-        }
-        else if (dto instanceof CreateOpenEndedDTO oeDto) {
+        } else if (dto instanceof CreateOpenEndedDTO oeDto) {
             buildOpenEndedMetadata(oeDto, metadata);
-        }
-        else if (dto instanceof CreateSentenceTransformationDTO stDto) {
+        } else if (dto instanceof CreateSentenceTransformationDTO stDto) {
             buildSentenceTransformationMetadata(stDto, metadata);
         }
         // Listening...
@@ -155,10 +151,11 @@ public class QuestionConverter {
     // --- Specific Builders ---
 
     private void buildMultipleChoiceMetadata(CreateMultipleChoiceDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
-        
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
+
         // Nếu DTO có trường conversationContext (nếu bạn đã thêm vào), map nó
-        // meta.put("conversationContext", dto.getConversationContext()); 
+        // meta.put("conversationContext", dto.getConversationContext());
 
         List<Map<String, Object>> options = new ArrayList<>();
         for (CreateMultipleChoiceDTO.OptionDTO opt : dto.getOptions()) {
@@ -172,8 +169,9 @@ public class QuestionConverter {
     }
 
     private void buildFillBlankMetadata(CreateFillBlankDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
-        
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
+
         // Map Word Bank
         if (dto.getWordBank() != null && !dto.getWordBank().isEmpty()) {
             meta.put("wordBank", dto.getWordBank());
@@ -195,13 +193,15 @@ public class QuestionConverter {
     }
 
     private void buildErrorCorrectionMetadata(CreateErrorCorrectionDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
         meta.put("errorText", dto.getErrorText());
         meta.put("correction", dto.getCorrection());
     }
 
     private void buildMatchingMetadata(CreateMatchingDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
         List<Map<String, Object>> pairs = new ArrayList<>();
         for (CreateMatchingDTO.PairDTO pair : dto.getPairs()) {
             Map<String, Object> m = new HashMap<>();
@@ -214,16 +214,18 @@ public class QuestionConverter {
     }
 
     private void buildSentenceBuildingMetadata(CreateSentenceBuildingDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
         meta.put("words", dto.getWords());
         meta.put("correctSentence", dto.getCorrectSentence());
     }
 
     private void buildPronunciationMetadata(CreatePronunciationsDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
         meta.put("words", dto.getWords());
         meta.put("categories", dto.getCategories());
-        
+
         List<Map<String, Object>> classifications = new ArrayList<>();
         for (CreatePronunciationsDTO.ClassificationDTO cls : dto.getClassifications()) {
             Map<String, Object> m = new HashMap<>();
@@ -235,17 +237,24 @@ public class QuestionConverter {
     }
 
     private void buildOpenEndedMetadata(CreateOpenEndedDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
-        if (dto.getSuggestedAnswer() != null) meta.put("suggestedAnswer", dto.getSuggestedAnswer());
-        if (dto.getTimeLimitSeconds() != null) meta.put("timeLimitSeconds", dto.getTimeLimitSeconds());
-        if (dto.getMinWord() != null) meta.put("minWords", dto.getMinWord());
-        if (dto.getMaxWord() != null) meta.put("maxWords", dto.getMaxWord());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
+        if (dto.getSuggestedAnswer() != null)
+            meta.put("suggestedAnswer", dto.getSuggestedAnswer());
+        if (dto.getTimeLimitSeconds() != null)
+            meta.put("timeLimitSeconds", dto.getTimeLimitSeconds());
+        if (dto.getMinWord() != null)
+            meta.put("minWords", dto.getMinWord());
+        if (dto.getMaxWord() != null)
+            meta.put("maxWords", dto.getMaxWord());
     }
 
     private void buildSentenceTransformationMetadata(CreateSentenceTransformationDTO dto, Map<String, Object> meta) {
-        if (dto.getExplanation() != null) meta.put("explanation", dto.getExplanation());
+        if (dto.getExplanation() != null)
+            meta.put("explanation", dto.getExplanation());
         meta.put("originalSentence", dto.getOriginalSentence());
-        if (dto.getBeginningPhrase() != null) meta.put("beginningPhrase", dto.getBeginningPhrase());
+        if (dto.getBeginningPhrase() != null)
+            meta.put("beginningPhrase", dto.getBeginningPhrase());
         meta.put("correctAnswers", dto.getCorrectAnswers());
     }
 
@@ -255,10 +264,13 @@ public class QuestionConverter {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> convertMetadataToMap(Object metadata) {
-        if (metadata == null) return null;
+        if (metadata == null)
+            return null;
         try {
-            if (metadata instanceof Map) return (Map<String, Object>) metadata;
-            if (metadata instanceof String) return objectMapper.readValue((String) metadata, Map.class);
+            if (metadata instanceof Map)
+                return (Map<String, Object>) metadata;
+            if (metadata instanceof String)
+                return objectMapper.readValue((String) metadata, Map.class);
             return objectMapper.convertValue(metadata, Map.class);
         } catch (Exception e) {
             log.warn("Cannot convert metadata to Map: {}", e.getMessage());
@@ -291,21 +303,31 @@ public class QuestionConverter {
     private CreateMultipleChoiceDTO convertToTrueFalseAsMultipleChoice(Map<String, Object> meta) {
         CreateMultipleChoiceDTO result = new CreateMultipleChoiceDTO();
         result.setExplanation((String) meta.get("explanation"));
-        
+
         boolean isTrueCorrect = false;
-        // Logic cũ: correctAnswer = true/false
+
         if (meta.containsKey("correctAnswer") && meta.get("correctAnswer") instanceof Boolean) {
             isTrueCorrect = (Boolean) meta.get("correctAnswer");
-        } 
-        // Logic cũ hơn: options list
+        }
+
         else if (meta.containsKey("options")) {
-             // ... extract from options ...
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> options = (List<Map<String, Object>>) meta.get("options");
+            if (options != null && !options.isEmpty()) {
+                for (Map<String, Object> opt : options) {
+                    if ("True".equalsIgnoreCase((String) opt.get("text")) &&
+                            Boolean.TRUE.equals(opt.get("isCorrect"))) {
+                        isTrueCorrect = true;
+                        break;
+                    }
+                }
+            }
         }
 
         List<CreateMultipleChoiceDTO.OptionDTO> options = new ArrayList<>();
         options.add(new CreateMultipleChoiceDTO.OptionDTO("True", isTrueCorrect, 1));
         options.add(new CreateMultipleChoiceDTO.OptionDTO("False", !isTrueCorrect, 2));
-        
+
         result.setOptions(options);
         return result;
     }
@@ -315,13 +337,13 @@ public class QuestionConverter {
     private CreateMultipleChoiceDTO convertToConversationAsMultipleChoice(Map<String, Object> meta) {
         CreateMultipleChoiceDTO result = new CreateMultipleChoiceDTO();
         result.setExplanation((String) meta.get("explanation"));
-        
+
         // Lưu ý: context bị mất nếu CreateMultipleChoiceDTO không có trường chứa nó
         // Nếu cần, bạn có thể append vào explanation hoặc questionText
-        
+
         List<String> textOptions = (List<String>) meta.get("options");
         String correctAns = (String) meta.get("correctAnswer");
-        
+
         List<CreateMultipleChoiceDTO.OptionDTO> options = new ArrayList<>();
         if (textOptions != null) {
             for (int i = 0; i < textOptions.size(); i++) {
@@ -354,7 +376,7 @@ public class QuestionConverter {
                 for (Map<String, Object> b : blankMaps) {
                     CreateFillBlankDTO.BlankDTO blank = new CreateFillBlankDTO.BlankDTO();
                     blank.setPosition((Integer) b.get("position"));
-                    
+
                     // Correct Answers
                     Object ansObj = b.get("correctAnswers");
                     if (ansObj instanceof List) {
@@ -362,15 +384,17 @@ public class QuestionConverter {
                     } else if (ansObj instanceof String) {
                         blank.setCorrectAnswers(List.of((String) ansObj));
                     }
-                    
+
                     // Hint / Verb
-                    if (b.containsKey("hint")) blank.setHint((String) b.get("hint"));
-                    else if (b.containsKey("verb")) blank.setHint((String) b.get("verb")); // Legacy verb form
+                    if (b.containsKey("hint"))
+                        blank.setHint((String) b.get("hint"));
+                    else if (b.containsKey("verb"))
+                        blank.setHint((String) b.get("verb")); // Legacy verb form
 
                     blanks.add(blank);
                 }
             }
-        } 
+        }
         // 3. Case 2: Legacy TextAnswer (có 'correctAnswer' string đơn)
         else if (meta.containsKey("correctAnswer")) {
             String answerStr = (String) meta.get("correctAnswer");
@@ -379,7 +403,7 @@ public class QuestionConverter {
             if (answerStr != null) {
                 answers = Arrays.asList(answerStr.split("\\|"));
             }
-            
+
             CreateFillBlankDTO.BlankDTO blank = new CreateFillBlankDTO.BlankDTO();
             blank.setPosition(1);
             blank.setCorrectAnswers(answers);
@@ -450,9 +474,12 @@ public class QuestionConverter {
         CreateOpenEndedDTO result = new CreateOpenEndedDTO();
         result.setExplanation((String) meta.get("explanation"));
         result.setSuggestedAnswer((String) meta.get("suggestedAnswer"));
-        if (meta.get("timeLimitSeconds") instanceof Integer) result.setTimeLimitSeconds((Integer) meta.get("timeLimitSeconds"));
-        if (meta.get("minWords") instanceof Integer) result.setMinWord((Integer) meta.get("minWords"));
-        if (meta.get("maxWords") instanceof Integer) result.setMaxWord((Integer) meta.get("maxWords"));
+        if (meta.get("timeLimitSeconds") instanceof Integer)
+            result.setTimeLimitSeconds((Integer) meta.get("timeLimitSeconds"));
+        if (meta.get("minWords") instanceof Integer)
+            result.setMinWord((Integer) meta.get("minWords"));
+        if (meta.get("maxWords") instanceof Integer)
+            result.setMaxWord((Integer) meta.get("maxWords"));
         return result;
     }
 

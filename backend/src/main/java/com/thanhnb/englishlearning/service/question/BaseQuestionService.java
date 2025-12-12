@@ -143,6 +143,8 @@ public abstract class BaseQuestionService {
         }
 
         Question question = questionConverter.toEntity(createDTO);
+        metadataValidator.sanitizeMetadata(createDTO.getQuestionType(), question.getMetadata());
+        metadataValidator.validate(createDTO.getQuestionType(), question.getMetadata());
         log.info("Built metadata: {}", question.getMetadata());
         question.setParentType(getParentType());
         question.setParentId(createDTO.getParentId());

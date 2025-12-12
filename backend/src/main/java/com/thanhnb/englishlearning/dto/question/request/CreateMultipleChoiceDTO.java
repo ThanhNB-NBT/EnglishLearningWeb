@@ -1,6 +1,5 @@
 package com.thanhnb.englishlearning.dto.question.request;
 
-import com.thanhnb.englishlearning.enums.QuestionType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -14,11 +13,6 @@ public class CreateMultipleChoiceDTO extends CreateQuestionDTO {
     @NotNull(message = "Options không được null")
     @Size(min = 2, message = "Cần ít nhất 2 options")
     private List<OptionDTO> options;
-
-    @Override
-    public QuestionType getQuestionType() {
-        return QuestionType.MULTIPLE_CHOICE;
-    }
 
     @Data
     @NoArgsConstructor

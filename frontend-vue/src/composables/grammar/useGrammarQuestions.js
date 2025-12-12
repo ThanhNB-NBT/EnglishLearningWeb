@@ -8,6 +8,7 @@ export function useGrammarQuestionForm() {
   const dialogVisible = ref(false)
   const dialogMode = ref('create')
   const currentStep = ref(1)
+  const isValidating = ref(false)
 
   const defaultFormData = {
     id: null,
@@ -229,7 +230,7 @@ export function useGrammarQuestionForm() {
         payload.options = metadata.options
         break
       case 'TRUE_FALSE':
-        payload.correctAnswer = metadata.correctAnswer
+        payload.options = metadata.options
         break
       case 'TEXT_ANSWER':
         payload.correctAnswer = metadata.correctAnswer
@@ -278,10 +279,34 @@ export function useGrammarQuestionForm() {
     }
   }
 
+  const validateOrder = async (lessonId) => {
+    isValidating.value = true
+    try {
+      const res = await store.validateQuestionsOrder(lessonId)
+
+      // Xử lý thông báo ngay tại đây hoặc trả về data để component xử lý
+      const { issuesFixed, totalQuestions } = res.data
+      if (issuesFixed > 0) {
+        ElMessage.success(`Đã sửa lỗi thứ tự cho ${issuesFixed}/${totalQuestions} câu hỏi!`)
+      } else {
+        ElMessage.info('Thứ tự đã chuẩn, không cần sửa đổi.')
+      }
+
+      return true // Trả về true báo hiệu thành công
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message
+      ElMessage.error('Lỗi khi chuẩn hóa: ' + msg)
+      return false
+    } finally {
+      isValidating.value = false
+    }
+  }
+
   return {
     dialogVisible,
     dialogMode,
     currentStep,
+    isValidating,
     formData,
     formRules,
     questionTypeOptions,
@@ -295,5 +320,6 @@ export function useGrammarQuestionForm() {
     nextStep,
     prevStep,
     handleSubmit,
+    validateOrder,
   }
 }

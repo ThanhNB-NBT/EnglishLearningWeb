@@ -1,8 +1,8 @@
 package com.thanhnb.englishlearning.dto.reading;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
-import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question. request.CreateQuestionDTO;
+import com.thanhnb.englishlearning.dto.question. response.QuestionResponseDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java. util.List;
 
 @Data
 @NoArgsConstructor
@@ -32,6 +32,15 @@ public class ReadingLessonDTO {
     @Min(value = 1, message = "Order index must be >= 1")
     @Schema(description = "Display order", example = "1")
     private Integer orderIndex;
+
+    // 🆕 Thêm difficulty
+    @Schema(description = "Difficulty level", example = "INTERMEDIATE", allowableValues = {"BEGINNER", "INTERMEDIATE", "ADVANCED"})
+    private String difficulty;
+
+    // 🆕 Thêm timeLimitSeconds
+    @Min(value = 0, message = "Time limit must be >= 0")
+    @Schema(description = "Time limit in seconds", example = "600")
+    private Integer timeLimitSeconds;
 
     @Min(value = 1, message = "Points reward must be >= 1")
     @Schema(description = "Points when completed", example = "25")
@@ -84,12 +93,15 @@ public class ReadingLessonDTO {
 
     /**
      * Create Summary DTO (for list view)
+     * 🆕 Cập nhật với difficulty và timeLimitSeconds
      */
-    public static ReadingLessonDTO summary(Long id, String title, Integer orderIndex, 
-            Boolean isActive, Integer questionCount) {
+    public static ReadingLessonDTO summary(Long id, String title, String difficulty, 
+            Integer timeLimitSeconds, Integer orderIndex, Boolean isActive, Integer questionCount) {
         ReadingLessonDTO dto = new ReadingLessonDTO();
         dto.setId(id);
         dto.setTitle(title);
+        dto.setDifficulty(difficulty);
+        dto.setTimeLimitSeconds(timeLimitSeconds);
         dto.setOrderIndex(orderIndex);
         dto.setIsActive(isActive);
         dto.setQuestionCount(questionCount);
@@ -98,15 +110,18 @@ public class ReadingLessonDTO {
 
     /**
      * Create Full DTO (for detail view)
+     * 🆕 Cập nhật với difficulty và timeLimitSeconds
      */
     public static ReadingLessonDTO full(Long id, String title, String content, 
-            String contentTranslation, Integer orderIndex, Integer pointsReward, 
-            Boolean isActive, LocalDateTime createdAt) {
+            String contentTranslation, String difficulty, Integer timeLimitSeconds,
+            Integer orderIndex, Integer pointsReward, Boolean isActive, LocalDateTime createdAt) {
         ReadingLessonDTO dto = new ReadingLessonDTO();
         dto.setId(id);
         dto.setTitle(title);
         dto.setContent(content);
         dto.setContentTranslation(contentTranslation);
+        dto.setDifficulty(difficulty);
+        dto.setTimeLimitSeconds(timeLimitSeconds);
         dto.setOrderIndex(orderIndex);
         dto.setPointsReward(pointsReward);
         dto.setIsActive(isActive);
@@ -149,9 +164,12 @@ public class ReadingLessonDTO {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Convenience method: Get questions count
+     * Convenience method:  Get questions count
      */
     public int getQuestionCount() {
+        if (questionCount != null) {
+            return questionCount;
+        }
         if (createQuestions != null) {
             return createQuestions.size();
         }
@@ -166,12 +184,5 @@ public class ReadingLessonDTO {
      */
     public boolean hasQuestions() {
         return getQuestionCount() > 0;
-    }
-
-    /**
-     * Get appropriate questions list based on context
-     */
-    public Object getQuestionsForContext(boolean isCreate) {
-        return isCreate ? createQuestions : questions;
     }
 }

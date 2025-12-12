@@ -43,5 +43,4 @@ public abstract class CreateQuestionDTO {
     @NotNull @Min(1) private Integer points = 1;
     @NotNull @Min(0) private Integer orderIndex = 0;
     @JsonProperty("questionType") private QuestionType questionType;
-    public abstract QuestionType getQuestionType();
 }

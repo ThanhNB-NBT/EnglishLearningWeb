@@ -1,6 +1,5 @@
 package com.thanhnb.englishlearning.dto.question.request;
 
-import com.thanhnb.englishlearning.enums.QuestionType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -26,10 +25,6 @@ public class CreateFillBlankDTO extends CreateQuestionDTO {
     @Schema(description = "Danh sách từ cho trước (Word Bank). Nếu có, user sẽ kéo thả/chọn thay vì gõ.")
     private List<String> wordBank; 
 
-    @Override
-    public QuestionType getQuestionType() {
-        return QuestionType.FILL_BLANK;
-    }
 
     @Data
     @NoArgsConstructor // Thêm constructor này

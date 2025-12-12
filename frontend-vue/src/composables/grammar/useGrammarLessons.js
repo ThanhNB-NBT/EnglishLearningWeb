@@ -16,7 +16,7 @@ export function useGrammarLessonForm() {
     content: '',
     orderIndex: 1,
     pointsReward: 10,
-    timeLimitSeconds: 180,
+    timeLimitSeconds: 10,
     isActive: true,
   })
 
@@ -71,7 +71,7 @@ export function useGrammarLessonForm() {
       content: '',
       orderIndex: nextOrder,
       pointsReward: 10,
-      timeLimitSeconds: 180,
+      timeLimitSeconds: 10,
       isActive: true,
     }
     dialogVisible.value = true
@@ -88,7 +88,7 @@ export function useGrammarLessonForm() {
       content: lesson.content || '',
       orderIndex: lesson.orderIndex,
       pointsReward: lesson.pointsReward || 10,
-      timeLimitSeconds: lesson.timeLimitSeconds || 180,
+      timeLimitSeconds: lesson.timeLimitSeconds || 10,
       isActive: lesson.isActive ?? true,
     }
     dialogVisible.value = true
@@ -133,7 +133,7 @@ export function useGrammarLessonForm() {
       content: '',
       orderIndex: 1,
       pointsReward: 10,
-      timeLimitSeconds: 180,
+      timeLimitSeconds: 10,
       isActive: true,
     }
   }
@@ -142,10 +142,10 @@ export function useGrammarLessonForm() {
   const handleLessonTypeChange = (type) => {
     if (type === 'THEORY') {
       formData.value.pointsReward = 10
-      formData.value.timeLimitSeconds = 180
+      formData.value.timeLimitSeconds = 10
     } else if (type === 'PRACTICE') {
       formData.value.pointsReward = 15
-      formData.value.timeLimitSeconds = 300
+      formData.value.timeLimitSeconds = 30
     }
   }
 

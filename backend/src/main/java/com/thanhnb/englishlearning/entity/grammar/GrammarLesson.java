@@ -44,11 +44,6 @@ public class GrammarLesson {
     @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
 
-    /**
-     * Thời gian giới hạn (giây):
-     * - THEORY: Thời gian đọc tối thiểu để hoàn thành
-     * - PRACTICE: Thời gian làm bài tối đa (đếm ngược, hết giờ auto-submit)
-     */
     @Column(name = "time_limit_seconds", nullable = false)
     private Integer timeLimitSeconds = 30;
 
@@ -66,12 +61,6 @@ public class GrammarLesson {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata;
-
-    // Relationships
-    @OneToMany(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id", referencedColumnName = "id", insertable = false, updatable = false)
-    @org.hibernate.annotations.SQLRestriction("parent_type = 'GRAMMAR'")
-    private List<Question> questions;
 
     @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<UserGrammarProgress> userProgresses;

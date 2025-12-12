@@ -148,9 +148,8 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
 
         long expectedQuestions = questionService.countQuestionsByParent(getParentType(), lessonId);
         if (request.getAnswers().size() < expectedQuestions) {
-            throw new RuntimeException(String.format(
-                    "Vui lòng trả lời tất cả %d câu hỏi (bạn chỉ trả lời %d câu)",
-                    expectedQuestions, request.getAnswers().size()));
+            log.warn("User {} submitted lesson {} incomplete: {}/{} answers", 
+                    userId, lessonId, request.getAnswers().size(), expectedQuestions);
         }
 
         UserReadingProgress progress = progressRepository
@@ -300,6 +299,8 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
         return ReadingLessonDTO.summary(
                 lesson.getId(),
                 lesson.getTitle(),
+                lesson.getDifficulty() != null ? lesson.getDifficulty().name() : "BEGINNER",
+                lesson.getTimeLimitSeconds(),
                 lesson.getOrderIndex(),
                 lesson.getIsActive(),
                 (int) questionCount);
@@ -311,6 +312,8 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
                 lesson.getTitle(),
                 lesson.getContent(),
                 lesson.getContentTranslation(),
+                lesson.getDifficulty() != null ? lesson.getDifficulty().name() : "BEGINNER",
+                lesson.getTimeLimitSeconds(),
                 lesson.getOrderIndex(),
                 lesson.getPointsReward(),
                 lesson.getIsActive(),

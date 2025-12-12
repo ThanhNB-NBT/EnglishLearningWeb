@@ -28,8 +28,15 @@ public class ReadingLesson {
     @Column(nullable = false)
     private String contentTranslation;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Difficulty difficulty = Difficulty.BEGINNER;
+
     @Column(nullable = false)
     private Integer orderIndex;
+
+    @Column(nullable = false)
+    private Integer timeLimitSeconds = 600;
 
     @Column(nullable = false)
     private Integer pointsReward = 25;
@@ -45,6 +52,20 @@ public class ReadingLesson {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+
+        if (difficulty == null) {
+            difficulty = Difficulty.BEGINNER;
+        }
+
+        if (timeLimitSeconds == null) {
+            timeLimitSeconds = 600;
+        }
+    }
+
+    public enum Difficulty {
+        BEGINNER,
+        INTERMEDIATE,
+        ADVANCED
     }
     
 }

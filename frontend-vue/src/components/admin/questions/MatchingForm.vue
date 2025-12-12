@@ -1,17 +1,25 @@
 <template>
   <div class="w-full">
     <div
-      class="bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4 text-sm text-yellow-800 dark:text-yellow-400">
+      class="bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4 text-sm text-yellow-800 dark:text-yellow-400"
+    >
       <el-icon class="mr-1">
         <InfoFilled />
-      </el-icon> Hệ thống sẽ tự động xáo trộn cột phải khi hiển thị.
+      </el-icon>
+      Hệ thống sẽ tự động xáo trộn cột phải khi hiển thị.
     </div>
 
     <div class="space-y-3">
-      <div v-for="(pair, index) in localMetadata.pairs" :key="index"
-        class="flex gap-2 items-center bg-white dark:bg-[#2c2c2c] p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div class="w-6 h-6 rounded bg-gray-200 text-gray-500 flex items-center justify-center text-xs font-bold">{{
-          index + 1 }}</div>
+      <div
+        v-for="(pair, index) in localMetadata.pairs"
+        :key="index"
+        class="flex gap-2 items-center bg-white dark:bg-[#2c2c2c] p-2 rounded-lg border border-gray-200 dark:border-gray-700"
+      >
+        <div
+          class="w-6 h-6 rounded bg-gray-200 text-gray-500 flex items-center justify-center text-xs font-bold"
+        >
+          {{ index + 1 }}
+        </div>
 
         <div class="flex-1 grid grid-cols-2 gap-2">
           <el-input v-model="pair.left" placeholder="Vế Trái (Key)" @input="emitUpdate">
@@ -22,8 +30,14 @@
           </el-input>
         </div>
 
-        <el-button type="danger" circle plain text @click="removePair(index)"
-          :disabled="localMetadata.pairs.length <= 2">
+        <el-button
+          type="danger"
+          circle
+          plain
+          text
+          @click="removePair(index)"
+          :disabled="localMetadata.pairs.length <= 2"
+        >
           <el-icon>
             <Delete />
           </el-icon>
@@ -43,14 +57,29 @@ import { ref, watch } from 'vue'
 import { Delete, InfoFilled } from '@element-plus/icons-vue'
 const props = defineProps({ metadata: Object })
 const emit = defineEmits(['update:metadata'])
-const localMetadata = ref({ pairs: [{ left: '', right: '' }] })
+const localMetadata = ref({
+  pairs: [{ left: '', right: '', order: 1 }],
+})
 
-watch(() => props.metadata, (val) => {
-  if (val?.matchingPairs) localMetadata.value.pairs = val.matchingPairs // Backend dùng key matchingPairs
-  else if (val?.pairs) localMetadata.value.pairs = val.pairs
-}, { immediate: true, deep: true })
+watch(
+  () => props.metadata,
+  (val) => {
+    // Ưu tiên đọc key 'pairs'
+    if (val?.pairs) localMetadata.value.pairs = val.pairs
+    else if (val?.matchingPairs) localMetadata.value.pairs = val.matchingPairs
+  },
+  { immediate: true, deep: true },
+)
 
-const addPair = () => { localMetadata.value.pairs.push({ left: '', right: '' }); emitUpdate() }
-const removePair = (idx) => { localMetadata.value.pairs.splice(idx, 1); emitUpdate() }
+const addPair = () => {
+  localMetadata.value.pairs.push({ left: '', right: '' })
+  order: localMetadata.value.pairs.length + 1
+  emitUpdate()
+}
+const removePair = (idx) => {
+  localMetadata.value.pairs.splice(idx, 1)
+  localMetadata.value.pairs.forEach((p, i) => (p.order = i + 1))
+  emitUpdate()
+}
 const emitUpdate = () => emit('update:metadata', { matchingPairs: localMetadata.value.pairs })
 </script>

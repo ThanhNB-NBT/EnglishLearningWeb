@@ -88,6 +88,12 @@ public class ReadingLessonService {
         lesson.setTitle(dto.getTitle());
         lesson.setContent(dto.getContent());
         lesson.setContentTranslation(dto.getContentTranslation());
+        lesson.setDifficulty(dto.getDifficulty() != null
+                ? ReadingLesson.Difficulty.valueOf(dto.getDifficulty())
+                : ReadingLesson.Difficulty.BEGINNER);
+        lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds() != null
+                ? dto.getTimeLimitSeconds()
+                : 600);
         lesson.setOrderIndex(dto.getOrderIndex());
         lesson.setPointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : DEFAULT_POINTS_REWARD);
         lesson.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
@@ -116,6 +122,14 @@ public class ReadingLessonService {
         lesson.setContent(dto.getContent());
         lesson.setContentTranslation(dto.getContentTranslation());
         lesson.setOrderIndex(dto.getOrderIndex());
+
+        if (dto.getDifficulty() != null) {
+            lesson.setDifficulty(ReadingLesson.Difficulty.valueOf(dto.getDifficulty()));
+        }
+
+        if (dto.getTimeLimitSeconds() != null) {
+            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
+        }
 
         if (dto.getPointsReward() != null) {
             lesson.setPointsReward(dto.getPointsReward());
@@ -230,14 +244,17 @@ public class ReadingLessonService {
      * Convert entity to DTO
      */
     private ReadingLessonDTO convertToDTO(ReadingLesson lesson) {
-        return ReadingLessonDTO.full(
-                lesson.getId(),
-                lesson.getTitle(),
-                lesson.getContent(),
-                lesson.getContentTranslation(),
-                lesson.getOrderIndex(),
-                lesson.getPointsReward(),
-                lesson.getIsActive(),
-                lesson.getCreatedAt());
+        ReadingLessonDTO dto = new ReadingLessonDTO();
+        dto.setId(lesson.getId());
+        dto.setTitle(lesson.getTitle());
+        dto.setContent(lesson.getContent());
+        dto.setContentTranslation(lesson.getContentTranslation());
+        dto.setDifficulty(lesson.getDifficulty() != null ? lesson.getDifficulty().name() : "INTERMEDIATE");
+        dto.setTimeLimitSeconds(lesson.getTimeLimitSeconds());
+        dto.setOrderIndex(lesson.getOrderIndex());
+        dto.setPointsReward(lesson.getPointsReward());
+        dto.setIsActive(lesson.getIsActive());
+        dto.setCreatedAt(lesson.getCreatedAt());
+        return dto;
     }
 }

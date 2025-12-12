@@ -1,22 +1,60 @@
 <template>
-  <div class="w-full">
-    <div class="mb-2 text-sm text-gray-500 dark:text-gray-400">Nhập đáp án vào ô trống:</div>
+  <div class="w-full text-lg leading-loose text-gray-900 dark:text-gray-100 font-serif">
+    <template v-for="(part, index) in parsedContent" :key="index">
+      <span v-if="part.isBlank" class="inline-block mx-1 relative">
+        <input
+          type="text"
+          v-model="userAnswers[part.blankIndex]"
+          @input="emitAnswer"
+          class="border-b border-gray-400 focus:border-black dark:focus:border-white outline-none bg-transparent text-center px-1 py-0 text-blue-700 dark:text-blue-300 font-bold min-w-[60px] h-6 text-lg font-sans"
+          :style="{ width: getInputWidth(userAnswers[part.blankIndex]) }"
+        />
+        <span
+          class="absolute -bottom-4 left-0 w-full text-center text-[9px] text-gray-400 font-sans"
+          >({{ part.blankIndex + 1 }})</span
+        >
+      </span>
 
-    <div class="relative">
-      <input type="text" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)"
-        class="w-full p-4 pl-5 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262626] text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium text-lg"
-        placeholder="Gõ câu trả lời của bạn..." />
-      <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-        <el-icon :size="20">
-          <EditPen />
-        </el-icon>
-      </div>
-    </div>
+      <span v-else v-html="part.text"></span>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { EditPen } from '@element-plus/icons-vue'
-defineProps(['question', 'modelValue'])
-defineEmits(['update:modelValue'])
+import { ref, computed, watch } from 'vue'
+const props = defineProps(['question', 'modelValue'])
+const emit = defineEmits(['update:modelValue'])
+const userAnswers = ref({})
+
+const initAnswers = () => {
+  if (typeof props.modelValue === 'object' && props.modelValue !== null)
+    userAnswers.value = { ...props.modelValue }
+  else if (typeof props.modelValue === 'string') userAnswers.value = { 0: props.modelValue }
+}
+initAnswers()
+
+const parsedContent = computed(() => {
+  const rawText = props.question.questionText || ''
+  const regex = /(___|\[\d+\]|\(\d+\)|\.{3,})/g
+  const parts = rawText.split(regex)
+  const matches = rawText.match(regex) || []
+  let blankCounter = 0
+  const result = []
+  parts.forEach((text, idx) => {
+    if (text) result.push({ isBlank: false, text })
+    if (idx < matches.length) result.push({ isBlank: true, blankIndex: blankCounter++ })
+  })
+  return result
+})
+const getInputWidth = (val) => Math.max(60, (val?.length || 0) * 10 + 10) + 'px'
+const emitAnswer = () => emit('update:modelValue', { ...userAnswers.value })
+watch(() => props.modelValue, initAnswers)
 </script>
+<style scoped>
+input {
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+</style>
