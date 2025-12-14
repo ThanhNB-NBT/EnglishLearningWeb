@@ -1,6 +1,5 @@
 package com.thanhnb.englishlearning.entity.grammar;
 
-import com.thanhnb.englishlearning.entity.question.Question;
 import com.thanhnb.englishlearning.enums.LessonType;
 
 import jakarta.persistence.*;

@@ -51,6 +51,12 @@
             </el-icon>
             <template #title>QL Bài đọc</template>
           </el-menu-item>
+          <el-menu-item index="/admin/listening" class="menu-item-custom hover-left-bar">
+            <el-icon>
+              <Microphone />
+            </el-icon>
+            <template #title>QL Nghe hiểu</template>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
@@ -160,7 +166,8 @@ const pageTitle = computed(() => {
     '/admin/grammar': 'Quản lý Ngữ pháp',
     '/admin/reading': 'Quản lý Bài đọc',
     '/admin/profile': 'Thông tin cá nhân',
-    '/admin/change-password': 'Đổi mật khẩu'
+    '/admin/change-password': 'Đổi mật khẩu',
+    '/admin/listening': 'Quản lý Nghe hiểu',
   }
   if (route.path.startsWith('/admin/grammar')) return 'Quản lý Ngữ pháp'
   return map[route.path] || 'Trang quản trị'

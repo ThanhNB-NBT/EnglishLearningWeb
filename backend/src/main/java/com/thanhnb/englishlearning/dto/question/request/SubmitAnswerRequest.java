@@ -18,5 +18,4 @@ public class SubmitAnswerRequest {
     @NotNull(message = "Câu trả lời không được để trống")
     @Schema(description = "Câu trả lời của người dùng", example = "Đáp án A")
     private Object answer; // Người dùng trả lời
-
 }

@@ -27,7 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final JwtBlacklistService jwtBlacklistService;
     private final CustomUserDetailsService userDetailsService;
-    private final UserRepository userRepository; // ✅ ADD THIS
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -55,7 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtUtil.isTokenValid(token)) {
                     String username = jwtUtil.getUsernameFromToken(token);
                     
-                    // 3. ✅ CRITICAL: Load user and check account status
+                    // 3. CRITICAL: Load user and check account status
                     Optional<User> userOpt = userRepository.findByUsername(username);
                     if (userOpt.isEmpty()) {
                         log.warn("Token for non-existent user: {}", username);
@@ -65,21 +65,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     
                     User user = userOpt.get();
                     
-                    // ✅ CHECK 1: User must be active (not blocked)
+                    // CHECK 1: User must be active (not blocked)
                     if (!user.getIsActive()) {
                         log.warn("Blocked user attempted access: {}", username);
                         sendErrorResponse(response, "Tài khoản đã bị khóa");
                         return;
                     }
                     
-                    // ✅ CHECK 2: User must be verified (for USER role only)
+                    // CHECK 2: User must be verified (for USER role only)
                     if (user.getRole().name().equals("USER") && !user.getIsVerified()) {
                         log.warn("Unverified user attempted access: {}", username);
                         sendErrorResponse(response, "Tài khoản chưa được xác thực");
                         return;
                     }
                     
-                    // ✅ CHECK 3: Token must be issued after last login/password change
+                    // CHECK 3: Token must be issued after last login/password change
                     if (jwtUtil.isTokenIssuedBeforeLastUpdate(token, user.getLastLoginDate())) {
                         log.warn("Token issued before last update for user: {}", username);
                         sendErrorResponse(response, "Phiên đăng nhập đã hết hạn");
@@ -163,7 +163,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Kiểm tra null safety
         if (path == null) return false;
 
-        boolean shouldSkip = 
+        boolean shouldSkip =
+                // MEDIA FILES
+                path.startsWith("/media/") ||
+                path.startsWith("/uploads/") ||
+                path.startsWith("/api/debug/audio/") ||
+                
                 // User Auth - Public
                 path.contains("/auth/user/login") ||
                 path.contains("/auth/user/register") ||

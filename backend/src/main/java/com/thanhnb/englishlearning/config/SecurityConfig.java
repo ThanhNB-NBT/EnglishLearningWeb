@@ -32,7 +32,7 @@ public class SecurityConfig {
         private final JwtUtil jwtUtil;
         private final JwtBlacklistService jwtBlacklistService;
         private final CustomUserDetailsService userDetailsService;
-        private final UserRepository userRepository; // ✅ ADD THIS
+        private final UserRepository userRepository;
 
         @Bean
         public PasswordEncoder passwordEncoder() {
@@ -41,7 +41,6 @@ public class SecurityConfig {
 
         @Bean
         public JwtAuthenticationFilter jwtAuthenticationFilter() {
-                // ✅ UPDATED: Pass userRepository to filter
                 return new JwtAuthenticationFilter(jwtUtil, jwtBlacklistService, userDetailsService, userRepository);
         }
 
@@ -58,6 +57,11 @@ public class SecurityConfig {
                                                 .requestMatchers("/swagger-ui/**").permitAll()
                                                 .requestMatchers("/v3/api-docs/**").permitAll()
                                                 .requestMatchers("/error").permitAll()
+
+                                                // ========== MEDIA FILES ==========
+                                                .requestMatchers("/media/**").permitAll()
+                                                .requestMatchers("/uploads/**").permitAll()
+                                                .requestMatchers("/api/debug/audio/**").permitAll()
                                                 // ========== PUBLIC ENDPOINTS ==========
                                                 // User Auth - Public
                                                 .requestMatchers("/api/auth/user/register").permitAll()
