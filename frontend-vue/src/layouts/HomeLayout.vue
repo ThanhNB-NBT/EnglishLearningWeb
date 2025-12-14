@@ -39,7 +39,11 @@
               <Document />
             </el-icon> <template #title>Đọc hiểu</template>
           </el-menu-item>
-
+          <el-menu-item index="/user/listening" class="menu-item-user hover-left-bar">
+            <el-icon>
+              <Microphone />
+            </el-icon> <template #title>Nghe hiểu</template>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
@@ -141,7 +145,8 @@ const pageTitle = computed(() => {
     '/user/reading': 'Đọc hiểu',
     '/user/profile': 'Hồ sơ cá nhân',
     '/user/change-password': 'Đổi mật khẩu',
-    '/user/home': 'Tổng quan'
+    '/user/home': 'Tổng quan',
+    '/user/listening': 'Nghe hiểu'
   }
   if (route.path.includes('/lesson/')) return 'Bài học'
   return map[route.path] || ''

@@ -18,21 +18,15 @@ const router = createRouter({
       ],
     },
 
-    // ==================== AUTH ROUTES (Guest Only) ====================
+    // ==================== AUTH ROUTES ====================
     {
       path: '/auth',
       component: () => import('@/layouts/AuthLayout.vue'),
       beforeEnter: (to, from, next) => {
         const userToken = localStorage.getItem('userToken')
-
-        // CHỈ REDIRECT nếu đã login USER
         if (userToken) {
-          console.log('Auth route: User already logged in, redirect to dashboard')
           return next('/user/home')
         }
-
-        // CHO PHÉP truy cập - admin có thể vào để login user
-        console.log('Auth route: Allow access to auth pages')
         next()
       },
       children: [
@@ -64,7 +58,7 @@ const router = createRouter({
       ],
     },
 
-    // ==================== USER ROUTES (Auth Required) ====================
+    // ==================== USER ROUTES ====================
     {
       path: '/user',
       component: () => import('@/layouts/HomeLayout.vue'),
@@ -90,21 +84,42 @@ const router = createRouter({
         },
         {
           path: 'grammar',
-          name: 'user-grammar', // Danh sách chủ đề
+          name: 'user-grammar',
           component: () => import('@/views/user/grammar/GrammarTopicsView.vue'),
           meta: { title: 'Grammar Topics' },
         },
         {
           path: 'grammar/lesson/:lessonId',
-          name: 'user-grammar-lesson', // Màn hình học (Lý thuyết/Thực hành)
+          name: 'user-grammar-lesson',
           component: () => import('@/views/user/grammar/LessonPlayerView.vue'),
           meta: { title: 'Grammar Lesson' },
         },
         {
           path: 'reading',
-          name: 'reading',
-          component: () => import('@/views/user/ReadingView.vue'),
-          meta: { title: 'Reading' },
+          name: 'user-reading',
+          component: () => import('@/views/user/reading/ReadingPlayerView.vue'),
+          meta: { title: 'Reading Lessons' },
+        },
+        {
+          path: 'reading/lesson/:lessonId',
+          name: 'user-reading-detail',
+          component: () => import('@/views/user/reading/ReadingPlayerView.vue'),
+          meta: { title: 'Reading Player' },
+          props: true
+        },
+        // 🆕 LISTENING ROUTES
+        {
+          path: 'listening',
+          name: 'user-listening',
+          component: () => import('@/views/user/listening/ListeningPlayerView.vue'),
+          meta: { title: 'Listening Lessons' },
+        },
+        {
+          path: 'listening/lesson/:lessonId',
+          name: 'user-listening-detail',
+          component: () => import('@/views/user/listening/ListeningPlayerView.vue'),
+          meta: { title: 'Listening Player' },
+          props: true
         },
       ],
     },
@@ -116,15 +131,9 @@ const router = createRouter({
       component: () => import('@/views/admin/AdminLoginView.vue'),
       beforeEnter: (to, from, next) => {
         const adminToken = localStorage.getItem('adminToken')
-
-        // CHỈ REDIRECT nếu đã login ADMIN
         if (adminToken) {
-          console.log('Admin login: Already logged in, redirect to admin dashboard')
           return next('/admin/dashboard')
         }
-
-        // CHO PHÉP truy cập - user có thể vào để login admin
-        console.log('Admin login: Allow access to admin login page')
         next()
       },
     },
@@ -143,13 +152,13 @@ const router = createRouter({
         {
           path: 'profile',
           name: 'admin-profile',
-          component: () => import('@/views/ProfileView.vue'), // ✅ SHARED
+          component: () => import('@/views/ProfileView.vue'),
           meta: { title: 'Profile' },
         },
         {
           path: 'change-password',
           name: 'admin-change-password',
-          component: () => import('@/views/ChangePasswordView.vue'), // ✅ SHARED
+          component: () => import('@/views/ChangePasswordView.vue'),
           meta: { title: 'Change Password' },
         },
         {
@@ -161,7 +170,6 @@ const router = createRouter({
         {
           path: 'grammar',
           name: 'admin-grammar',
-          // redirect: '/admin/grammar', // Redirect to topics by default
           component: () => import('@/views/admin/GrammarManagementView.vue'),
           meta: { title: 'Grammar Management' },
         },
@@ -170,6 +178,12 @@ const router = createRouter({
           name: 'admin-reading',
           component: () => import('@/views/admin/ReadingManagementView.vue'),
           meta: { title: 'Reading Management' },
+        },
+        {
+          path: 'listening',
+          name: 'admin-listening',
+          component: () => import('@/views/admin/ListeningManagementView.vue'),
+          meta: { title: 'Listening Management' },
         },
         {
           path: 'cleanup-user',

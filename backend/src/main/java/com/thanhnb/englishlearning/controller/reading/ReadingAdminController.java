@@ -216,6 +216,20 @@ public class ReadingAdminController {
                 }
         }
 
+        @GetMapping("/questions/{id}")
+        @Operation(summary = "Lấy chi tiết question", description = "Lấy question theo ID")
+        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> getQuestionById(
+                        @Parameter(description = "ID của question") @PathVariable Long id) {
+                try {
+                        QuestionResponseDTO question = questionService.getQuestionById(id);
+                        return ResponseEntity.ok(CustomApiResponse.success(question, "Lấy chi tiết thành công"));
+                } catch (Exception e) {
+                        log.error("Error getting question by id: ", e);
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                }
+        }
+
         @PostMapping("/questions")
         @Operation(summary = "Tạo question mới", description = "Tạo question với validation")
         public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(

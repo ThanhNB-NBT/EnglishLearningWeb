@@ -38,8 +38,6 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
     private final UserRepository userRepository;
     private final QuestionService questionService;
     private final LessonProgressService lessonProgressService;
-
-    private static final int SUBMIT_COOLDOWN_SECONDS = 10;
     private static final double PASS_THRESHOLD = 80.0;
 
     @Override
@@ -142,10 +140,6 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
             throw new RuntimeException("Bạn cần hoàn thành bài đọc trước đó để làm bài này");
         }
 
-        if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
-            throw new RuntimeException("Vui lòng trả lời ít nhất 1 câu hỏi");
-        }
-
         long expectedQuestions = questionService.countQuestionsByParent(getParentType(), lessonId);
         if (request.getAnswers().size() < expectedQuestions) {
             log.warn("User {} submitted lesson {} incomplete: {}/{} answers", 
@@ -160,12 +154,12 @@ public class ReadingService extends BaseLearningService<ReadingLesson, UserReadi
                     return newProgress;
                 });
 
-        long cooldown = lessonProgressService.checkSubmitCooldown(
-                progress.getUpdatedAt(), SUBMIT_COOLDOWN_SECONDS);
+        // long cooldown = lessonProgressService.checkSubmitCooldown(
+        //         progress.getUpdatedAt(), SUBMIT_COOLDOWN_SECONDS);
 
-        if (cooldown > 0) {
-            throw new RuntimeException("Vui lòng đợi " + cooldown + " giây trước khi nộp lại");
-        }
+        // if (cooldown > 0) {
+        //     throw new RuntimeException("Vui lòng đợi " + cooldown + " giây trước khi nộp lại");
+        // }
 
         List<QuestionResultDTO> results = questionService.processAnswers(
                 request.getAnswers(), getParentType());

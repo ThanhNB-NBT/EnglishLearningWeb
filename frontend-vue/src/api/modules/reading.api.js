@@ -7,29 +7,29 @@ export const readingUserAPI = {
    * Lấy tất cả bài đọc (active) với tiến độ của user.
    * Controller backend không có phân trang cho API này.
    */
-  getLessons: () => api.get('/reading/lessons'),
+  getLessons: () => api.get('/api/reading/lessons'),
 
   /**
    * Lấy chi tiết bài đọc (nội dung, câu hỏi)
    */
-  getLessonDetail: (lessonId) => api.get(`/reading/lessons/${lessonId}`),
+  getLessonDetail: (lessonId) => api.get(`/api/reading/lessons/${lessonId}`),
 
   /**
    * Nộp bài làm
    * @param {number} lessonId ID bài đọc
    * @param {object} data Payload chứa các câu trả lời
    */
-  submitLesson: (lessonId, data) => api.post(`/reading/lessons/${lessonId}/submit`, data),
+  submitLesson: (lessonId, data) => api.post(`/api/reading/lessons/${lessonId}/submit`, data),
 
   /**
    * Lấy danh sách các bài đã hoàn thành
    */
-  getCompletedLessons: () => api.get('/reading/progress/completed'),
+  getCompletedLessons: () => api.get('/api/reading/progress/completed'),
 
   /**
    * Lấy tóm tắt tiến độ (tổng số bài, điểm TB, v.v.)
    */
-  getProgressSummary: () => api.get('/reading/progress/summary'),
+  getProgressSummary: () => api.get('/api/reading/progress/summary'),
 }
 
 // ==================== ADMIN APIs (từ ReadingAdminController) ====================
