@@ -9,11 +9,16 @@
     :show-close="false"
   >
     <template #header="{ close }">
-      <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d]">
+      <div
+        class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d]"
+      >
         <div class="flex items-center gap-4">
           <h4 class="text-xl font-bold text-gray-800 dark:text-white m-0">{{ dialogTitle }}</h4>
 
-          <div v-if="currentLesson?.transcript" class="pl-4 border-l border-gray-300 dark:border-gray-600">
+          <div
+            v-if="currentLesson?. transcript"
+            class="pl-4 border-l border-gray-300 dark:border-gray-600"
+          >
             <el-button
               @click="showTranscript = !showTranscript"
               :type="showTranscript ? 'primary' : 'default'"
@@ -37,27 +42,34 @@
     </template>
 
     <div class="flex-1 flex overflow-hidden bg-gray-100 dark:bg-[#121212] h-[80vh]">
+      <!-- Transcript Sidebar -->
       <transition name="el-fade-in-linear">
         <div
           v-if="showTranscript && currentLesson?.transcript"
           class="w-1/3 min-w-[350px] bg-white dark:bg-[#1d1d1d] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-lg z-10"
         >
-          <div class="h-10 px-4 bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-gray-700 font-bold text-gray-600 dark:text-gray-300 flex items-center shrink-0">
+          <div
+            class="h-10 px-4 bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-gray-700 font-bold text-gray-600 dark:text-gray-300 flex items-center shrink-0"
+          >
             <el-icon class="mr-2"><Document /></el-icon> Transcript bài nghe
           </div>
 
           <el-tabs type="border-card" class="flex-1 !m-0">
-            <el-tab-pane label="📝 English">
+            <el-tab-pane label="English">
               <div class="overflow-y-auto p-6 h-full">
-                <div class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap">
-                  {{ currentLesson.transcript }}
+                <div
+                  class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap"
+                >
+                  {{ currentLesson. transcript }}
                 </div>
               </div>
             </el-tab-pane>
 
-            <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson.transcriptTranslation">
+            <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson. transcriptTranslation">
               <div class="overflow-y-auto p-6 h-full">
-                <div class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap">
+                <div
+                  class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap"
+                >
                   {{ currentLesson.transcriptTranslation }}
                 </div>
               </div>
@@ -66,33 +78,62 @@
         </div>
       </transition>
 
+      <!-- Form Content -->
       <div class="flex-1 overflow-y-auto p-6">
         <el-form
           ref="formRef"
           :model="formData"
           :rules="formRules"
           label-position="top"
-          class="max-w-4xl mx-auto pb-10"
+          size="large"
+          class="max-w-4xl mx-auto"
         >
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-            <el-form-item label="Loại câu hỏi" prop="questionType">
-              <el-select
-                v-model="formData.questionType"
+          <!-- Question Type -->
+          <el-form-item label="Loại câu hỏi" prop="questionType">
+            <el-select
+              v-model="formData.questionType"
+              @change="handleTypeChange"
+              placeholder="Chọn loại câu hỏi"
+              class="! w-full"
+            >
+              <el-option label="Trắc nghiệm (Multiple Choice)" value="MULTIPLE_CHOICE" />
+              <el-option label="Đúng / Sai (True/False)" value="TRUE_FALSE" />
+              <el-option label="Điền từ (Fill Blank)" value="FILL_BLANK" />
+              <el-option label="Trả lời ngắn (Text Answer)" value="TEXT_ANSWER" />
+            </el-select>
+          </el-form-item>
+
+          <!-- Question Text -->
+          <el-form-item prop="questionText" class="!mb-6">
+            <template #label>
+              <div class="flex justify-between w-full">
+                <span>Nội dung câu hỏi</span>
+                <el-tag size="small" type="info" effect="plain" class="font-normal">
+                  Có thể để trống
+                </el-tag>
+              </div>
+            </template>
+            <div
+              class="w-full border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-[#252525]"
+            >
+              <QuillRichEditor
+                v-model="formData.questionText"
+                placeholder="Nhập nội dung câu hỏi (hoặc để trống)..."
+                height="150px"
+              />
+            </div>
+          </el-form-item>
+
+          <!-- Points & Order -->
+          <div class="grid grid-cols-2 gap-4">
+            <el-form-item label="Điểm số" prop="points">
+              <el-input-number
+                v-model="formData.points"
+                :min="1"
+                :max="100"
                 class="!w-full"
-                :disabled="dialogMode === 'edit'"
-                @change="handleQuestionTypeChange"
-                filterable
-              >
-                <el-option-group label="Listening">
-                  <el-option label="Nghe hiểu" value="LISTENING_COMPREHENSION" />
-                </el-option-group>
-                <el-option-group label="Cơ bản">
-                  <el-option label="Trắc nghiệm" value="MULTIPLE_CHOICE" />
-                  <el-option label="Đúng/Sai" value="TRUE_FALSE" />
-                  <el-option label="Điền từ" value="FILL_BLANK" />
-                  <el-option label="Trả lời ngắn" value="TEXT_ANSWER" />
-                </el-option-group>
-              </el-select>
+                controls-position="right"
+              />
             </el-form-item>
 
             <el-form-item label="Thứ tự" prop="orderIndex">
@@ -103,34 +144,15 @@
                 controls-position="right"
               />
             </el-form-item>
-
-            <el-form-item label="Điểm số" prop="points">
-              <el-input-number
-                v-model="formData.points"
-                :min="1"
-                class="!w-full"
-                controls-position="right"
-              />
-            </el-form-item>
           </div>
 
-          <el-form-item prop="questionText">
-            <template #label>
-              <div class="flex justify-between w-full">
-                <span>Nội dung câu hỏi</span>
-                <el-tag size="small" type="info" effect="plain" class="font-normal">Có thể để trống</el-tag>
-              </div>
-            </template>
-            <el-input
-              v-model="formData.questionText"
-              type="textarea"
-              :rows="3"
-              placeholder="Nhập nội dung câu hỏi (hoặc để trống)..."
-            />
-          </el-form-item>
-
-          <div class="bg-gray-50 dark:bg-[#252525] p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 mb-6">
-            <h3 class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase mb-4 flex items-center gap-2">
+          <!-- Metadata Editor -->
+          <div
+            class="bg-gray-50 dark:bg-[#252525] p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 mb-6"
+          >
+            <h3
+              class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase mb-4 flex items-center gap-2"
+            >
               <el-icon><Tools /></el-icon> Cấu hình đáp án
             </h3>
 
@@ -141,12 +163,13 @@
             />
           </div>
 
+          <!-- Explanation -->
           <el-form-item label="Giải thích đáp án" prop="explanation">
             <el-input
               v-model="formData.explanation"
               type="textarea"
               :rows="3"
-              placeholder="Giải thích..."
+              placeholder="Giải thích đáp án đúng..."
             />
           </el-form-item>
         </el-form>
@@ -155,14 +178,14 @@
 
     <template #footer>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20">
-        <el-button @click="handleClose" class="!rounded-lg !h-10 !px-6">Hủy</el-button>
+        <el-button @click="handleClose" class="! rounded-lg ! h-10 !px-6">Hủy</el-button>
         <el-button
           type="primary"
           :loading="loading"
-          @click="submitForm"
-          class="!rounded-lg !font-bold px-8 !h-10"
+          @click="onSubmit"
+          class="!rounded-lg !font-bold px-8 ! h-10"
         >
-          {{ submitButtonText }}
+          {{ dialogMode === 'create' ? 'Tạo câu hỏi' : 'Cập nhật' }}
         </el-button>
       </div>
     </template>
@@ -171,11 +194,10 @@
 
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue'
-import { useListeningStore } from '@/stores/listening'
-import { useListeningQuestionForm } from '@/composables/listening/useListeningQuestions'
 import { Close, Headset, Document, Tools } from '@element-plus/icons-vue'
+import { useListeningQuestionForm } from '@/composables/listening/useListeningQuestions'
+import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
 
-// Import Components Lazy
 const MultipleChoiceForm = defineAsyncComponent(
   () => import('@/components/admin/questions/MultipleChoiceForm.vue'),
 )
@@ -183,86 +205,85 @@ const FillBlankForm = defineAsyncComponent(
   () => import('@/components/admin/questions/FillBlankForm.vue'),
 )
 
-const props = defineProps({ lessonId: Number })
-const emit = defineEmits(['success'])
-const formRef = ref(null)
-const loading = ref(false)
-const store = useListeningStore()
-const currentLesson = ref(null)
-const showTranscript = ref(true)
+// Props
+const props = defineProps({
+  currentLesson: {
+    type:  Object,
+    default: null,
+  },
+})
 
+// Composables
 const {
   dialogVisible,
   dialogMode,
   formData,
   formRules,
+  formRef,
   dialogTitle,
-  submitButtonText,
-  openCreateDialog: originalOpenCreate,
-  openEditDialog: originalOpenEdit,
+  openCreateDialog,
+  openEditDialog,
   closeDialog,
-  handleQuestionTypeChange,
   handleSubmit,
 } = useListeningQuestionForm()
 
-// Load lesson transcript
-const loadLessonContent = async (lId) => {
-  if (!lId) return
-  try {
-    const res = await store.fetchLessonById(lId)
-    currentLesson.value = res
-    showTranscript.value = !!(res && res.transcript && res.transcript.length > 20)
-  } catch (e) {
-    console.error('Failed to load lesson content:', e)
+// Local state
+const loading = ref(false)
+const showTranscript = ref(false)
+
+// Emits
+const emit = defineEmits(['success'])
+
+const currentFormComponent = computed(() => {
+  const typeMap = {
+    MULTIPLE_CHOICE: MultipleChoiceForm,
+    TRUE_FALSE: MultipleChoiceForm,
+    FILL_BLANK: FillBlankForm,
+    TEXT_ANSWER: FillBlankForm,
   }
+  return typeMap[formData.value. questionType] || null
+})
+
+// Methods
+const handleTypeChange = () => {
+  // Reset metadata khi đổi loại câu hỏi
+  formData.value.metadata = {}
 }
 
-const openCreate = async (lId) => {
-  const idToUse = lId || props.lessonId
-  await originalOpenCreate(idToUse)
-  await loadLessonContent(idToUse)
-}
-
-const openEdit = async (q) => {
-  originalOpenEdit(q)
-  const idToUse = q.parentId || q.lessonId || props.lessonId
-  if (idToUse) await loadLessonContent(idToUse)
-}
-
-const handleClose = () => {
-  closeDialog()
-  if (formRef.value) formRef.value.resetFields()
-}
-
-const submitForm = async () => {
+const onSubmit = async () => {
   loading.value = true
   try {
     const success = await handleSubmit(formRef.value)
     if (success) {
       emit('success')
       closeDialog()
+      showTranscript.value = false
     }
   } catch (error) {
-    console.error(error)
+    console.error('Submit error:', error)
   } finally {
     loading.value = false
   }
 }
 
-const currentFormComponent = computed(() => {
-  const type = formData.value.questionType
-  switch (type) {
-    case 'LISTENING_COMPREHENSION':
-    case 'MULTIPLE_CHOICE':
-    case 'TRUE_FALSE':
-      return MultipleChoiceForm
-    case 'FILL_BLANK':
-    case 'TEXT_ANSWER':
-      return FillBlankForm
-    default:
-      return null
-  }
-})
+const handleClose = () => {
+  closeDialog()
+  showTranscript.value = false
+}
 
-defineExpose({ openCreate, openEdit })
+// Expose methods
+const openCreate = (lessonId) => {
+  openCreateDialog(lessonId)
+  showTranscript.value = false
+}
+
+const openEdit = (question) => {
+  openEditDialog(question)
+  showTranscript.value = false
+}
+
+defineExpose({
+  openCreate,
+  openEdit,
+})
 </script>

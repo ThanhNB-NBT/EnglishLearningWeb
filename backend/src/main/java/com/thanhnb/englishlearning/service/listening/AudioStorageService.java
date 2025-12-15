@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * ✅ OPTIMIZED Audio Storage Service
+ * OPTIMIZED Audio Storage Service
  * Improvements:
  * - Better error handling
  * - Atomic file operations
@@ -37,7 +37,7 @@ public class AudioStorageService {
     );
 
     /**
-     * ✅ Upload audio file with validation and error handling
+     * Upload audio file with validation and error handling
      * 
      * @param file MultipartFile
      * @param lessonId REAL Lesson ID
@@ -77,7 +77,7 @@ public class AudioStorageService {
      */
     public void deleteAudio(String audioUrl) {
         if (audioUrl == null || audioUrl.trim().isEmpty()) {
-            log.warn("⚠️ Attempted to delete null or empty audio URL");
+            log.warn("Attempted to delete null or empty audio URL");
             return;
         }
 
@@ -98,7 +98,7 @@ public class AudioStorageService {
                 
                 // Delete parent directory if empty
                 Path parentDir = filePath.getParent();
-                if (Files. exists(parentDir) && isDirectoryEmpty(parentDir)) {
+                if (Files.exists(parentDir) && isDirectoryEmpty(parentDir)) {
                     Files.delete(parentDir);
                     log.info("Empty directory deleted: {}", parentDir);
                 }
@@ -127,7 +127,7 @@ public class AudioStorageService {
     /**
      * Validate audio file exists on disk
      */
-    public boolean audioFileExists(String audioUrl) {
+    public boolean checkFileExists(String audioUrl) {
         if (audioUrl == null || audioUrl.trim().isEmpty()) {
             return false;
         }
@@ -189,7 +189,7 @@ public class AudioStorageService {
         }
 
         String extension = getFileExtension(filename);
-        if (!ALLOWED_EXTENSIONS. contains(extension. toLowerCase())) {
+        if (!ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {
             throw new IllegalArgumentException(
                 "Invalid file format. Allowed: " + ALLOWED_EXTENSIONS
             );
@@ -197,7 +197,7 @@ public class AudioStorageService {
 
         // Check MIME type
         String contentType = file.getContentType();
-        if (contentType == null || ! ALLOWED_MIME_TYPES.contains(contentType. toLowerCase())) {
+        if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
             throw new IllegalArgumentException(
                 "Invalid MIME type. Allowed: " + ALLOWED_MIME_TYPES
             );

@@ -30,7 +30,6 @@ public class ReadingOrderService {
 
     /**
      * Sắp xếp lại orderIndex của Lessons sau khi xóa
-     * (Reading không có Topic, nên chỉ cần shift toàn bộ lessons)
      */
     public void reorderLessonsAfterDelete(Integer deletedPosition) {
         List<ReadingLesson> lessons = lessonRepository.findAll();

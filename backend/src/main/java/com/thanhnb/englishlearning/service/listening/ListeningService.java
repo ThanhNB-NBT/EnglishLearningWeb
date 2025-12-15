@@ -1,31 +1,28 @@
-package com.thanhnb.englishlearning.service. listening;
+package com.thanhnb.englishlearning.service.listening;
 
-import com.thanhnb.englishlearning.dto.listening.ListeningLessonDTO;
-import com. thanhnb.englishlearning.dto.listening.response.ListeningLessonDetailResponse;
-import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonListResponse;
-import com.thanhnb.englishlearning.dto.listening.response. SubmitListeningResponse;
 import com.thanhnb.englishlearning.dto.listening.request.SubmitListeningRequest;
-import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
+import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonDetailResponse;
+import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonListResponse;
+import com.thanhnb.englishlearning.dto.listening.response.SubmitListeningResponse;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
+import com.thanhnb.englishlearning.entity.listening.ListeningLesson;
+import com.thanhnb.englishlearning.entity.listening.UserListeningProgress;
 import com.thanhnb.englishlearning.entity.User;
-import com.thanhnb.englishlearning.entity. listening.ListeningLesson;
-import com.thanhnb. englishlearning.entity.listening.UserListeningProgress;
-import com.thanhnb.englishlearning. enums.ParentType;
-import com.thanhnb.englishlearning.repository.UserRepository;
-import com. thanhnb.englishlearning.repository.listening.ListeningLessonRepository;
+import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.repository.listening.ListeningLessonRepository;
 import com.thanhnb.englishlearning.repository.listening.UserListeningProgressRepository;
+import com.thanhnb.englishlearning.repository.UserRepository;
 import com.thanhnb.englishlearning.service.common.BaseLearningService;
-import com.thanhnb.englishlearning. service.common.LessonProgressService;
+import com.thanhnb.englishlearning.service.common.LessonProgressService;
 import com.thanhnb.englishlearning.service.question.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java. util.List;
-import java. util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -46,7 +43,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
     private final UserRepository userRepository;
     private final QuestionService questionService;
     private final LessonProgressService lessonProgressService;
-    
+
     private static final double PASS_THRESHOLD = 80.0;
 
     @Override
@@ -65,7 +62,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
     public List<ListeningLessonListResponse> getAllLessonsForUser(Long userId) {
         log.info("Loading listening lessons for user {}", userId);
 
-        if (! userRepository.existsById(userId)) {
+        if (!userRepository.existsById(userId)) {
             throw new RuntimeException("Người dùng không tồn tại với id: " + userId);
         }
 
@@ -91,11 +88,11 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
         log.info("Loading lesson detail:  lessonId={}, userId={}", lessonId, userId);
 
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("Người dùng không tồn tại với id: " + userId);
+            throw new RuntimeException("Người dùng không tồn tại với id:  " + userId);
         }
 
         ListeningLesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id:  " + lessonId));
+                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + lessonId));
 
         if (!lesson.getIsActive()) {
             throw new RuntimeException("Bài nghe này hiện không khả dụng");
@@ -126,7 +123,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
 
         // Calculate remaining replays
         Integer remainingReplays = lesson.getAllowUnlimitedReplay()
-                ? null 
+                ? null
                 : lesson.getRemainingReplays(progress.getPlayCount() != null ? progress.getPlayCount() : 0);
 
         // Check if transcript is unlocked (after completion or if already viewed)
@@ -147,7 +144,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
                 .allowUnlimitedReplay(lesson.getAllowUnlimitedReplay())
                 .maxReplayCount(lesson.getMaxReplayCount())
                 .remainingReplays(remainingReplays)
-                .transcript(transcriptUnlocked ?  lesson.getTranscript() : null)
+                .transcript(transcriptUnlocked ? lesson.getTranscript() : null)
                 .transcriptTranslation(transcriptUnlocked ? lesson.getTranscriptTranslation() : null)
                 .transcriptUnlocked(transcriptUnlocked)
                 .isCompleted(progress.getIsCompleted())
@@ -160,9 +157,9 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
                 .hasPrevious(hasPrevious)
                 .build();
 
-        log.info("Loaded lesson with {} questions, unlocked={}, transcriptUnlocked={}", 
-                questionDTOs. size(), isUnlocked, transcriptUnlocked);
-        
+        log.info("Loaded lesson with {} questions, unlocked={}, transcriptUnlocked={}",
+                questionDTOs.size(), isUnlocked, transcriptUnlocked);
+
         return response;
     }
 
@@ -174,29 +171,29 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
      * [USER] Submit lesson với LessonProgressService
      */
     @Transactional
-    public SubmitListeningResponse submitLesson(Long userId, Long lessonId, Map<Long, String> answers) {
+    public SubmitListeningResponse submitLesson(Long userId, Long lessonId, SubmitListeningRequest request) {
         log.info("Submit listening lesson: userId={}, lessonId={}", userId, lessonId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại với id: " + userId));
 
         ListeningLesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id:  " + lessonId));
+                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + lessonId));
 
         if (!lesson.getIsActive()) {
             throw new RuntimeException("Bài nghe này hiện không khả dụng");
         }
 
-        List<ListeningLesson> allLessons = lessonRepository. findAllByIsActiveTrueOrderByOrderIndexAsc();
+        List<ListeningLesson> allLessons = lessonRepository.findAllByIsActiveTrueOrderByOrderIndexAsc();
 
-        if (! checkUnlockStatus(lesson, allLessons, userId)) {
+        if (!checkUnlockStatus(lesson, allLessons, userId)) {
             throw new RuntimeException("Bạn cần hoàn thành bài nghe trước đó để làm bài này");
         }
 
         long expectedQuestions = questionService.countQuestionsByParent(getParentType(), lessonId);
-        if (answers.size() < expectedQuestions) {
+        if (request.getAnswers().size() < expectedQuestions) {
             log.warn("User {} submitted lesson {} incomplete:  {}/{} answers",
-                    userId, lessonId, answers.size(), expectedQuestions);
+                    userId, lessonId, request.getAnswers().size(), expectedQuestions);
         }
 
         UserListeningProgress progress = progressRepository
@@ -207,8 +204,8 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
                     return newProgress;
                 });
 
-        // Process answers
-        List<QuestionResultDTO> results = questionService.processAnswers(answers, getParentType());
+        // Process answers - SỬ DỤNG processAnswers từ QuestionService
+        List<QuestionResultDTO> results = questionService.processAnswers(request.getAnswers(), getParentType());
 
         int totalQuestions = results.size();
         int correctCount = questionService.calculateCorrectCount(results);
@@ -216,17 +213,13 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
 
         boolean isPassed = isPassed(scorePercentage, PASS_THRESHOLD);
 
-        // Store if this is first completion
-        boolean isFirstCompletion = ! progress.getIsCompleted() && isPassed;
-
         // Update progress
-        LessonProgressService. ProgressUpdateResult progressResult =
-                lessonProgressService.updateProgress(
-                        progress,
-                        user,
-                        scorePercentage,
-                        isPassed,
-                        lesson. getPointsReward());
+        LessonProgressService.ProgressUpdateResult progressResult = lessonProgressService.updateProgress(
+                progress,
+                user,
+                scorePercentage,
+                isPassed,
+                lesson.getPointsReward());
 
         progressRepository.save(progress);
 
@@ -247,18 +240,23 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
             }
         }
 
-        log.info("Submit result: correct={}/{}, scorePercentage={:. 2f}%, passed={}",
+        log.info("Submit result: correct={}/{}, scorePercentage={:.2f}%, passed={}",
                 correctCount, totalQuestions, scorePercentage, isPassed);
 
-        return SubmitListeningResponse. builder()
+        // Calculate total score from results
+        int totalScore = results.stream()
+                .filter(QuestionResultDTO::getIsCorrect)
+                .mapToInt(QuestionResultDTO::getPoints)
+                .sum();
+
+        return SubmitListeningResponse.builder()
+                .lessonId(lessonId)
                 .isPassed(isPassed)
-                .scorePercentage(BigDecimal.valueOf(scorePercentage))
-                .correctCount(correctCount)
-                .totalQuestions(totalQuestions)
-                .totalScore(questionService.calculateTotalScore(results))
-                .attempts(progress.getAttempts())
-                .isFirstCompletion(isFirstCompletion)
-                .pointsEarned(progressResult.getPointsEarned())
+                .scorePercentage(scorePercentage)
+                .totalScore(totalScore) 
+                .correctCount(correctCount) 
+                .totalQuestions(totalQuestions) 
+                .pointsEarned(progressResult.getPointsEarned()) 
                 .results(results)
                 .hasNextLesson(hasUnlockedNext)
                 .nextLessonId(nextLessonId)
@@ -291,14 +289,14 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
         int currentPlayCount = progress.getPlayCount() != null ? progress.getPlayCount() : 0;
 
         // Check if can replay
-        if (! lesson.canReplay(currentPlayCount)) {
+        if (!lesson.canReplay(currentPlayCount)) {
             throw new RuntimeException("Bạn đã hết lượt nghe lại");
         }
 
         progress.setPlayCount(currentPlayCount + 1);
         progressRepository.save(progress);
 
-        log.info("Play count incremented to {} for user {} on lesson {}", 
+        log.info("Play count incremented to {} for user {} on lesson {}",
                 progress.getPlayCount(), userId, lessonId);
     }
 
@@ -335,7 +333,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
         log.info("Loading completed listening lessons for user {}", userId);
 
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("Người dùng không tồn tại với id: " + userId);
+            throw new RuntimeException("Người dùng không tồn tại với id:  " + userId);
         }
 
         return progressRepository.findByUserIdAndIsCompletedTrueOrderByCompletedAtDesc(userId);
@@ -386,8 +384,8 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
                 allLessons,
                 userId,
                 ListeningLesson::getOrderIndex,
-                ListeningLesson:: getId,
-                progressRepository:: existsByUserIdAndLessonIdAndIsCompletedTrue);
+                ListeningLesson::getId,
+                progressRepository::existsByUserIdAndLessonIdAndIsCompletedTrue);
     }
 
     /**

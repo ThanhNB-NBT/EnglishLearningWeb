@@ -26,7 +26,10 @@
       </el-form-item>
 
       <!-- Audio Upload -->
-      <el-form-item :label="dialogMode === 'create' ? 'File âm thanh' : 'File âm thanh (tùy chọn)'" prop="audioFile">
+      <el-form-item
+        :label="dialogMode === 'create' ? 'File âm thanh' : 'File âm thanh (tùy chọn)'"
+        prop="audioFile"
+      >
         <el-upload
           class="w-full"
           drag
@@ -38,15 +41,11 @@
           :file-list="audioFileList"
         >
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-          <div class="el-upload__text">
-            Kéo thả file hoặc <em>click để chọn</em>
-          </div>
+          <div class="el-upload__text">Kéo thả file hoặc <em>click để chọn</em></div>
           <template #tip>
             <div class="el-upload__tip text-xs">
               Chấp nhận: MP3, WAV (tối đa 50MB)
-              <span v-if="formData.currentAudioUrl" class="text-blue-500 ml-2">
-                ✓ Đã có audio
-              </span>
+              <span v-if="formData.currentAudioUrl" class="text-blue-500 ml-2">✓ Đã có audio</span>
             </div>
           </template>
         </el-upload>
@@ -54,7 +53,7 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <el-form-item label="Độ khó" prop="difficulty">
-          <el-select v-model="formData.difficulty" placeholder="Chọn độ khó" class="!w-full">
+          <el-select v-model="formData.difficulty" placeholder="Chọn độ khó" class="! w-full">
             <el-option label="Dễ (Beginner)" value="BEGINNER">
               <span class="flex items-center gap-2">
                 <el-icon color="#67c23a"><CircleCheck /></el-icon> Dễ
@@ -86,46 +85,7 @@
           <el-input-number
             v-model="formData.pointsReward"
             :min="1"
-            :step="5"
-            class="!w-full"
-            controls-position="right"
-          />
-        </el-form-item>
-      </div>
-
-      <el-form-item label="Thời gian làm bài (Giây)" prop="timeLimitSeconds">
-        <el-input-number
-          v-model="formData.timeLimitSeconds"
-          :min="60"
-          :step="60"
-          class="!w-full"
-          controls-position="right"
-        />
-        <div class="text-xs text-gray-400 mt-1">
-          ~ {{ (formData.timeLimitSeconds / 60).toFixed(1) }} phút
-        </div>
-      </el-form-item>
-
-      <!-- Replay Settings -->
-      <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-        <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-3 flex items-center gap-2">
-          <el-icon><Headset /></el-icon> Cài đặt phát lại
-        </h4>
-
-        <el-form-item label="Cho phép phát lại không giới hạn" class="!mb-3">
-          <el-switch
-            v-model="formData.allowUnlimitedReplay"
-            active-text="Không giới hạn"
-            inactive-text="Giới hạn"
-            style="--el-switch-on-color: #13ce66"
-          />
-        </el-form-item>
-
-        <el-form-item v-if="!formData.allowUnlimitedReplay" label="Số lần phát lại tối đa" prop="maxReplayCount">
-          <el-input-number
-            v-model="formData.maxReplayCount"
-            :min="1"
-            :max="10"
+            :max="100"
             class="!w-full"
             controls-position="right"
           />
@@ -133,44 +93,80 @@
       </div>
 
       <!-- Transcript -->
-      <el-form-item label="Transcript (Bản ghi âm)" prop="transcript">
+      <el-form-item label="Transcript (Bản gốc)" prop="transcript">
         <el-input
           v-model="formData.transcript"
           type="textarea"
-          :rows="5"
-          placeholder="Nhập nội dung transcript..."
+          :rows="6"
+          placeholder="Nhập nội dung transcript tiếng Anh..."
+          maxlength="5000"
+          show-word-limit
         />
       </el-form-item>
 
-      <!-- Translation -->
-      <el-form-item label="Bản dịch tiếng Việt" prop="transcriptTranslation">
+      <el-form-item label="Bản dịch Transcript (Tiếng Việt)">
         <el-input
           v-model="formData.transcriptTranslation"
           type="textarea"
-          :rows="5"
-          placeholder="Nhập bản dịch..."
+          :rows="4"
+          placeholder="Nhập bản dịch tiếng Việt (tùy chọn)..."
+          maxlength="5000"
+          show-word-limit
         />
       </el-form-item>
+
+      <!-- Advanced Settings -->
+      <el-divider content-position="left">
+        <span class="text-sm text-gray-500">Cài đặt nâng cao</span>
+      </el-divider>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <el-form-item label="Thời gian làm bài (giây)" prop="timeLimitSeconds">
+          <el-input-number
+            v-model="formData.timeLimitSeconds"
+            :min="60"
+            :max="3600"
+            :step="60"
+            class="!w-full"
+            controls-position="right"
+          />
+          <div class="text-xs text-gray-500 mt-1">
+            ≈ {{ Math.floor(formData.timeLimitSeconds / 60) }} phút
+          </div>
+        </el-form-item>
+
+        <el-form-item label="Số lần phát lại tối đa" prop="maxReplayCount">
+          <div class="flex flex-col gap-2 w-full">
+            <el-switch
+              v-model="formData.allowUnlimitedReplay"
+              active-text="Không giới hạn"
+              inactive-text="Giới hạn"
+            />
+            <el-input-number
+              v-if="! formData.allowUnlimitedReplay"
+              v-model="formData.maxReplayCount"
+              :min="1"
+              :max="10"
+              class="!w-full"
+              controls-position="right"
+            />
+          </div>
+        </el-form-item>
+      </div>
 
       <el-form-item label="Trạng thái">
         <el-switch
           v-model="formData.isActive"
-          active-text="Kích hoạt (hiển thị cho học viên)"
+          active-text="Kích hoạt"
           inactive-text="Ẩn"
-          style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
         />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
-        <el-button @click="handleClose" class="!rounded-lg">Hủy</el-button>
-        <el-button
-          type="primary"
-          :loading="loading"
-          @click="onSubmit"
-          class="!rounded-lg !font-bold px-6"
-        >
+      <div class="flex justify-end gap-2">
+        <el-button @click="handleClose">Hủy</el-button>
+        <el-button type="primary" :loading="loading" @click="onSubmit">
           {{ submitButtonText }}
         </el-button>
       </div>
@@ -180,62 +176,44 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useListeningStore } from '@/stores/listening'
+import { UploadFilled, CircleCheck, Warning, Close } from '@element-plus/icons-vue'
 import { useListeningLessonForm } from '@/composables/listening/useListeningLessons'
-import { CircleCheck, Warning, Close, UploadFilled, Headset } from '@element-plus/icons-vue'
+import { useListeningStore } from '@/stores/listening'
 
-const emit = defineEmits(['success'])
-
+// Store
 const store = useListeningStore()
-const formRef = ref(null)
-const loading = ref(false)
-const audioFileList = ref([])
 
+// Composables
 const {
   dialogVisible,
   dialogMode,
   formData,
   formRules,
+  formRef,
+  audioFileList,
   dialogTitle,
   submitButtonText,
   openCreateDialog,
   openEditDialog,
   closeDialog,
   handleSubmit,
+  handleAudioChange,
+  handleAudioRemove,
 } = useListeningLessonForm()
 
-const handleAudioChange = (file) => {
-  // Validate file type
-  const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav']
-  if (!validTypes.includes(file.raw.type)) {
-    ElMessage.error('Chỉ chấp nhận file MP3 hoặc WAV')
-    audioFileList.value = []
-    return
-  }
+// Local state
+const loading = ref(false)
 
-  // Validate file size (50MB)
-  const maxSize = 50 * 1024 * 1024
-  if (file.raw.size > maxSize) {
-    ElMessage.error('File không được vượt quá 50MB')
-    audioFileList.value = []
-    return
-  }
+// Emits
+const emit = defineEmits(['success'])
 
-  formData.value.audioFile = file.raw
-  audioFileList.value = [file]
-}
-
-const handleAudioRemove = () => {
-  formData.value.audioFile = null
-  audioFileList.value = []
-}
-
+// Methods
 const onSubmit = async () => {
   loading.value = true
   try {
     const success = await handleSubmit(formRef.value)
     if (success) {
-      await store.fetchLessons()
+      await store.fetchLessons({ page: 0, size: 1000, sort: 'orderIndex,asc' })
       closeDialog()
       audioFileList.value = []
       emit('success')
@@ -256,5 +234,8 @@ const handleClose = () => {
 const openCreate = () => openCreateDialog()
 const openEdit = (lesson) => openEditDialog(lesson)
 
-defineExpose({ openCreate, openEdit })
+defineExpose({
+  openCreate,
+  openEdit,
+})
 </script>

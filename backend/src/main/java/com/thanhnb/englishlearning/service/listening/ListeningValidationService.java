@@ -1,22 +1,20 @@
 package com.thanhnb.englishlearning.service.listening;
 
-import com.thanhnb. englishlearning.entity.listening.ListeningLesson;
-import com.thanhnb.englishlearning.entity. question.Question;
-import com.thanhnb.englishlearning. enums.ParentType;
-import com.thanhnb.englishlearning. repository.listening.ListeningLessonRepository;
-import com. thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.entity.listening.ListeningLesson;
+import com.thanhnb.englishlearning.entity.question.Question;
+import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.repository.listening.ListeningLessonRepository;
+import com.thanhnb.englishlearning.repository.question.QuestionRepository;
 import lombok.RequiredArgsConstructor;
-import lombok. extern.slf4j.Slf4j;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation. Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
-import java. nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 /**
- * Service chuyên validate và fix orderIndex + audio files cho Listening module
+ * Service validation cho Listening module
+ * Health checks, validate orderIndex, validate audio files
  */
 @Service
 @RequiredArgsConstructor
@@ -26,257 +24,278 @@ public class ListeningValidationService {
 
     private final ListeningLessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
+    private final ListeningOrderService orderService;
+    private final AudioStorageService audioStorageService;
 
-    // ===== LESSON VALIDATION =====
+    // ═════════════════════════════════════════════════════════════════
+    // LESSON ORDER VALIDATION
+    // ═════════════════════════════════════════════════════════════════
 
     /**
      * Validate và fix orderIndex của tất cả Listening Lessons
      */
     public Map<String, Object> validateAllLessonsOrderIndex() {
-        List<ListeningLesson> lessons = lessonRepository.findAll();
-        lessons.sort(Comparator.comparing(ListeningLesson::getOrderIndex));
-        
+        log.info("[VALIDATION] Validating all listening lessons orderIndex");
+
         Map<String, Object> result = new HashMap<>();
-        List<String> issues = new ArrayList<>();
-        int fixedCount = 0;
 
-        Set<Integer> seenIndexes = new HashSet<>();
-        
-        for (int i = 0; i < lessons.size(); i++) {
-            ListeningLesson lesson = lessons.get(i);
-            int expectedIndex = i + 1;
-            int actualIndex = lesson.getOrderIndex();
+        try {
+            int issuesFixed = orderService.validateAndFixAllOrderIssues();
 
-            // Check gap
-            if (actualIndex != expectedIndex) {
-                issues. add(String.format("Lesson '%s' has orderIndex=%d, expected=%d", 
-                        lesson.getTitle(), actualIndex, expectedIndex));
-                lesson.setOrderIndex(expectedIndex);
-                fixedCount++;
-            }
+            result.put("status", issuesFixed == 0 ? "OK" : "FIXED");
+            result.put("issuesFixed", issuesFixed);
+            result.put("message", issuesFixed == 0 
+                    ? "OrderIndex đã đúng" 
+                    : "Đã fix " + issuesFixed + " vấn đề");
 
-            // Check duplicate
-            if (seenIndexes.contains(actualIndex)) {
-                issues.add(String.format("Duplicate orderIndex=%d found at lesson '%s'", 
-                        actualIndex, lesson.getTitle()));
-                lesson.setOrderIndex(expectedIndex);
-                fixedCount++;
-            }
+            log.info("Lesson order validation completed:  {} issues fixed", issuesFixed);
 
-            seenIndexes.add(expectedIndex);
+        } catch (Exception e) {
+            log.error("Error validating lesson order", e);
+            result.put("status", "ERROR");
+            result.put("message", e.getMessage());
         }
-
-        if (fixedCount > 0) {
-            lessonRepository.saveAll(lessons);
-            log.info("Fixed {} orderIndex issues across all listening lessons", fixedCount);
-        }
-
-        result.put("totalLessons", lessons.size());
-        result.put("issuesFound", issues.size());
-        result.put("issuesFixed", fixedCount);
-        result.put("issues", issues);
 
         return result;
     }
 
-    // ===== QUESTION VALIDATION =====
+    // ═════════════════════════════════════════════════════════════════
+    // QUESTION ORDER VALIDATION
+    // ═════════════════════════════════════════════════════════════════
 
     /**
-     * Validate và fix orderIndex của Questions trong 1 Listening Lesson
+     * Validate orderIndex của Questions trong 1 lesson
      */
     public Map<String, Object> validateQuestionsOrderIndex(Long lessonId) {
-        if (!lessonRepository.existsById(lessonId)) {
-            throw new RuntimeException("Listening lesson không tồn tại");
-        }
-
-        List<Question> questions = questionRepository
-                .findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType.LISTENING, lessonId);
+        log.info("[VALIDATION] Validating questions orderIndex for lesson {}", lessonId);
 
         Map<String, Object> result = new HashMap<>();
-        List<String> issues = new ArrayList<>();
-        int fixedCount = 0;
 
-        Set<Integer> seenIndexes = new HashSet<>();
-        
-        for (int i = 0; i < questions.size(); i++) {
-            Question question = questions. get(i);
-            int expectedIndex = i + 1;
-            int actualIndex = question.getOrderIndex();
-
-            // Check gap
-            if (actualIndex != expectedIndex) {
-                issues.add(String.format("Question '%s' has orderIndex=%d, expected=%d", 
-                        truncateText(question.getQuestionText(), 50), actualIndex, expectedIndex));
-                question.setOrderIndex(expectedIndex);
-                fixedCount++;
+        try {
+            if (!lessonRepository.existsById(lessonId)) {
+                throw new RuntimeException("Bài nghe không tồn tại với id: " + lessonId);
             }
 
-            // Check duplicate
-            if (seenIndexes.contains(actualIndex)) {
-                issues.add(String.format("Duplicate orderIndex=%d found at question '%s'", 
-                        actualIndex, truncateText(question.getQuestionText(), 50)));
-                question.setOrderIndex(expectedIndex);
-                fixedCount++;
-            }
+            List<Question> questions = questionRepository
+                    .findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType.LISTENING, lessonId);
 
-            seenIndexes.add(expectedIndex);
+            int issuesFixed = validateAndFixQuestionOrder(questions);
+
+            result.put("status", issuesFixed == 0 ? "OK" : "FIXED");
+            result.put("lessonId", lessonId);
+            result.put("totalQuestions", questions.size());
+            result.put("issuesFixed", issuesFixed);
+            result.put("message", issuesFixed == 0 
+                    ?  "OrderIndex đã đúng" 
+                    : "Đã fix " + issuesFixed + " vấn đề");
+
+            log.info("Question order validation for lesson {} completed: {} issues fixed", 
+                    lessonId, issuesFixed);
+
+        } catch (Exception e) {
+            log.error("Error validating question order for lesson " + lessonId, e);
+            result.put("status", "ERROR");
+            result.put("message", e.getMessage());
         }
-
-        if (fixedCount > 0) {
-            questionRepository.saveAll(questions);
-            log.info("Fixed {} orderIndex issues in listening lesson {}", fixedCount, lessonId);
-        }
-
-        result.put("lessonId", lessonId);
-        result.put("totalQuestions", questions.size());
-        result.put("issuesFound", issues.size());
-        result.put("issuesFixed", fixedCount);
-        result.put("issues", issues);
 
         return result;
     }
 
     /**
-     * Validate và fix orderIndex của TẤT CẢ Listening Questions
+     * Validate orderIndex của TẤT CẢ Questions trong Listening module
      */
     public Map<String, Object> validateAllQuestionsOrderIndex() {
-        List<ListeningLesson> allLessons = lessonRepository. findAll();
-        
-        Map<String, Object> globalResult = new HashMap<>();
-        List<Map<String, Object>> lessonResults = new ArrayList<>();
-        int totalIssuesFixed = 0;
-        int totalIssuesFound = 0;
-        int totalQuestions = 0;
+        log.info("[VALIDATION] Validating all listening questions orderIndex");
 
-        for (ListeningLesson lesson :  allLessons) {
-            Map<String, Object> lessonResult = validateQuestionsOrderIndex(lesson.getId());
-            
-            totalIssuesFixed += (int) lessonResult.get("issuesFixed");
-            totalIssuesFound += (int) lessonResult.get("issuesFound");
-            totalQuestions += (int) lessonResult.get("totalQuestions");
-            
-            if ((int) lessonResult.get("issuesFound") > 0) {
-                lessonResults.add(Map.of(
-                    "lessonId", lesson.getId(),
-                    "lessonTitle", lesson.getTitle(),
-                    "issuesFixed", lessonResult.get("issuesFixed"),
-                    "issues", lessonResult.get("issues")
-                ));
-            }
-        }
-
-        globalResult.put("totalLessonsChecked", allLessons.size());
-        globalResult.put("totalQuestions", totalQuestions);
-        globalResult.put("totalIssuesFound", totalIssuesFound);
-        globalResult.put("totalIssuesFixed", totalIssuesFixed);
-        globalResult.put("lessonsWithIssues", lessonResults);
-
-        log.info("Validated ALL listening questions across {} lessons, fixed {} issues", 
-                allLessons. size(), totalIssuesFixed);
-
-        return globalResult;
-    }
-
-    // ===== AUDIO FILE VALIDATION =====
-
-    /**
-     * Validate tất cả audio files tồn tại
-     */
-    public Map<String, Object> validateAudioFiles() {
-        List<ListeningLesson> allLessons = lessonRepository.findAll();
-        
         Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> missingFiles = new ArrayList<>();
-        int totalLessons = allLessons.size();
-        int missingCount = 0;
 
-        for (ListeningLesson lesson : allLessons) {
-            String audioUrl = lesson.getAudioUrl();
-            
-            if (audioUrl == null || audioUrl.isEmpty()) {
-                missingFiles.add(Map.of(
-                    "lessonId", lesson.getId(),
-                    "lessonTitle", lesson.getTitle(),
-                    "issue", "Audio URL is null or empty"
-                ));
-                missingCount++;
-                continue;
+        try {
+            List<ListeningLesson> allLessons = lessonRepository.findAll();
+            int totalIssuesFixed = 0;
+            int lessonsChecked = 0;
+
+            for (ListeningLesson lesson :  allLessons) {
+                List<Question> questions = questionRepository
+                        .findByParentTypeAndParentIdOrderByOrderIndexAsc(
+                                ParentType.LISTENING, lesson.getId());
+
+                if (! questions.isEmpty()) {
+                    int fixed = validateAndFixQuestionOrder(questions);
+                    totalIssuesFixed += fixed;
+                    lessonsChecked++;
+                }
             }
 
-            // Convert URL to file system path
-            // /media/listening/lesson_1/audio.mp3 → /app/media/listening/lesson_1/audio.mp3
-            String relativePath = audioUrl.replaceFirst("^/media/", "");
-            Path filePath = Paths.get("/app/media").resolve(relativePath);
+            result.put("status", totalIssuesFixed == 0 ? "OK" : "FIXED");
+            result.put("lessonsChecked", lessonsChecked);
+            result.put("totalIssuesFixed", totalIssuesFixed);
+            result.put("message", totalIssuesFixed == 0 
+                    ? "Tất cả orderIndex đã đúng" 
+                    : "Đã fix " + totalIssuesFixed + " vấn đề");
 
-            if (!Files.exists(filePath)) {
-                missingFiles.add(Map.of(
-                    "lessonId", lesson.getId(),
-                    "lessonTitle", lesson.getTitle(),
-                    "audioUrl", audioUrl,
-                    "filePath", filePath.toString(),
-                    "issue", "File does not exist on disk"
-                ));
-                missingCount++;
-            }
+            log.info("All questions order validation completed: {} issues fixed across {} lessons", 
+                    totalIssuesFixed, lessonsChecked);
+
+        } catch (Exception e) {
+            log.error("Error validating all questions order", e);
+            result.put("status", "ERROR");
+            result.put("message", e.getMessage());
         }
-
-        result. put("totalLessons", totalLessons);
-        result.put("missingCount", missingCount);
-        result.put("healthyCount", totalLessons - missingCount);
-        result.put("missingFiles", missingFiles);
-        result.put("status", missingCount == 0 ? "ALL_HEALTHY" : "ISSUES_FOUND");
-
-        log.info("Audio validation:  {}/{} lessons have valid audio files", 
-                totalLessons - missingCount, totalLessons);
 
         return result;
     }
 
-    // ===== HEALTH CHECK =====
+    // ═════════════════════════════════════════════════════════════════
+    // AUDIO FILE VALIDATION
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * Validate audio files tồn tại trên disk
+     */
+    public Map<String, Object> validateAudioFiles() {
+        log.info("[VALIDATION] Validating audio files");
+
+        Map<String, Object> result = new HashMap<>();
+        List<Map<String, Object>> missingFiles = new ArrayList<>();
+
+        try {
+            List<ListeningLesson> allLessons = lessonRepository.findAll();
+            int totalLessons = allLessons.size();
+            int missingCount = 0;
+
+            for (ListeningLesson lesson : allLessons) {
+                String audioUrl = lesson.getAudioUrl();
+
+                if (audioUrl == null || audioUrl.trim().isEmpty()) {
+                    Map<String, Object> missing = new HashMap<>();
+                    missing.put("lessonId", lesson.getId());
+                    missing.put("title", lesson.getTitle());
+                    missing.put("reason", "NO_AUDIO_URL");
+                    missingFiles.add(missing);
+                    missingCount++;
+                } else if (!audioStorageService.checkFileExists(audioUrl)) {
+                    Map<String, Object> missing = new HashMap<>();
+                    missing.put("lessonId", lesson.getId());
+                    missing.put("title", lesson.getTitle());
+                    missing.put("audioUrl", audioUrl);
+                    missing.put("reason", "FILE_NOT_FOUND");
+                    missingFiles.add(missing);
+                    missingCount++;
+                }
+            }
+
+            result.put("status", missingCount == 0 ? "ALL_HEALTHY" : "MISSING_FILES");
+            result.put("totalLessons", totalLessons);
+            result.put("missingCount", missingCount);
+            result.put("missingFiles", missingFiles);
+            result.put("message", missingCount == 0 
+                    ? "Tất cả audio files đều tồn tại" 
+                    : "Phát hiện " + missingCount + " audio files bị thiếu");
+
+            log.info("Audio validation completed: {}/{} files OK", 
+                    totalLessons - missingCount, totalLessons);
+
+        } catch (Exception e) {
+            log.error("Error validating audio files", e);
+            result.put("status", "ERROR");
+            result.put("message", e.getMessage());
+        }
+
+        return result;
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // HEALTH CHECK
+    // ═════════════════════════════════════════════════════════════════
 
     /**
      * Health check toàn bộ Listening module
      */
     public Map<String, Object> healthCheck() {
+        log.info("[HEALTH CHECK] Running comprehensive health check for Listening module");
+
         Map<String, Object> result = new HashMap<>();
 
-        // Check lessons
-        Map<String, Object> lessonsCheck = validateAllLessonsOrderIndex();
-        result.put("lessons", lessonsCheck);
+        try {
+            // 1. Check lesson order
+            Map<String, Object> lessonOrderCheck = validateAllLessonsOrderIndex();
 
-        // Check questions
-        Map<String, Object> questionsCheck = validateAllQuestionsOrderIndex();
-        result.put("questions", questionsCheck);
+            // 2. Check question order
+            Map<String, Object> questionOrderCheck = validateAllQuestionsOrderIndex();
 
-        // Check audio files
-        Map<String, Object> audioCheck = validateAudioFiles();
-        result.put("audioFiles", audioCheck);
+            // 3. Check audio files
+            Map<String, Object> audioCheck = validateAudioFiles();
 
-        // Summary
-        int totalIssuesFound = (int) lessonsCheck.get("issuesFound") 
-                + (int) questionsCheck.get("totalIssuesFound")
-                + (int) audioCheck.get("missingCount");
-        
-        int totalIssuesFixed = (int) lessonsCheck.get("issuesFixed") 
-                + (int) questionsCheck.get("totalIssuesFixed");
+            // 4. Module statistics (basic counts only)
+            long totalLessons = lessonRepository.count();
+            long activeLessons = lessonRepository.countByIsActiveTrue();
+            long totalQuestions = questionRepository.countByParentType(ParentType.LISTENING);
 
-        result.put("summary", Map.of(
-            "totalIssuesFound", totalIssuesFound,
-            "totalIssuesFixed", totalIssuesFixed,
-            "audioIssues", audioCheck.get("missingCount"),
-            "status", totalIssuesFound == 0 ? "HEALTHY" : "ISSUES_FOUND"
-        ));
+            Map<String, Object> statistics = new HashMap<>();
+            statistics.put("totalLessons", totalLessons);
+            statistics.put("activeLessons", activeLessons);
+            statistics.put("inactiveLessons", totalLessons - activeLessons);
+            statistics.put("totalQuestions", totalQuestions);
 
-        log.info("Listening module health check completed:  {} issues found, {} fixed", 
-                totalIssuesFound, totalIssuesFixed);
+            // Compile results
+            result.put("lessonOrder", lessonOrderCheck);
+            result.put("questionOrder", questionOrderCheck);
+            result.put("audioFiles", audioCheck);
+            result.put("statistics", statistics);
+
+            // Overall status
+            boolean isHealthy = "OK".equals(lessonOrderCheck.get("status")) &&
+                    "OK".equals(questionOrderCheck.get("status")) &&
+                    "ALL_HEALTHY".equals(audioCheck.get("status"));
+
+            Map<String, Object> summary = new HashMap<>();
+            summary. put("status", isHealthy ?  "HEALTHY" : "HAS_ISSUES");
+            summary.put("totalIssuesFixed", 
+                    (Integer) lessonOrderCheck.getOrDefault("issuesFixed", 0) +
+                    (Integer) questionOrderCheck.getOrDefault("totalIssuesFixed", 0));
+            summary.put("missingAudioFiles", audioCheck.getOrDefault("missingCount", 0));
+
+            result.put("summary", summary);
+
+            log.info("Health check completed: {}", summary.get("status"));
+
+        } catch (Exception e) {
+            log.error("Error during health check", e);
+            result.put("status", "ERROR");
+            result.put("message", e.getMessage());
+        }
 
         return result;
     }
 
-    // ===== HELPER =====
+    // ═════════════════════════════════════════════════════════════════
+    // PRIVATE HELPER METHODS
+    // ═════════════════════════════════════════════════════════════════
 
-    private String truncateText(String text, int maxLength) {
-        if (text == null) return "";
-        return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
+    /**
+     * Validate và fix orderIndex của questions
+     */
+    private int validateAndFixQuestionOrder(List<Question> questions) {
+        if (questions.isEmpty()) {
+            return 0;
+        }
+
+        int issuesFixed = 0;
+
+        for (int i = 0; i < questions.size(); i++) {
+            int expectedOrder = i + 1;
+            Question question = questions.get(i);
+
+            if (! question.getOrderIndex().equals(expectedOrder)) {
+                question.setOrderIndex(expectedOrder);
+                issuesFixed++;
+            }
+        }
+
+        if (issuesFixed > 0) {
+            questionRepository.saveAll(questions);
+        }
+
+        return issuesFixed;
     }
 }
