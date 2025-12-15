@@ -89,3 +89,8 @@ docker-compose.override.yml
 # Nếu bạn dump data ra file thì ignore luôn
 *.sql
 *.dump
+# Build files
+frontend-vue/. vite/
+frontend-vue/node_modules/
+backend/target/
+media/listening/*/
