@@ -9,6 +9,7 @@
 *.key
 *.p12
 secret.txt
+media/
 
 # =================================
 # 2. JAVA & MAVEN (BACKEND)

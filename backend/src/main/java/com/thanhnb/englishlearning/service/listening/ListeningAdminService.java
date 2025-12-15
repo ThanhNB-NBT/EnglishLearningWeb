@@ -1,26 +1,26 @@
-package com.thanhnb.englishlearning.service. listening;
+package com.thanhnb.englishlearning.service.listening;
 
-import com.thanhnb.englishlearning.dto. listening.ListeningLessonDTO;
-import com.thanhnb.englishlearning.dto.listening.request.CreateListeningLessonRequest;
+import com.thanhnb.englishlearning.dto.listening.ListeningLessonDTO;
+import com. thanhnb.englishlearning.dto.listening.request.CreateListeningLessonRequest;
 import com.thanhnb. englishlearning.dto.listening.request.UpdateListeningLessonRequest;
 import com. thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto. question.response.QuestionResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain. Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework. web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
- * ✅ MAIN ORCHESTRATOR - Chỉ delegate, KHÔNG chứa business logic
- * Pattern:  Facade Pattern
- * Tương tự:  ReadingAdminService. java
+ * MAIN ORCHESTRATOR cho Listening Admin operations
+ * PURE FACADE PATTERN:  Chỉ delegate, không chứa business logic
+ * Inject các specialized services và forward calls
  */
 @Service
 @RequiredArgsConstructor
@@ -33,7 +33,6 @@ public class ListeningAdminService {
     private final ListeningQuestionService questionService;
     private final ListeningOrderService orderService;
     private final ListeningValidationService validationService;
-    private final ListeningStatisticsService statisticsService;
 
     // ═════════════════════════════════════════════════════════════════
     // LESSON OPERATIONS - Delegate to ListeningLessonService
@@ -66,21 +65,21 @@ public class ListeningAdminService {
      */
     public ListeningLessonDTO updateLesson(Long lessonId, UpdateListeningLessonRequest request, 
             MultipartFile audioFile) throws IOException {
-        return lessonService. updateLesson(lessonId, request, audioFile);
+        return lessonService.updateLesson(lessonId, request, audioFile);
     }
 
     /**
      * [ADMIN] Set isActive = false
      */
     public void deactivateLesson(Long lessonId) {
-        lessonService. deactivateLesson(lessonId);
+        lessonService.deactivateLesson(lessonId);
     }
 
     /**
      * [ADMIN] Xóa bài nghe vĩnh viễn (bao gồm audio file)
      */
     public void deleteLesson(Long lessonId) {
-        lessonService. deleteLesson(lessonId);
+        lessonService.deleteLesson(lessonId);
     }
 
     /**
@@ -150,24 +149,6 @@ public class ListeningAdminService {
      */
     public int bulkDeleteQuestions(List<Long> questionIds) {
         return questionService.bulkDeleteQuestions(questionIds);
-    }
-
-    // ═════════════════════════════════════════════════════════════════
-    // STATISTICS OPERATIONS - Delegate to ListeningStatisticsService
-    // ═════════════════════════════════════════════════════════════════
-
-    /**
-     * [ADMIN] Lấy thống kê bài nghe
-     */
-    public ListeningStatisticsService. ListeningStatisticsDTO getLessonStatistics(Long lessonId) {
-        return statisticsService.getLessonStatistics(lessonId);
-    }
-
-    /**
-     * [ADMIN] Lấy thống kê toàn bộ module Listening
-     */
-    public ListeningStatisticsService.ListeningModuleStatisticsDTO getModuleStatistics() {
-        return statisticsService.getModuleStatistics();
     }
 
     // ═════════════════════════════════════════════════════════════════

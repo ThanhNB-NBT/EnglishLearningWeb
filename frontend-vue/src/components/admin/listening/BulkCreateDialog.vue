@@ -10,25 +10,29 @@
   >
     <div class="flex flex-col h-[85vh]">
       <!-- Lesson Content (Transcript) -->
-      <div v-if="currentLesson?.transcript && showContent" class="mb-4 border-b pb-4">
+      <div v-if="currentLesson?. transcript && showContent" class="mb-4 border-b pb-4">
         <div class="flex items-center justify-between mb-2">
           <h4 class="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
             <el-icon><Headset /></el-icon>
-            Transcript: {{ currentLesson.title }}
+            Transcript:  {{ currentLesson.title }}
           </h4>
-          <el-button type="primary" link size="small" @click="showContent = !showContent">
+          <el-button type="primary" link size="small" @click="showContent = ! showContent">
             Thu gọn
           </el-button>
         </div>
 
         <el-tabs type="border-card" class="!rounded-lg">
           <el-tab-pane label="📝 Tiếng Anh">
-            <div class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap">
+            <div
+              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap"
+            >
               {{ currentLesson.transcript }}
             </div>
           </el-tab-pane>
           <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson.transcriptTranslation">
-            <div class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap">
+            <div
+              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap"
+            >
               {{ currentLesson.transcriptTranslation }}
             </div>
           </el-tab-pane>
@@ -77,7 +81,7 @@
               class="!w-full !max-w-md !border-dashed !h-12"
               @click="addNewQuestion"
             >
-              Thêm câu hỏi tiếp theo
+              <span class="font-bold">Thêm câu hỏi</span>
             </el-button>
           </div>
         </div>
@@ -85,30 +89,22 @@
     </div>
 
     <template #footer>
-      <div class="flex justify-between items-center px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20">
-        <div class="flex items-center gap-3">
-          <el-button
-            :icon="Delete"
-            type="danger"
-            plain
-            @click="removeAll"
-            :disabled="questionList.length === 0"
-          >
-            Xóa tất cả
-          </el-button>
-          <span class="text-sm text-gray-500">Tổng: {{ questionList.length }} câu hỏi</span>
+      <div class="flex justify-between items-center">
+        <div class="text-sm text-gray-600">
+          Tổng:  <strong class="text-blue-600">{{ questionList.length }}</strong> câu hỏi
+          <span v-if="totalPoints > 0" class="ml-3">
+            | Tổng điểm: <strong class="text-green-600">{{ totalPoints }}</strong>
+          </span>
         </div>
-
-        <div class="flex gap-3">
-          <el-button @click="visible = false" class="!rounded-lg !h-10 !px-6">Hủy bỏ</el-button>
+        <div class="flex gap-2">
+          <el-button @click="handleClose">Hủy</el-button>
           <el-button
             type="primary"
-            :loading="loading"
-            @click="handleSubmit"
+            :loading="submitting"
             :disabled="questionList.length === 0"
-            class="!rounded-lg !font-bold px-8 !h-10 !text-base shadow-lg shadow-blue-500/20"
+            @click="handleSubmit"
           >
-            Lưu tất cả ({{ questionList.length }})
+            Tạo {{ questionList.length }} câu hỏi
           </el-button>
         </div>
       </div>
@@ -117,49 +113,52 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent } from 'vue'
+import { ref, computed } from 'vue'
+import { Plus, Headset } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useListeningStore } from '@/stores/listening'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, Headset } from '@element-plus/icons-vue'
+import SingleQuestionEditor from '@/components/admin/questions/SingleQuestionEditor.vue'
 
-const SingleQuestionEditor = defineAsyncComponent(
-  () => import('@/components/admin/questions/SingleQuestionEditor.vue'),
-)
+const props = defineProps({
+  lessonId: {
+    type:  Number,
+    default: null,
+  },
+})
 
-const props = defineProps({ lessonId: Number })
 const emit = defineEmits(['success'])
+
+// Store
 const store = useListeningStore()
 
+// State
 const visible = ref(false)
-const loading = ref(false)
-const questionList = ref([])
 const currentLesson = ref(null)
+const questionList = ref([])
 const showContent = ref(true)
+const submitting = ref(false)
 
+// Computed
+const totalPoints = computed(() => {
+  return questionList.value.reduce((sum, q) => sum + (q.points || 0), 0)
+})
+
+// Methods
 const createEmptyQuestion = () => ({
-  questionType: 'LISTENING_COMPREHENSION',
+  parentType: 'LISTENING',
+  questionType: 'MULTIPLE_CHOICE',
   questionText: '',
   points: 10,
   explanation: '',
   metadata: {},
   isCollapsed: false,
-  orderIndex: 0,
 })
 
-const open = async () => {
+const open = async (lesson) => {
+  currentLesson.value = lesson
   questionList.value = [createEmptyQuestion()]
+  showContent.value = true
   visible.value = true
-
-  if (props.lessonId) {
-    try {
-      const res = await store.fetchLessonById(props.lessonId)
-      currentLesson.value = res
-      showContent.value = !!(res && res.transcript && res.transcript.length > 50)
-    } catch (e) {
-      console.error('Failed to load lesson:', e)
-      ElMessage.error('Không thể tải thông tin bài nghe')
-    }
-  }
 }
 
 const addNewQuestion = () => {
@@ -173,12 +172,6 @@ const updateQuestion = (index, newVal) => {
 
 const removeQuestion = (index) => {
   questionList.value.splice(index, 1)
-}
-
-const removeAll = () => {
-  ElMessageBox.confirm('Xóa hết danh sách?', 'Warning', { type: 'warning' })
-    .then(() => (questionList.value = []))
-    .catch(() => {})
 }
 
 const cloneQuestion = (index) => {
@@ -198,18 +191,17 @@ const handleSubmit = async () => {
   // Validate
   for (let i = 0; i < questionList.value.length; i++) {
     const q = questionList.value[i]
-    if (!q.questionType) {
-      ElMessage.error(`Câu ${i + 1}: Chưa chọn loại câu hỏi`)
+    if (! q.questionType) {
+      ElMessage.error(`Câu ${i + 1}:  Chưa chọn loại câu hỏi`)
       return
     }
   }
 
-  loading.value = true
+  submitting.value = true
   try {
-    // Map to CreateQuestionDTO format
     const questionsPayload = questionList.value.map((q, idx) => {
       const base = {
-        parentId: props.lessonId,
+        parentId: currentLesson.value.id,
         parentType: 'LISTENING',
         questionType: q.questionType,
         questionText: q.questionText || '',
@@ -218,15 +210,13 @@ const handleSubmit = async () => {
         explanation: q.explanation || '',
       }
 
-      // Map metadata based on question type
       const metadata = q.metadata || {}
       switch (q.questionType) {
-        case 'LISTENING_COMPREHENSION':
         case 'MULTIPLE_CHOICE':
         case 'TRUE_FALSE':
           return { ...base, options: metadata.options }
         case 'FILL_BLANK':
-          return { ...base, blanks: metadata.blanks, wordBank: metadata.wordBank }
+          return { ... base, blanks: metadata.blanks, wordBank: metadata.wordBank }
         case 'TEXT_ANSWER':
           return {
             ...base,
@@ -238,16 +228,22 @@ const handleSubmit = async () => {
       }
     })
 
-    await store.createQuestionsInBulk(props.lessonId, questionsPayload)
-    ElMessage.success(`Đã tạo ${questionList.value.length} câu hỏi thành công!`)
-    visible.value = false
+    await store.bulkCreateQuestions(currentLesson.value.id, questionsPayload)
+    ElMessage.success(`Đã tạo ${questionList. value.length} câu hỏi thành công! `)
+    handleClose()
     emit('success')
   } catch (error) {
     console.error('Bulk create error:', error)
     ElMessage.error(error.response?.data?.message || 'Lỗi khi tạo câu hỏi')
   } finally {
-    loading.value = false
+    submitting.value = false
   }
+}
+
+const handleClose = () => {
+  visible.value = false
+  currentLesson.value = null
+  questionList.value = []
 }
 
 defineExpose({ open })

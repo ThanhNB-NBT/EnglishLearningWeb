@@ -1,9 +1,12 @@
 // src/composables/listening/useListeningQuestions.js
 import { ref, computed } from 'vue'
 import { useListeningStore } from '@/stores/listening'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-// Validation helper (giống Reading)
+// ═════════════════════════════════════════════════════════════════
+// VALIDATION HELPER
+// ═════════════════════════════════════════════════════════════════
+
 const validateMetadata = (questionType, metadata) => {
   switch (questionType) {
     case 'MULTIPLE_CHOICE':
@@ -11,7 +14,7 @@ const validateMetadata = (questionType, metadata) => {
       if (!metadata.options || metadata.options.length < 2) {
         return { valid: false, message: 'Cần ít nhất 2 đáp án' }
       }
-      if (!metadata.options.some((o) => o.isCorrect)) {
+      if (! metadata.options.some((o) => o.isCorrect)) {
         return { valid: false, message: 'Phải có ít nhất 1 đáp án đúng' }
       }
       break
@@ -20,8 +23,8 @@ const validateMetadata = (questionType, metadata) => {
         return { valid: false, message: 'Cần ít nhất 1 chỗ trống' }
       }
       for (const blank of metadata.blanks) {
-        if (!blank.correctAnswers || blank.correctAnswers.length === 0) {
-          return { valid: false, message: `Chỗ trống #${blank.position} chưa có đáp án` }
+        if (! blank.correctAnswers || blank.correctAnswers. length === 0) {
+          return { valid: false, message:  `Chỗ trống #${blank.position} chưa có đáp án` }
         }
       }
       break
@@ -34,14 +37,19 @@ const validateMetadata = (questionType, metadata) => {
   return { valid: true }
 }
 
+// ═════════════════════════════════════════════════════════════════
+// QUESTION FORM COMPOSABLE
+// ═════════════════════════════════════════════════════════════════
+
 export function useListeningQuestionForm() {
   const store = useListeningStore()
 
   const dialogVisible = ref(false)
   const dialogMode = ref('create')
+  const formRef = ref(null)
 
   const formData = ref({
-    id: null,
+    id:  null,
     parentId: null,
     parentType: 'LISTENING',
     questionType: 'LISTENING_COMPREHENSION',
@@ -54,41 +62,42 @@ export function useListeningQuestionForm() {
 
   const formRules = {
     questionText: [
-      { required: false, message: 'Nội dung câu hỏi (có thể để trống)', trigger: 'blur' },
+      { required: false, message: 'Nội dung câu hỏi (có thể để trống cho LISTENING)', trigger: 'blur' },
     ],
     points: [
       { required: true, message: 'Vui lòng nhập điểm', trigger: 'blur' },
       { type: 'number', min: 1, message: 'Điểm phải >= 1', trigger: 'blur' },
     ],
     orderIndex: [
-      { required: true, message: 'Vui lòng nhập thứ tự', trigger: 'blur' },
-      { type: 'number', min: 1, message: 'Thứ tự phải >= 1', trigger: 'blur' },
+      { required:  true, message: 'Vui lòng nhập thứ tự', trigger: 'blur' },
+      { type:  'number', min: 1, message: 'Thứ tự phải >= 1', trigger: 'blur' },
     ],
   }
 
   const questionTypeOptions = [
-    { label: 'Nghe hiểu (Listening Comprehension)', value: 'LISTENING_COMPREHENSION', group: 'Listening' },
+    {
+      label: 'Nghe hiểu (Listening Comprehension)',
+      value: 'LISTENING_COMPREHENSION',
+      group: 'Listening',
+    },
     { label: 'Trắc nghiệm (Multiple Choice)', value: 'MULTIPLE_CHOICE', group: 'Cơ bản' },
-    { label: 'Đúng / Sai (True/False)', value: 'TRUE_FALSE', group: 'Cơ bản' },
+    { label:  'Đúng / Sai (True/False)', value: 'TRUE_FALSE', group:  'Cơ bản' },
     { label: 'Điền từ (Fill Blank)', value: 'FILL_BLANK', group: 'Cơ bản' },
     { label: 'Trả lời ngắn (Text Answer)', value: 'TEXT_ANSWER', group: 'Cơ bản' },
   ]
-
-  const currentQuestionTypeOption = computed(() =>
-    questionTypeOptions.find((opt) => opt.value === formData.value.questionType)
-  )
 
   const dialogTitle = computed(() =>
     dialogMode.value === 'create' ? 'Tạo câu hỏi mới' : 'Chỉnh sửa câu hỏi'
   )
 
-  const submitButtonText = computed(() =>
-    dialogMode.value === 'create' ? 'Tạo câu hỏi' : 'Cập nhật'
-  )
+  // ═════════════════════════════════════════════════════════════════
+  // DIALOG OPERATIONS
+  // ═════════════════════════════════════════════════════════════════
 
   const openCreateDialog = async (lessonId) => {
     dialogMode.value = 'create'
     const nextOrder = await store.getNextQuestionOrderIndex(lessonId)
+
     formData.value = {
       id: null,
       parentId: lessonId,
@@ -98,24 +107,27 @@ export function useListeningQuestionForm() {
       points: 10,
       orderIndex: nextOrder,
       explanation: '',
-      metadata: {},
+      metadata:  {},
     }
+
     dialogVisible.value = true
   }
 
   const openEditDialog = (question) => {
     dialogMode.value = 'edit'
+
     formData.value = {
       id: question.id,
       parentId: question.parentId,
       parentType: question.parentType,
       questionType: question.questionType,
-      questionText: question.questionText,
+      questionText: question.questionText || '',
       points: question.points,
       orderIndex: question.orderIndex,
-      explanation: question.explanation || '',
-      metadata: JSON.parse(JSON.stringify(question.metadata || {})),
+      explanation: question. explanation || '',
+      metadata: question.metadata || {},
     }
+
     dialogVisible.value = true
   }
 
@@ -132,77 +144,308 @@ export function useListeningQuestionForm() {
       explanation: '',
       metadata: {},
     }
+    formRef.value?.clearValidate()
   }
 
-  const handleQuestionTypeChange = () => {
-    if (formData.value) formData.value.metadata = {}
-  }
+  // ═════════════════════════════════════════════════════════════════
+  // FORM SUBMISSION
+  // ═════════════════════════════════════════════════════════════════
 
   const handleSubmit = async (formEl) => {
     if (!formEl) return false
 
-    await formEl.validate()
-
-    const metaValid = validateMetadata(formData.value.questionType, formData.value.metadata)
-    if (!metaValid.valid) {
-      ElMessage.error(metaValid.message)
-      return false
-    }
-
-    const metadata = { ...formData.value.metadata }
-    const payload = {
-      parentId: formData.value.parentId,
-      parentType: formData.value.parentType,
-      questionType: formData.value.questionType,
-      questionText: formData.value.questionText,
-      points: formData.value.points,
-      orderIndex: formData.value.orderIndex,
-      explanation: formData.value.explanation || '',
-    }
-
-    // Map metadata fields based on question type
-    switch (formData.value.questionType) {
-      case 'LISTENING_COMPREHENSION':
-      case 'MULTIPLE_CHOICE':
-      case 'TRUE_FALSE':
-        payload.options = metadata.options
-        break
-      case 'FILL_BLANK':
-        payload.blanks = metadata.blanks
-        payload.wordBank = metadata.wordBank
-        break
-      case 'TEXT_ANSWER':
-        payload.correctAnswer = metadata.correctAnswer
-        payload.caseSensitive = metadata.caseSensitive
-        break
-    }
-
-    try {
-      if (dialogMode.value === 'create') {
-        await store.createQuestion(payload)
-      } else {
-        await store.updateQuestion(formData.value.id, payload)
+    return await formEl.validate(async (valid) => {
+      if (!valid) {
+        ElMessage.warning('Vui lòng kiểm tra lại thông tin')
+        return false
       }
-      return true
-    } catch (error) {
-      ElMessage.error(error.response?.data?.message || 'Lỗi lưu câu hỏi')
-      throw error
-    }
+
+      // Validate metadata
+      const metadataValidation = validateMetadata(formData.value.questionType, formData.value.metadata)
+      if (!metadataValidation.valid) {
+        ElMessage.error(metadataValidation.message)
+        return false
+      }
+
+      try {
+        const submitData = {
+          parentId: formData.value.parentId,
+          parentType: formData.value.parentType,
+          questionType: formData.value.questionType,
+          questionText: formData.value.questionText,
+          points: formData. value.points,
+          orderIndex: formData.value.orderIndex,
+          explanation: formData. value.explanation,
+          metadata: formData.value.metadata,
+        }
+
+        if (dialogMode.value === 'create') {
+          await store.createQuestion(submitData)
+        } else {
+          await store.updateQuestion(formData.value.id, submitData)
+        }
+
+        closeDialog()
+        return true
+      } catch (error) {
+        console.error('Submit error:', error)
+        return false
+      }
+    })
   }
 
   return {
+    // State
     dialogVisible,
     dialogMode,
     formData,
     formRules,
+    formRef,
     questionTypeOptions,
-    currentQuestionTypeOption,
+
+    // Computed
     dialogTitle,
-    submitButtonText,
+
+    // Methods
     openCreateDialog,
     openEditDialog,
     closeDialog,
-    handleQuestionTypeChange,
+    handleSubmit,
+    validateMetadata,
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// QUESTION LIST COMPOSABLE
+// ═════════════════════════════════════════════════════════════════
+
+export function useListeningQuestionList() {
+  const store = useListeningStore()
+
+  const currentLessonId = ref(null)
+  const loading = computed(() => store.questionsLoading)
+  const questions = computed(() => store.questions)
+  const pagination = computed(() => store.questionsPagination)
+
+  const searchQuery = ref('')
+  const filterType = ref('')
+  const selectedRows = ref([])
+
+  // ═════════════════════════════════════════════════════════════════
+  // FILTERING
+  // ═════════════════════════════════════════════════════════════════
+
+  const filteredQuestions = computed(() => {
+    let result = questions.value
+
+    // Search by question text
+    if (searchQuery.value) {
+      const query = searchQuery.value.toLowerCase()
+      result = result.filter((q) => q.questionText?.toLowerCase().includes(query))
+    }
+
+    // Filter by type
+    if (filterType.value) {
+      result = result.filter((q) => q.questionType === filterType.value)
+    }
+
+    return result
+  })
+
+  // ═════════════════════════════════════════════════════════════════
+  // ACTIONS
+  // ═════════════════════════════════════════════════════════════════
+
+  const loadQuestions = async (lessonId, params) => {
+    if (! lessonId) return
+    currentLessonId.value = lessonId
+    await store.fetchQuestions(lessonId, params)
+  }
+
+  const deleteQuestion = async (question) => {
+    try {
+      await ElMessageBox. confirm(`Xóa câu hỏi này? `, 'Xác nhận xóa', {
+        confirmButtonText: 'Xóa',
+        cancelButtonText: 'Hủy',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      })
+
+      await store.deleteQuestion(question.id)
+      await loadQuestions(currentLessonId.value)
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('Delete error:', error)
+      }
+    }
+  }
+
+  const bulkDeleteQuestions = async (questionIds) => {
+    try {
+      await ElMessageBox.confirm(`Xóa ${questionIds.length} câu hỏi?`, 'Xác nhận xóa', {
+        confirmButtonText: 'Xóa',
+        cancelButtonText: 'Hủy',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      })
+
+      await store.bulkDeleteQuestions(questionIds)
+      selectedRows.value = []
+      await loadQuestions(currentLessonId.value)
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('Bulk delete error:', error)
+      }
+    }
+  }
+
+  const handleSelectionChange = (selection) => {
+    selectedRows.value = selection.map((row) => row.id)
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // HELPERS
+  // ═════════════════════════════════════════════════════════════════
+
+  const getQuestionTypeLabel = (type) => {
+    const labels = {
+      MULTIPLE_CHOICE: 'Trắc nghiệm',
+      TRUE_FALSE:  'Đúng/Sai',
+      FILL_BLANK: 'Điền từ',
+      TEXT_ANSWER: 'Trả lời ngắn',
+    }
+    return labels[type] || type
+  }
+
+  const getQuestionTypeColor = (type) => {
+    const colors = {
+      MULTIPLE_CHOICE: 'success',
+      TRUE_FALSE: 'warning',
+      FILL_BLANK: 'info',
+      TEXT_ANSWER: 'danger',
+    }
+    return colors[type] || ''
+  }
+
+  return {
+    // State
+    currentLessonId,
+    loading,
+    questions,
+    pagination,
+    searchQuery,
+    filterType,
+    selectedRows,
+
+    // Computed
+    filteredQuestions,
+
+    // Methods
+    loadQuestions,
+    deleteQuestion,
+    bulkDeleteQuestions,
+    handleSelectionChange,
+    getQuestionTypeLabel,
+    getQuestionTypeColor,
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// BULK CREATE COMPOSABLE
+// ═════════════════════════════════════════════════════════════════
+
+export function useListeningBulkCreate() {
+  const store = useListeningStore()
+
+  const visible = ref(false)
+  const currentLesson = ref(null)
+  const questionList = ref([])
+  const showContent = ref(true)
+
+  const open = (lesson) => {
+    currentLesson.value = lesson
+    questionList.value = []
+    showContent.value = true
+    visible.value = true
+  }
+
+  const close = () => {
+    visible.value = false
+    currentLesson.value = null
+    questionList.value = []
+  }
+
+  const addNewQuestion = async () => {
+    const nextOrder = questionList.value.length + 1
+
+    questionList.value.push({
+      parentId: currentLesson.value. id,
+      parentType: 'LISTENING',
+      questionType: 'LISTENING_COMPREHENSION',
+      questionText: '',
+      points: 10,
+      orderIndex: nextOrder,
+      explanation: '',
+      metadata:  {},
+    })
+  }
+
+  const removeQuestion = (index) => {
+    questionList.value.splice(index, 1)
+    // Re-index
+    questionList.value.forEach((q, i) => {
+      q.orderIndex = i + 1
+    })
+  }
+
+  const cloneQuestion = (index) => {
+    const cloned = JSON.parse(JSON.stringify(questionList.value[index]))
+    cloned.orderIndex = questionList.value.length + 1
+    questionList.value.push(cloned)
+  }
+
+  const updateQuestion = (index, data) => {
+    questionList.value[index] = data
+  }
+
+  const handleSubmit = async () => {
+    // Validate all questions
+    for (let i = 0; i < questionList.value.length; i++) {
+      const q = questionList.value[i]
+      const validation = validateMetadata(q.questionType, q.metadata)
+      if (!validation.valid) {
+        ElMessage.error(`Câu ${i + 1}:${validation.message}`)
+        return
+      }
+    }
+
+    if (questionList.value.length === 0) {
+      ElMessage.warning('Chưa có câu hỏi nào')
+      return
+    }
+
+    try {
+      await store.bulkCreateQuestions(currentLesson.value.id, questionList.value)
+      close()
+    } catch (error) {
+      console.error('Bulk create error:', error)
+    }
+  }
+
+  return {
+    // State
+    visible,
+    currentLesson,
+    questionList,
+    showContent,
+
+    // Methods
+    open,
+    close,
+    addNewQuestion,
+    removeQuestion,
+    cloneQuestion,
+    updateQuestion,
     handleSubmit,
   }
 }

@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -14,22 +13,18 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SubmitListeningResponse {
-    
-    private Boolean isPassed;
-    private BigDecimal scorePercentage;
-    private Integer correctCount;
-    private Integer totalQuestions;
+    private Long lessonId;
+    private boolean isPassed;
+    private double scorePercentage;
     private Integer totalScore;
-    private Integer attempts;
+    private int correctCount;
+    private int totalQuestions;
+    private int pointsEarned;
     
-    // Rewards
-    private Boolean isFirstCompletion;
-    private Integer pointsEarned;
-    
-    // Results
+    // Hỗ trợ hiển thị kết quả chi tiết
     private List<QuestionResultDTO> results;
     
-    // Navigation
-    private Boolean hasNextLesson;
+    // Điều hướng
+    private boolean hasNextLesson;
     private Long nextLessonId;
 }
