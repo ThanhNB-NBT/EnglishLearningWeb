@@ -7,9 +7,7 @@ Nền tảng học tiếng Anh trực tuyến toàn diện, giúp người học
 - 📚 **Học ngữ pháp**: Hệ thống bài học ngữ pháp từ cơ bản đến nâng cao
 - 🎧 **Luyện nghe**: Các bài tập nghe hiểu với nhiều cấp độ khác nhau
 - 📖 **Luyện đọc**: Bài tập đọc hiểu với đa dạng chủ đề
-- 🤖 **Tích hợp AI**: Hỗ trợ học tập với công nghệ AI (Google Gemini)
 - 👤 **Quản lý tài khoản**: Đăng ký, đăng nhập, quản lý tiến độ học tập
-- 📄 **Xử lý tài liệu**: Hỗ trợ import/export file PDF và DOCX
 
 ## 🛠️ Công nghệ sử dụng
 
