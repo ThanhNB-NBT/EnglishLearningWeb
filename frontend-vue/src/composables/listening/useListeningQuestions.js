@@ -14,7 +14,7 @@ const validateMetadata = (questionType, metadata) => {
       if (!metadata.options || metadata.options.length < 2) {
         return { valid: false, message: 'Cần ít nhất 2 đáp án' }
       }
-      if (! metadata.options.some((o) => o.isCorrect)) {
+      if (!metadata.options.some((o) => o.isCorrect)) {
         return { valid: false, message: 'Phải có ít nhất 1 đáp án đúng' }
       }
       break
@@ -23,8 +23,8 @@ const validateMetadata = (questionType, metadata) => {
         return { valid: false, message: 'Cần ít nhất 1 chỗ trống' }
       }
       for (const blank of metadata.blanks) {
-        if (! blank.correctAnswers || blank.correctAnswers. length === 0) {
-          return { valid: false, message:  `Chỗ trống #${blank.position} chưa có đáp án` }
+        if (!blank.correctAnswers || blank.correctAnswers.length === 0) {
+          return { valid: false, message: `Chỗ trống #${blank.position} chưa có đáp án` }
         }
       }
       break
@@ -49,7 +49,7 @@ export function useListeningQuestionForm() {
   const formRef = ref(null)
 
   const formData = ref({
-    id:  null,
+    id: null,
     parentId: null,
     parentType: 'LISTENING',
     questionType: 'LISTENING_COMPREHENSION',
@@ -69,8 +69,8 @@ export function useListeningQuestionForm() {
       { type: 'number', min: 1, message: 'Điểm phải >= 1', trigger: 'blur' },
     ],
     orderIndex: [
-      { required:  true, message: 'Vui lòng nhập thứ tự', trigger: 'blur' },
-      { type:  'number', min: 1, message: 'Thứ tự phải >= 1', trigger: 'blur' },
+      { required: true, message: 'Vui lòng nhập thứ tự', trigger: 'blur' },
+      { type: 'number', min: 1, message: 'Thứ tự phải >= 1', trigger: 'blur' },
     ],
   }
 
@@ -81,7 +81,7 @@ export function useListeningQuestionForm() {
       group: 'Listening',
     },
     { label: 'Trắc nghiệm (Multiple Choice)', value: 'MULTIPLE_CHOICE', group: 'Cơ bản' },
-    { label:  'Đúng / Sai (True/False)', value: 'TRUE_FALSE', group:  'Cơ bản' },
+    { label: 'Đúng / Sai (True/False)', value: 'TRUE_FALSE', group: 'Cơ bản' },
     { label: 'Điền từ (Fill Blank)', value: 'FILL_BLANK', group: 'Cơ bản' },
     { label: 'Trả lời ngắn (Text Answer)', value: 'TEXT_ANSWER', group: 'Cơ bản' },
   ]
@@ -107,7 +107,7 @@ export function useListeningQuestionForm() {
       points: 10,
       orderIndex: nextOrder,
       explanation: '',
-      metadata:  {},
+      metadata: {},
     }
 
     dialogVisible.value = true
@@ -124,7 +124,7 @@ export function useListeningQuestionForm() {
       questionText: question.questionText || '',
       points: question.points,
       orderIndex: question.orderIndex,
-      explanation: question. explanation || '',
+      explanation: question.explanation || '',
       metadata: question.metadata || {},
     }
 
@@ -173,9 +173,9 @@ export function useListeningQuestionForm() {
           parentType: formData.value.parentType,
           questionType: formData.value.questionType,
           questionText: formData.value.questionText,
-          points: formData. value.points,
+          points: formData.value.points,
           orderIndex: formData.value.orderIndex,
-          explanation: formData. value.explanation,
+          explanation: formData.value.explanation,
           metadata: formData.value.metadata,
         }
 
@@ -257,14 +257,14 @@ export function useListeningQuestionList() {
   // ═════════════════════════════════════════════════════════════════
 
   const loadQuestions = async (lessonId, params) => {
-    if (! lessonId) return
+    if (!lessonId) return
     currentLessonId.value = lessonId
     await store.fetchQuestions(lessonId, params)
   }
 
   const deleteQuestion = async (question) => {
     try {
-      await ElMessageBox. confirm(`Xóa câu hỏi này? `, 'Xác nhận xóa', {
+      await ElMessageBox.confirm(`Xóa câu hỏi này?`, 'Xác nhận xóa', {
         confirmButtonText: 'Xóa',
         cancelButtonText: 'Hủy',
         type: 'warning',
@@ -304,13 +304,50 @@ export function useListeningQuestionList() {
   }
 
   // ═════════════════════════════════════════════════════════════════
+  // VALIDATION OPERATIONS
+  // ═════════════════════════════════════════════════════════════════
+
+  const validateQuestionsOrder = async (lessonId) => {
+    try {
+      const result = await store.validateQuestionsOrder(lessonId)
+      if (result) {
+        ElMessage.success(`✅ Validation hoàn tất! Fixed: ${result.fixedCount || 0} questions`)
+        await loadQuestions(lessonId)
+      }
+      return result
+    } catch (error) {
+      console.error('Validate questions order failed:', error)
+      ElMessage.error('Lỗi khi validate questions order')
+      throw error
+    }
+  }
+
+  const validateAllQuestionsOrder = async () => {
+    try {
+      const result = await store.validateAllQuestionsOrder()
+      if (result) {
+        ElMessage.success(`✅ Validation tất cả questions hoàn tất! Fixed: ${result.fixedCount || 0}`)
+        if (currentLessonId.value) {
+          await loadQuestions(currentLessonId.value)
+        }
+      }
+      return result
+    } catch (error) {
+      console.error('Validate all questions order failed:', error)
+      ElMessage.error('Lỗi khi validate all questions')
+      throw error
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
   // HELPERS
   // ═════════════════════════════════════════════════════════════════
 
   const getQuestionTypeLabel = (type) => {
     const labels = {
+      LISTENING_COMPREHENSION: 'Nghe hiểu',
       MULTIPLE_CHOICE: 'Trắc nghiệm',
-      TRUE_FALSE:  'Đúng/Sai',
+      TRUE_FALSE: 'Đúng/Sai',
       FILL_BLANK: 'Điền từ',
       TEXT_ANSWER: 'Trả lời ngắn',
     }
@@ -319,6 +356,7 @@ export function useListeningQuestionList() {
 
   const getQuestionTypeColor = (type) => {
     const colors = {
+      LISTENING_COMPREHENSION: 'primary',
       MULTIPLE_CHOICE: 'success',
       TRUE_FALSE: 'warning',
       FILL_BLANK: 'info',
@@ -345,6 +383,8 @@ export function useListeningQuestionList() {
     deleteQuestion,
     bulkDeleteQuestions,
     handleSelectionChange,
+    validateQuestionsOrder,
+    validateAllQuestionsOrder,
     getQuestionTypeLabel,
     getQuestionTypeColor,
   }
@@ -379,14 +419,14 @@ export function useListeningBulkCreate() {
     const nextOrder = questionList.value.length + 1
 
     questionList.value.push({
-      parentId: currentLesson.value. id,
+      parentId: currentLesson.value.id,
       parentType: 'LISTENING',
       questionType: 'LISTENING_COMPREHENSION',
       questionText: '',
       points: 10,
       orderIndex: nextOrder,
       explanation: '',
-      metadata:  {},
+      metadata: {},
     })
   }
 
@@ -414,7 +454,7 @@ export function useListeningBulkCreate() {
       const q = questionList.value[i]
       const validation = validateMetadata(q.questionType, q.metadata)
       if (!validation.valid) {
-        ElMessage.error(`Câu ${i + 1}:${validation.message}`)
+        ElMessage.error(`Câu ${i + 1}: ${validation.message}`)
         return
       }
     }

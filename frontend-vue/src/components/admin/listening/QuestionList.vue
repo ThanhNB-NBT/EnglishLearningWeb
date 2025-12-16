@@ -9,7 +9,7 @@
           placeholder="Chọn bài nghe"
           filterable
           clearable
-          class="! w-full sm:!w-64"
+          class="!w-full sm:!w-64"
           :loading="lessonsLoading"
           @change="handleLessonChange"
         >
@@ -17,12 +17,12 @@
             v-for="lesson in lessons"
             :key="lesson.id"
             :label="`${lesson.orderIndex}. ${lesson.title}`"
-            :value="lesson. id"
+            :value="lesson.id"
           >
             <div class="flex items-center justify-between">
               <span>{{ lesson.orderIndex }}. {{ lesson.title }}</span>
               <el-tag v-if="lesson.questionCount > 0" type="info" size="small" class="ml-2">
-                {{ lesson. questionCount }} câu
+                {{ lesson.questionCount }} câu
               </el-tag>
             </div>
           </el-option>
@@ -54,7 +54,7 @@
           :icon="Plus"
           @click="handleCreate"
           :disabled="!currentLessonId"
-          class="! rounded-lg font-bold"
+          class="!rounded-lg font-bold"
         >
           Thêm
         </el-button>
@@ -69,6 +69,20 @@
           Bulk
         </el-button>
         <el-button :icon="Refresh" @click="handleRefresh" :disabled="!currentLessonId" circle />
+
+        <el-dropdown trigger="click" @command="handleDropdownCommand">
+          <el-button :icon="MoreFilled" circle :disabled="!currentLessonId" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="validateQuestions" :icon="Setting">
+                Validate Questions Order
+              </el-dropdown-item>
+              <el-dropdown-item command="validateAllQuestions" :icon="CircleCheck" divided>
+                Validate All Questions
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
         <el-tooltip content="Xóa hàng loạt" placement="top">
           <el-button
@@ -90,7 +104,7 @@
       :image-size="120"
     />
     <el-empty
-      v-else-if="! questions || questions.length === 0"
+      v-else-if="!questions || questions.length === 0"
       description="Chưa có câu hỏi nào"
       :image-size="120"
     >
@@ -101,8 +115,8 @@
     <el-card
       v-else
       shadow="never"
-      class="! border-gray-300 dark:!border-gray-700 ! rounded-xl ! overflow-hidden flex flex-col"
-      :body-style="{ padding: '0px', flex: '1', display: 'flex', flexDirection:  'column' }"
+      class="!border-gray-300 dark:!border-gray-700 !rounded-xl !overflow-hidden flex flex-col"
+      :body-style="{ padding: '0px', flex: '1', display: 'flex', flexDirection: 'column' }"
     >
       <el-table
         :data="paginatedQuestions"
@@ -130,14 +144,12 @@
                   :type="getQuestionTypeColor(row.questionType)"
                   size="small"
                   effect="dark"
-                  class="!rounded ! text-[10px] !h-5 !px-2"
+                  class="!rounded !text-[10px] !h-5 !px-2"
                 >
                   {{ getQuestionTypeLabel(row.questionType) }}
                 </el-tag>
 
-                <el-tag type="info" size="small" effect="plain">
-                  {{ row.points }} điểm
-                </el-tag>
+                <el-tag type="info" size="small" effect="plain"> {{ row.points }} điểm </el-tag>
               </div>
 
               <div class="text-gray-800 dark:text-gray-200 text-sm font-medium">
@@ -147,13 +159,13 @@
               <!-- Preview Metadata -->
               <div class="text-xs text-gray-500">
                 <template v-if="row.questionType === 'MULTIPLE_CHOICE'">
-                  <span>{{ row.metadata?. options?.length || 0 }} đáp án</span>
+                  <span>{{ row.metadata?.options?.length || 0 }} đáp án</span>
                 </template>
                 <template v-else-if="row.questionType === 'TRUE_FALSE'">
                   <span>Đúng/Sai</span>
                 </template>
                 <template v-else-if="row.questionType === 'FILL_BLANK'">
-                  <span>{{ row.metadata?.blanks?. length || 0 }} chỗ trống</span>
+                  <span>{{ row.metadata?.blanks?.length || 0 }} chỗ trống</span>
                 </template>
                 <template v-else-if="row.questionType === 'TEXT_ANSWER'">
                   <span>Trả lời ngắn</span>
@@ -178,7 +190,13 @@
           <template #default="{ row }">
             <div class="flex gap-1 justify-center">
               <el-tooltip content="Chỉnh sửa" placement="top">
-                <el-button type="primary" :icon="Edit" size="small" circle @click="handleEdit(row)" />
+                <el-button
+                  type="primary"
+                  :icon="Edit"
+                  size="small"
+                  circle
+                  @click="handleEdit(row)"
+                />
               </el-tooltip>
 
               <el-tooltip content="Xóa" placement="top">
@@ -217,10 +235,7 @@
     />
 
     <!-- Bulk Create Dialog -->
-    <BulkCreateDialog
-      ref="bulkCreateRef"
-      @success="handleRefresh"
-    />
+    <BulkCreateDialog ref="bulkCreateRef" @success="handleRefresh" />
   </div>
 </template>
 
@@ -233,11 +248,22 @@ import {
   Delete,
   Search,
   DocumentAdd,
+  MoreFilled,
+  Setting,
+  CircleCheck,
 } from '@element-plus/icons-vue'
 import { useListeningQuestionList } from '@/composables/listening/useListeningQuestions'
 import { useListeningStore } from '@/stores/listening'
 import QuestionFormDialog from './QuestionFormDialog.vue'
 import BulkCreateDialog from './BulkCreateDialog.vue'
+
+// Props
+const props = defineProps({
+  initLessonId: {
+    type: Number,
+    default: null,
+  },
+})
 
 // Store
 const store = useListeningStore()
@@ -255,6 +281,8 @@ const {
   deleteQuestion,
   bulkDeleteQuestions,
   handleSelectionChange,
+  validateQuestionsOrder,
+  validateAllQuestionsOrder,
   getQuestionTypeLabel,
   getQuestionTypeColor,
 } = useListeningQuestionList()
@@ -268,7 +296,7 @@ const pageSize = ref(10)
 // Computed
 const lessons = computed(() => store.lessons)
 const lessonsLoading = computed(() => store.lessonsLoading)
-const currentLesson = computed(() => store.lessons. find((l) => l.id === currentLessonId.value))
+const currentLesson = computed(() => store.lessons.find((l) => l.id === currentLessonId.value))
 
 const paginatedQuestions = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
@@ -280,7 +308,7 @@ const totalElements = computed(() => filteredQuestions.value.length)
 
 // Methods
 const handleLessonChange = async (lessonId) => {
-  if (! lessonId) {
+  if (!lessonId) {
     currentLessonId.value = null
     return
   }
@@ -292,7 +320,7 @@ const handleLessonChange = async (lessonId) => {
 }
 
 const handleRefresh = async () => {
-  if (! currentLessonId.value) return
+  if (!currentLessonId.value) return
   await loadQuestions(currentLessonId.value)
   await store.fetchLessonById(currentLessonId.value)
 }
@@ -326,6 +354,28 @@ const handleSizeChange = (size) => {
   currentPage.value = 1
 }
 
+const handleDropdownCommand = async (cmd) => {
+  if (cmd === 'validateQuestions') {
+    await validateQuestionsOrder(currentLessonId.value)
+  }
+
+  if (cmd === 'validateAllQuestions') {
+    await validateAllQuestionsOrder()
+  }
+}
+
+// Watch initLessonId prop để tự động chọn lesson khi chuyển tab
+watch(
+  () => props.initLessonId,
+  async (newLessonId) => {
+    if (newLessonId && newLessonId !== currentLessonId.value) {
+      currentLessonId.value = newLessonId
+      await handleLessonChange(newLessonId)
+    }
+  },
+  { immediate: true },
+)
+
 // Watch filters
 watch([searchQuery, filterType], () => {
   currentPage.value = 1
@@ -335,6 +385,12 @@ watch([searchQuery, filterType], () => {
 onMounted(async () => {
   // Load all lessons for dropdown
   await store.fetchAllLessons()
+
+  // Nếu có initLessonId, tự động chọn
+  if (props.initLessonId && !currentLessonId.value) {
+    currentLessonId.value = props.initLessonId
+    await handleLessonChange(props.initLessonId)
+  }
 })
 </script>
 

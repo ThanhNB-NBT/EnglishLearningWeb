@@ -130,7 +130,7 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDarkMode } from '@/composables/useDarkMode'
-import { Odometer, Reading, Document, Expand, Fold, Moon, Sunny, User, Lock, SwitchButton, Menu } from '@element-plus/icons-vue'
+import { Odometer, Reading, Document, Moon, Sunny, User, Lock, SwitchButton, Menu } from '@element-plus/icons-vue'
 
 const router = useRouter(); const route = useRoute()
 const authStore = useAuthStore(); const { isDark, toggleTheme } = useDarkMode()

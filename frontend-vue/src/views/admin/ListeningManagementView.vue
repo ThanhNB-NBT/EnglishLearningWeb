@@ -6,7 +6,6 @@
       class="shadow-sm !border-none overflow-hidden"
       @tab-change="handleTabChange"
     >
-      <!-- Tab 1: Lessons -->
       <el-tab-pane name="lessons" lazy>
         <template #label>
           <span class="flex items-center gap-2 px-2 py-1">
@@ -18,7 +17,6 @@
         </div>
       </el-tab-pane>
 
-      <!-- Tab 2: Questions -->
       <el-tab-pane name="questions" lazy>
         <template #label>
           <span class="flex items-center gap-2 px-2 py-1">
@@ -87,5 +85,23 @@ const handleTabChange = (tabName) => {
 :deep(.el-tabs__item.is-active) {
   color: var(--el-color-primary);
   font-weight: 600;
+}
+
+/* Quill Editor Styles - Reused for consistency if displaying HTML content */
+:deep(.ql-editor) {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+:deep(.ql-editor p) {
+  margin-bottom: 0.5em;
+}
+
+:deep(.ql-editor h1),
+:deep(.ql-editor h2),
+:deep(.ql-editor h3) {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
 }
 </style>

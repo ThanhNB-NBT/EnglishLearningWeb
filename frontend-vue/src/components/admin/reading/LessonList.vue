@@ -6,7 +6,7 @@
         <el-input
           v-model="searchQuery"
           placeholder="Tìm kiếm bài đọc..."
-          prefix-icon="Search"
+          :prefix-icon="Search"
           clearable
           class="w-full sm:w-64"
         />
@@ -330,6 +330,8 @@ const handleToggleActive = async (lesson) => {
     await store.toggleLessonStatus(lesson.id)
   } catch (error) {
     lesson.isActive = !lesson.isActive
+    ElMessage.error('Cập nhật trạng thái thất bại')
+    console.error('Toggle active failed:', error)
   }
 }
 

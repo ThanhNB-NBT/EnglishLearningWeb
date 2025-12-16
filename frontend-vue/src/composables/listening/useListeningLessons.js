@@ -29,7 +29,7 @@ export function useListeningLessonForm() {
 
   const formRules = {
     title: [
-      { required: true, message:  'Vui lòng nhập tiêu đề bài nghe', trigger: 'blur' },
+      { required: true, message: 'Vui lòng nhập tiêu đề bài nghe', trigger: 'blur' },
       { min: 5, max: 200, message: 'Độ dài từ 5-200 ký tự', trigger: 'blur' },
     ],
     transcript: [
@@ -38,28 +38,28 @@ export function useListeningLessonForm() {
     ],
     difficulty: [{ required: true, message: 'Vui lòng chọn độ khó', trigger: 'change' }],
     orderIndex: [
-      { required: true, message:  'Vui lòng nhập thứ tự', trigger: 'blur' },
+      { required: true, message: 'Vui lòng nhập thứ tự', trigger: 'blur' },
       { type: 'number', min: 1, message: 'Thứ tự phải >= 1', trigger: 'blur' },
     ],
     timeLimitSeconds: [
       { required: true, message: 'Vui lòng nhập thời gian', trigger: 'blur' },
-      { type:  'number', min: 60, message: 'Thời gian phải >= 60 giây', trigger: 'blur' },
+      { type: 'number', min: 60, message: 'Thời gian phải >= 60 giây', trigger: 'blur' },
     ],
     pointsReward: [
       { required: true, message: 'Vui lòng nhập điểm thưởng', trigger: 'blur' },
-      { type:  'number', min: 1, message: 'Điểm phải >= 1', trigger: 'blur' },
+      { type: 'number', min: 1, message: 'Điểm phải >= 1', trigger: 'blur' },
     ],
     maxReplayCount: [
-      { type: 'number', min: 1, max: 10, message: 'Số lần replay từ 1-10', trigger:  'blur' },
+      { type: 'number', min: 1, max: 10, message: 'Số lần replay từ 1-10', trigger: 'blur' },
     ],
   }
 
   const dialogTitle = computed(() =>
-    dialogMode.value === 'create' ? 'Tạo bài nghe mới' : 'Chỉnh sửa bài nghe'
+    dialogMode.value === 'create' ? 'Tạo bài nghe mới' : 'Chỉnh sửa bài nghe',
   )
 
   const submitButtonText = computed(() =>
-    dialogMode.value === 'create' ? 'Tạo bài nghe' : 'Cập nhật'
+    dialogMode.value === 'create' ? 'Tạo bài nghe' : 'Cập nhật',
   )
 
   // ═════════════════════════════════════════════════════════════════
@@ -101,12 +101,12 @@ export function useListeningLessonForm() {
       difficulty: lesson.difficulty || 'BEGINNER',
       orderIndex: lesson.orderIndex,
       timeLimitSeconds: lesson.timeLimitSeconds || 600,
-      pointsReward:  lesson.pointsReward || 25,
+      pointsReward: lesson.pointsReward || 25,
       allowUnlimitedReplay: lesson.allowUnlimitedReplay !== false,
       maxReplayCount: lesson.maxReplayCount || 3,
-      isActive:  lesson.isActive !== false,
+      isActive: lesson.isActive !== false,
       audioFile: null,
-      currentAudioUrl:  lesson.audioUrl,
+      currentAudioUrl: lesson.audioUrl,
     }
 
     audioFileList.value = []
@@ -148,7 +148,7 @@ export function useListeningLessonForm() {
       }
 
       // Validate audio file for create mode
-      if (dialogMode.value === 'create' && ! formData.value.audioFile) {
+      if (dialogMode.value === 'create' && !formData.value.audioFile) {
         ElMessage.error('Vui lòng upload file âm thanh')
         return false
       }
@@ -263,7 +263,7 @@ export function useListeningLessonList() {
     let result = lessons.value
 
     // Search by title
-    if (searchQuery. value) {
+    if (searchQuery.value) {
       const query = searchQuery.value.toLowerCase()
       result = result.filter((l) => l.title.toLowerCase().includes(query))
     }
@@ -275,7 +275,7 @@ export function useListeningLessonList() {
 
     // Filter by status
     if (filterStatus.value !== '') {
-      result = result. filter((l) => l.isActive === filterStatus.value)
+      result = result.filter((l) => l.isActive === filterStatus.value)
     }
 
     return result
@@ -292,14 +292,14 @@ export function useListeningLessonList() {
   const deleteLesson = async (lesson) => {
     try {
       await ElMessageBox.confirm(
-        `Xóa bài nghe "${lesson. title}"?  Hành động này sẽ xóa luôn câu hỏi, progress và audio file.`,
+        `Xóa bài nghe "${lesson.title}"? Hành động này sẽ xóa luôn câu hỏi, progress và audio file.`,
         'Xác nhận xóa',
         {
           confirmButtonText: 'Xóa',
           cancelButtonText: 'Hủy',
           type: 'warning',
           confirmButtonClass: 'el-button--danger',
-        }
+        },
       )
 
       await store.deleteLesson(lesson.id)
@@ -336,6 +336,40 @@ export function useListeningLessonList() {
   }
 
   // ═════════════════════════════════════════════════════════════════
+  // VALIDATION & HEALTH CHECK
+  // ═════════════════════════════════════════════════════════════════
+
+  const validateLessonsOrder = async () => {
+    try {
+      const result = await store.validateAllLessonsOrder()
+      if (result) {
+        ElMessage.success(`✅ Validation hoàn tất! Fixed: ${result.fixedCount || 0} lessons`)
+        await loadLessons({ size: 1000 })
+      }
+      return result
+    } catch (error) {
+      console.error('Validate lessons order failed:', error)
+      ElMessage.error('Lỗi khi validate lessons order')
+      throw error
+    }
+  }
+
+  const healthCheck = async () => {
+    try {
+      const result = await store.healthCheck()
+      if (result) {
+        ElMessage.success('✅ Health check OK!')
+        console.log('Health check result:', result)
+      }
+      return result
+    } catch (error) {
+      console.error('Health check failed:', error)
+      ElMessage.error('Health check thất bại')
+      throw error
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
   // HELPERS
   // ═════════════════════════════════════════════════════════════════
 
@@ -351,7 +385,7 @@ export function useListeningLessonList() {
   const getDifficultyLabel = (difficulty) => {
     const labels = {
       BEGINNER: 'Dễ',
-      INTERMEDIATE:  'Trung bình',
+      INTERMEDIATE: 'Trung bình',
       ADVANCED: 'Khó',
     }
     return labels[difficulty] || difficulty
@@ -375,6 +409,8 @@ export function useListeningLessonList() {
     toggleStatus,
     reorderLesson,
     swapLessons,
+    validateLessonsOrder,
+    healthCheck,
     getDifficultyType,
     getDifficultyLabel,
   }

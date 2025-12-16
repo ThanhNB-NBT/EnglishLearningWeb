@@ -10,26 +10,17 @@ export function setupInterceptors() {
     (config) => {
       const authStore = useAuthStore()
 
-      console.group('📤 REQUEST INTERCEPTOR')
-      console.log('URL:', config.url)
-      console.log('Method:', config.method)
-      console.log('Current route:', router.currentRoute.value.path)
-
       const isLogoutEndpoint = config.url?.includes('/logout')
       const isAuthEndpoint = config.url?.includes('/auth/') && !isLogoutEndpoint
       const isAdminCreate = config.url?.includes('/auth/admin/create')
 
       // Skip token cho public auth endpoints
       if (isAuthEndpoint && !isAdminCreate) {
-        console.log('⚪ Auth endpoint - SKIP TOKEN')
-        console.groupEnd()
         return config
       }
 
       // Nếu đang logout, không thêm token
       if (authStore.isLoggingOut && !isLogoutEndpoint) {
-        console.log('⚠️ Logging out - SKIP TOKEN')
-        console.groupEnd()
         return config
       }
 
@@ -39,16 +30,16 @@ export function setupInterceptors() {
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
-        console.log('✅ TOKEN ADDED')
+        console.log('TOKEN ADDED')
       } else {
-        console.error('❌ NO TOKEN AVAILABLE!')
+        console.error('NO TOKEN AVAILABLE!')
       }
 
       console.groupEnd()
       return config
     },
     (error) => {
-      console.error('❌ Request interceptor error:', error)
+      console.error('Request interceptor error:', error)
       return Promise.reject(error)
     },
   )
@@ -56,7 +47,6 @@ export function setupInterceptors() {
   // ==================== RESPONSE INTERCEPTOR ====================
   apiClient.interceptors.response.use(
     (response) => {
-      console.log('✅ Response OK:', response.config.url, response.status)
       return response
     },
     async (error) => {
@@ -68,33 +58,25 @@ export function setupInterceptors() {
       const errorData = error.response?.data || {}
       const errorMessage = errorData?.message || ''
 
-      console.group('❌ RESPONSE ERROR')
-      console.log('Status:', status)
-      console.log('URL:', originalRequest.url)
-      console.log('Message:', errorMessage)
-      console.log('Full error data:', errorData)
-      console.log('Is retry:', originalRequest.__isRetry)
-      console.groupEnd()
-
-      // ✅ HANDLE 401: Unauthorized
+      // HANDLE 401: Unauthorized
       if (status === 401) {
         const requestUrl = (originalRequest.url || '').toLowerCase()
 
-        // ✅ CASE 1: Login endpoint failed
+        // CASE 1: Login endpoint failed
         if (requestUrl.includes('/login')) {
           console.log('Case: LOGIN FAILED - do not clear auth')
           console.groupEnd()
           return Promise.reject(error)
         }
 
-        // ✅ CASE 2: Logout failed or retry
+        // CASE 2: Logout failed or retry
         if (requestUrl.includes('/logout') || originalRequest.__isRetry) {
           console.log('Case: LOGOUT FAILED or RETRY')
           try {
             authStore.clearLocalAuth()
-            console.log('✅ Auth cleared')
+            console.log('Auth cleared')
           } catch (e) {
-            console.error('❌ Error clearing auth:', e)
+            console.error('Error clearing auth:', e)
           }
 
           toast.error(getErrorMessage(errorMessage))
@@ -106,7 +88,7 @@ export function setupInterceptors() {
         // Mark as retried
         originalRequest.__isRetry = true
 
-        // ✅ CASE 3: During logout
+        // CASE 3: During logout
         if (authStore.isLoggingOut) {
           console.log('Case: DURING LOGOUT')
           try {
@@ -120,14 +102,14 @@ export function setupInterceptors() {
           return Promise.reject(error)
         }
 
-        // ✅ CASE 4: Normal 401
+        // CASE 4: Normal 401
         console.log('Case: NORMAL 401 - clearing auth')
 
         try {
           authStore.clearLocalAuth()
-          console.log('✅ Auth cleared successfully')
+          console.log('Auth cleared successfully')
         } catch (e) {
-          console.error('❌ Error clearing auth:', e)
+          console.error('Error clearing auth:', e)
         }
 
         const message = getErrorMessage(errorMessage)
@@ -139,9 +121,9 @@ export function setupInterceptors() {
         return Promise.reject(error)
       }
 
-      // ✅ HANDLE 403
+      // HANDLE 403
       if (status === 403) {
-        console.warn('🚫 403 Forbidden')
+        console.warn('403 Forbidden')
         toast.error('Bạn không có quyền truy cập')
         router.push('/')
         return Promise.reject(error)
