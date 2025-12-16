@@ -16,7 +16,7 @@
           <h4 class="text-xl font-bold text-gray-800 dark:text-white m-0">{{ dialogTitle }}</h4>
 
           <div
-            v-if="currentLesson?. transcript"
+            v-if="currentLesson?.transcript"
             class="pl-4 border-l border-gray-300 dark:border-gray-600"
           >
             <el-button
@@ -60,17 +60,17 @@
                 <div
                   class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap"
                 >
-                  {{ currentLesson. transcript }}
+                  {{ formattedTranscript }}
                 </div>
               </div>
             </el-tab-pane>
 
-            <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson. transcriptTranslation">
+            <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson.transcriptTranslation">
               <div class="overflow-y-auto p-6 h-full">
                 <div
                   class="text-gray-800 dark:text-gray-200 text-base leading-relaxed whitespace-pre-wrap"
                 >
-                  {{ currentLesson.transcriptTranslation }}
+                  {{ formattedTranslation }}
                 </div>
               </div>
             </el-tab-pane>
@@ -94,7 +94,7 @@
               v-model="formData.questionType"
               @change="handleTypeChange"
               placeholder="Chọn loại câu hỏi"
-              class="! w-full"
+              class="!w-full"
             >
               <el-option label="Trắc nghiệm (Multiple Choice)" value="MULTIPLE_CHOICE" />
               <el-option label="Đúng / Sai (True/False)" value="TRUE_FALSE" />
@@ -177,13 +177,15 @@
     </div>
 
     <template #footer>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20">
-        <el-button @click="handleClose" class="! rounded-lg ! h-10 !px-6">Hủy</el-button>
+      <div
+        class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20"
+      >
+        <el-button @click="handleClose" class="!rounded-lg !h-10 !px-6">Hủy</el-button>
         <el-button
           type="primary"
           :loading="loading"
           @click="onSubmit"
-          class="!rounded-lg !font-bold px-8 ! h-10"
+          class="!rounded-lg !font-bold px-8 !h-10"
         >
           {{ dialogMode === 'create' ? 'Tạo câu hỏi' : 'Cập nhật' }}
         </el-button>
@@ -197,6 +199,7 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { Close, Headset, Document, Tools } from '@element-plus/icons-vue'
 import { useListeningQuestionForm } from '@/composables/listening/useListeningQuestions'
 import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
+import { formatTranscript } from '@/utils/textFormatter'
 
 const MultipleChoiceForm = defineAsyncComponent(
   () => import('@/components/admin/questions/MultipleChoiceForm.vue'),
@@ -208,7 +211,7 @@ const FillBlankForm = defineAsyncComponent(
 // Props
 const props = defineProps({
   currentLesson: {
-    type:  Object,
+    type: Object,
     default: null,
   },
 })
@@ -234,6 +237,7 @@ const showTranscript = ref(false)
 // Emits
 const emit = defineEmits(['success'])
 
+// Computed
 const currentFormComponent = computed(() => {
   const typeMap = {
     MULTIPLE_CHOICE: MultipleChoiceForm,
@@ -241,7 +245,15 @@ const currentFormComponent = computed(() => {
     FILL_BLANK: FillBlankForm,
     TEXT_ANSWER: FillBlankForm,
   }
-  return typeMap[formData.value. questionType] || null
+  return typeMap[formData.value.questionType] || null
+})
+
+const formattedTranscript = computed(() => {
+  return formatTranscript(props.currentLesson?.transcript)
+})
+
+const formattedTranslation = computed(() => {
+  return formatTranscript(props.currentLesson?.transcriptTranslation)
 })
 
 // Methods

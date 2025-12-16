@@ -105,9 +105,8 @@ const router = createRouter({
           name: 'user-reading-detail',
           component: () => import('@/views/user/reading/ReadingPlayerView.vue'),
           meta: { title: 'Reading Player' },
-          props: true
+          props: true,
         },
-        // 🆕 LISTENING ROUTES
         {
           path: 'listening',
           name: 'user-listening',
@@ -116,10 +115,10 @@ const router = createRouter({
         },
         {
           path: 'listening/lesson/:lessonId',
-          name: 'user-listening-detail',
+          name: 'user-listening-player',
           component: () => import('@/views/user/listening/ListeningPlayerView.vue'),
+          props: true,
           meta: { title: 'Listening Player' },
-          props: true
         },
       ],
     },

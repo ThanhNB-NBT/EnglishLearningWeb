@@ -10,30 +10,30 @@
   >
     <div class="flex flex-col h-[85vh]">
       <!-- Lesson Content (Transcript) -->
-      <div v-if="currentLesson?. transcript && showContent" class="mb-4 border-b pb-4">
+      <div v-if="currentLesson?.transcript && showContent" class="mb-4 border-b pb-4">
         <div class="flex items-center justify-between mb-2">
           <h4 class="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
             <el-icon><Headset /></el-icon>
-            Transcript:  {{ currentLesson.title }}
+            Transcript: {{ currentLesson.title }}
           </h4>
-          <el-button type="primary" link size="small" @click="showContent = ! showContent">
+          <el-button type="primary" link size="small" @click="showContent = !showContent">
             Thu gọn
           </el-button>
         </div>
 
         <el-tabs type="border-card" class="!rounded-lg">
-          <el-tab-pane label="📝 Tiếng Anh">
+          <el-tab-pane label="🏴 Tiếng Anh">
             <div
-              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap"
+              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap leading-relaxed"
             >
-              {{ currentLesson.transcript }}
+              {{ formattedTranscript }}
             </div>
           </el-tab-pane>
           <el-tab-pane label="🇻🇳 Tiếng Việt" v-if="currentLesson.transcriptTranslation">
             <div
-              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap"
+              class="p-4 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap leading-relaxed"
             >
-              {{ currentLesson.transcriptTranslation }}
+              {{ formattedTranslation }}
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -91,7 +91,7 @@
     <template #footer>
       <div class="flex justify-between items-center">
         <div class="text-sm text-gray-600">
-          Tổng:  <strong class="text-blue-600">{{ questionList.length }}</strong> câu hỏi
+          Tổng: <strong class="text-blue-600">{{ questionList.length }}</strong> câu hỏi
           <span v-if="totalPoints > 0" class="ml-3">
             | Tổng điểm: <strong class="text-green-600">{{ totalPoints }}</strong>
           </span>
@@ -118,10 +118,11 @@ import { Plus, Headset } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useListeningStore } from '@/stores/listening'
 import SingleQuestionEditor from '@/components/admin/questions/SingleQuestionEditor.vue'
+import { formatTranscript } from '@/utils/textFormatter'
 
-const props = defineProps({
+defineProps({
   lessonId: {
-    type:  Number,
+    type: Number,
     default: null,
   },
 })
@@ -141,6 +142,14 @@ const submitting = ref(false)
 // Computed
 const totalPoints = computed(() => {
   return questionList.value.reduce((sum, q) => sum + (q.points || 0), 0)
+})
+
+const formattedTranscript = computed(() => {
+  return formatTranscript(currentLesson.value?.transcript)
+})
+
+const formattedTranslation = computed(() => {
+  return formatTranscript(currentLesson.value?.transcriptTranslation)
 })
 
 // Methods
@@ -191,8 +200,8 @@ const handleSubmit = async () => {
   // Validate
   for (let i = 0; i < questionList.value.length; i++) {
     const q = questionList.value[i]
-    if (! q.questionType) {
-      ElMessage.error(`Câu ${i + 1}:  Chưa chọn loại câu hỏi`)
+    if (!q.questionType) {
+      ElMessage.error(`Câu ${i + 1}: Chưa chọn loại câu hỏi`)
       return
     }
   }
@@ -216,7 +225,7 @@ const handleSubmit = async () => {
         case 'TRUE_FALSE':
           return { ...base, options: metadata.options }
         case 'FILL_BLANK':
-          return { ... base, blanks: metadata.blanks, wordBank: metadata.wordBank }
+          return { ...base, blanks: metadata.blanks, wordBank: metadata.wordBank }
         case 'TEXT_ANSWER':
           return {
             ...base,
@@ -229,7 +238,7 @@ const handleSubmit = async () => {
     })
 
     await store.bulkCreateQuestions(currentLesson.value.id, questionsPayload)
-    ElMessage.success(`Đã tạo ${questionList. value.length} câu hỏi thành công! `)
+    ElMessage.success(`Đã tạo ${questionList.value.length} câu hỏi thành công!`)
     handleClose()
     emit('success')
   } catch (error) {

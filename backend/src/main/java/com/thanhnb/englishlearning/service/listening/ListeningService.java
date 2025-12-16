@@ -3,7 +3,7 @@ package com.thanhnb.englishlearning.service.listening;
 import com.thanhnb.englishlearning.dto.listening.request.SubmitListeningRequest;
 import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonDetailResponse;
 import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonListResponse;
-import com.thanhnb.englishlearning.dto.listening.response.SubmitListeningResponse;
+import com.thanhnb.englishlearning.dto.listening.response.ListeningSubmitResponse;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
 import com.thanhnb.englishlearning.entity.listening.ListeningLesson;
@@ -171,7 +171,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
      * [USER] Submit lesson với LessonProgressService
      */
     @Transactional
-    public SubmitListeningResponse submitLesson(Long userId, Long lessonId, SubmitListeningRequest request) {
+    public ListeningSubmitResponse submitLesson(Long userId, Long lessonId, SubmitListeningRequest request) {
         log.info("Submit listening lesson: userId={}, lessonId={}", userId, lessonId);
 
         User user = userRepository.findById(userId)
@@ -240,7 +240,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
             }
         }
 
-        log.info("Submit result: correct={}/{}, scorePercentage={:.2f}%, passed={}",
+        log.info("Submit result: correct={}/{}, scorePercentage={}%, passed={}",
                 correctCount, totalQuestions, scorePercentage, isPassed);
 
         // Calculate total score from results
@@ -249,7 +249,7 @@ public class ListeningService extends BaseLearningService<ListeningLesson, UserL
                 .mapToInt(QuestionResultDTO::getPoints)
                 .sum();
 
-        return SubmitListeningResponse.builder()
+        return ListeningSubmitResponse.builder()
                 .lessonId(lessonId)
                 .isPassed(isPassed)
                 .scorePercentage(scorePercentage)
