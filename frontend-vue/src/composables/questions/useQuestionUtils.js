@@ -1,165 +1,214 @@
-/**
- * Composable chứa các utility functions dùng chung cho Question components
- */
+// src/composables/questions/useQuestionUtils.js - COMPLETE VERSION
+
 export function useQuestionUtils() {
-  /**
-   * Get question type class for styling
-   */
+
+  // ✅ FIX: Thêm getQuestionTypeClass
   const getQuestionTypeClass = (type) => {
+    const classMap = {
+      MULTIPLE_CHOICE: 'bg-blue-50 text-blue-700 border-blue-200',
+      TRUE_FALSE: 'bg-green-50 text-green-700 border-green-200',
+      FILL_BLANK: 'bg-purple-50 text-purple-700 border-purple-200',
+      VERB_FORM: 'bg-purple-50 text-purple-700 border-purple-200',
+      TEXT_ANSWER: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      MATCHING: 'bg-pink-50 text-pink-700 border-pink-200',
+      SENTENCE_BUILDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+      SENTENCE_TRANSFORMATION: 'bg-orange-50 text-orange-700 border-orange-200',
+      ERROR_CORRECTION: 'bg-red-50 text-red-700 border-red-200',
+      PRONUNCIATION: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+      OPEN_ENDED: 'bg-teal-50 text-teal-700 border-teal-200',
+      COMPLETE_CONVERSATION: 'bg-blue-50 text-blue-700 border-blue-200',
+    }
+    return classMap[type] || 'bg-gray-50 text-gray-700 border-gray-200'
+  }
+
+  const getQuestionTypeLabel = (type) => {
     const map = {
-      MULTIPLE_CHOICE:
-        'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-      TRUE_FALSE:
-        'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
-      FILL_BLANK:
-        'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
-      VERB_FORM:
-        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
-      TEXT_ANSWER:
-        'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800',
-      SENTENCE_TRANSFORMATION:
-        'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800',
-      MATCHING:
-        'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800',
-      SENTENCE_BUILDING:
-        'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
-      ERROR_CORRECTION:
-        'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
-      PRONUNCIATION:
-        'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800',
-      OPEN_ENDED:
-        'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
+      MULTIPLE_CHOICE: 'Trắc nghiệm',
+      FILL_BLANK: 'Điền từ',
+      TRUE_FALSE: 'Đúng / Sai',
+      MATCHING: 'Nối từ',
+      SENTENCE_BUILDING: 'Xây dựng câu',
+      SENTENCE_TRANSFORMATION: 'Viết lại câu',
+      ERROR_CORRECTION: 'Sửa lỗi sai',
+      PRONUNCIATION: 'Phát âm',
+      OPEN_ENDED: 'Câu hỏi mở',
+      TEXT_ANSWER: 'Trả lời ngắn',
+      VERB_FORM: 'Chia động từ',
+      COMPLETE_CONVERSATION: 'Hoàn thành hội thoại',
     }
-    return map[type] || 'bg-gray-50 text-gray-700 border-gray-200'
+    return map[type] || type
   }
 
-  /**
-   * Safely parse metadata
-   */
-  const getSafeMetadata = (row) => {
-    if (!row.metadata) return {}
-    if (typeof row.metadata === 'string') {
-      try {
-        return JSON.parse(row.metadata)
-      } catch (e) {
-        return {}
+  // ✅ FIX: Thêm getAnswerPreview
+  const getAnswerPreview = (question) => {
+    if (!question) return ''
+
+    const data = question.data || {}
+
+    switch (question.questionType) {
+      case 'MULTIPLE_CHOICE':
+      case 'TRUE_FALSE':
+      case 'COMPLETE_CONVERSATION': {
+        const options = data.options || []
+        const correctOpt = options.find((o) => o.isCorrect === true)
+        if (correctOpt) {
+          return `<span class="text-green-600 font-medium">✓ ${correctOpt.text}</span>`
+        }
+        return '<span class="text-gray-400">No correct answer</span>'
       }
-    }
-    return row.metadata
-  }
 
-  /**
-   * Get answer preview HTML string based on question type
-   */
-  const getAnswerPreview = (row) => {
-    const meta = getSafeMetadata(row)
-    const type = row.questionType
+      case 'FILL_BLANK':
+      case 'VERB_FORM':
+      case 'TEXT_ANSWER': {
+        const blanks = data.blanks || []
+        if (blanks.length > 0) {
+          const answers = blanks
+            .map((b) => {
+              const ans = b.correctAnswers || []
+              return ans.length > 0 ? ans[0] : ''
+            })
+            .filter(Boolean)
 
-    // 1. MULTIPLE_CHOICE
-    if (type === 'MULTIPLE_CHOICE') {
-      const correctOpt = meta.options?.find((opt) => opt.isCorrect === true)
-      return correctOpt?.text
-        ? `<span class="text-gray-400">Đúng:</span> <b class="text-green-600">${correctOpt.text}</b>`
-        : '<span class="text-gray-300 italic">Chưa có đáp án</span>'
-    }
-
-    // 2. TRUE_FALSE
-    if (type === 'TRUE_FALSE') {
-      const correctOpt = meta.options?.find((opt) => opt.isCorrect === true)
-      return correctOpt?.text
-        ? `<span class="text-gray-400">Đúng:</span> <b class="text-green-600">${correctOpt.text}</b>`
-        : '<span class="text-gray-300 italic">Chưa có đáp án</span>'
-    }
-
-    // 3. FILL_BLANK
-    if (type === 'FILL_BLANK') {
-      if (!meta.blanks || meta.blanks.length === 0) return ''
-      const firstBlank = meta.blanks[0]
-      const answers = Array.isArray(firstBlank.correctAnswers)
-        ? firstBlank.correctAnswers
-        : [firstBlank.correctAnswers]
-      return answers.join(' <span class="text-gray-300">/</span> ')
-    }
-
-    // 4. VERB_FORM
-    if (type === 'VERB_FORM') {
-      if (!meta.blanks || meta.blanks.length === 0) return ''
-      const firstBlank = meta.blanks[0]
-      const verb = firstBlank.verb || firstBlank.hint || '?'
-      const answers = Array.isArray(firstBlank.correctAnswers)
-        ? firstBlank.correctAnswers
-        : [firstBlank.correctAnswers]
-      return `<span class="text-purple-600">${verb}</span> → ${answers.join(' / ')}`
-    }
-
-    // 5. TEXT_ANSWER
-    if (type === 'TEXT_ANSWER') {
-      // New format: blanks array
-      if (meta.blanks && meta.blanks.length > 0) {
-        const answers = Array.isArray(meta.blanks[0].correctAnswers)
-          ? meta.blanks[0].correctAnswers
-          : [meta.blanks[0].correctAnswers]
-        return answers.join(' <span class="text-gray-300">/</span> ')
+          if (answers.length > 0) {
+            return `<span class="text-green-600 font-medium">${answers.join(', ')}</span>`
+          }
+        }
+        return '<span class="text-gray-400">No answers</span>'
       }
-      // Old format: correctAnswer string
-      return meta.correctAnswer || ''
-    }
 
-    // 6. SENTENCE_TRANSFORMATION
-    if (type === 'SENTENCE_TRANSFORMATION') {
-      if (!meta.correctAnswers || meta.correctAnswers.length === 0) return ''
-      return `<span class="text-violet-600">${meta.correctAnswers[0]}</span>`
-    }
+      case 'MATCHING': {
+        const pairs = data.pairs || []
+        if (pairs.length > 0) {
+          return `<span class="text-blue-600">${pairs.length} pairs</span>`
+        }
+        return '<span class="text-gray-400">No pairs</span>'
+      }
 
-    // 7. SENTENCE_BUILDING
-    if (type === 'SENTENCE_BUILDING') {
-      return meta.correctSentence
-        ? `<span class="text-indigo-600">${meta.correctSentence}</span>`
-        : ''
-    }
+      case 'SENTENCE_BUILDING': {
+        if (data.correctSentence) {
+          return `<span class="text-green-600 font-medium">${data.correctSentence}</span>`
+        }
+        return '<span class="text-gray-400">No correct sentence</span>'
+      }
 
-    // 8. MATCHING
-    if (type === 'MATCHING') {
-      const count = meta.pairs?.length || 0
-      return `<span class="text-orange-600">${count} cặp từ</span>`
-    }
+      case 'SENTENCE_TRANSFORMATION': {
+        const answers = data.correctAnswers || []
+        if (answers.length > 0) {
+          return `<span class="text-green-600 font-medium">${answers[0]}</span>`
+        }
+        return '<span class="text-gray-400">No correct answers</span>'
+      }
 
-    // 9. ERROR_CORRECTION
-    if (type === 'ERROR_CORRECTION') {
-      return meta.correction
-        ? `<b class="text-red-500">${meta.errorText}</b> → <b class="text-green-600">${meta.correction}</b>`
-        : ''
-    }
+      case 'ERROR_CORRECTION': {
+        if (data.correction) {
+          return `<span class="text-green-600 font-medium">${data.correction}</span>`
+        }
+        return '<span class="text-gray-400">No correction</span>'
+      }
 
-    // 10. PRONUNCIATION
-    if (type === 'PRONUNCIATION') {
-      const count = meta.words?.length || 0
-      return `<span class="text-cyan-600">${count} từ cần phân loại</span>`
-    }
+      case 'PRONUNCIATION': {
+        const words = data.words || []
+        if (words.length > 0) {
+          return `<span class="text-purple-600">${words.length} words</span>`
+        }
+        return '<span class="text-gray-400">No words</span>'
+      }
 
-    // 11. OPEN_ENDED
-    if (type === 'OPEN_ENDED') {
-      return '<span class="text-gray-400 italic">Cần chấm điểm</span>'
-    }
+      case 'OPEN_ENDED': {
+        if (data.suggestedAnswer) {
+          return `<span class="text-blue-600">Has suggested answer</span>`
+        }
+        return '<span class="text-gray-400">Open ended</span>'
+      }
 
-    return ''
+      default:
+        return '<span class="text-gray-400">-</span>'
+    }
   }
 
-  /**
-   * Truncate HTML content to specified length
-   */
-  const truncateHtml = (html, limit) => {
+  // Helper rút gọn HTML để preview
+  const truncateHtml = (html, maxLength = 50) => {
     if (!html) return ''
-    const tmp = document.createElement('DIV')
+    const tmp = document.createElement('div')
     tmp.innerHTML = html
     const text = tmp.textContent || tmp.innerText || ''
-    return text.length <= limit ? text : text.substring(0, limit) + '...'
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
   }
 
+  // ✅ VALIDATE: Kiểm tra dữ liệu dựa trên cấu trúc nested 'data'
+  const validateQuestionData = (question) => {
+    if (!question.questionType) return { valid: false, message: 'Chưa chọn loại câu hỏi' }
+
+    // Ưu tiên lấy từ metadata (khi đang trong Form) hoặc data (khi từ API về)
+    const data = question.metadata || question.data || {}
+
+    switch (question.questionType) {
+      case 'MULTIPLE_CHOICE':
+      case 'TRUE_FALSE':
+      case 'COMPLETE_CONVERSATION': {
+        if (!data.options || data.options.length < 2) {
+          return { valid: false, message: 'Cần ít nhất 2 options' }
+        }
+        const hasCorrect = data.options.some((o) => o.isCorrect)
+        if (!hasCorrect) return { valid: false, message: 'Chưa chọn đáp án đúng' }
+        const hasEmpty = data.options.some((o) => !o.text || !o.text.trim())
+        if (hasEmpty) return { valid: false, message: 'Nội dung đáp án không được trống' }
+        break
+      }
+
+      case 'FILL_BLANK':
+      case 'VERB_FORM':
+      case 'TEXT_ANSWER': {
+        if (!data.blanks || data.blanks.length === 0) {
+          return { valid: false, message: 'Chưa xác định vị trí điền từ (Blanks)' }
+        }
+        // Validate từng blank
+        for (const b of data.blanks) {
+          if (!b.correctAnswers || b.correctAnswers.length === 0) {
+            return { valid: false, message: `Vị trí [${b.position}] chưa có đáp án đúng` }
+          }
+        }
+        break
+      }
+
+      case 'MATCHING': {
+        if (!data.pairs || data.pairs.length < 2) {
+          return { valid: false, message: 'Cần ít nhất 2 cặp nối' }
+        }
+        const emptyPair = data.pairs.some((p) => !p.left || !p.right)
+        if (emptyPair) return { valid: false, message: 'Các cặp nối không được để trống' }
+        break
+      }
+
+      case 'SENTENCE_TRANSFORMATION': {
+        if (!data.correctAnswers || data.correctAnswers.length === 0) {
+          return { valid: false, message: 'Chưa nhập đáp án đúng' }
+        }
+        break
+      }
+
+      case 'ERROR_CORRECTION': {
+        if (!data.correction) return { valid: false, message: 'Chưa nhập câu sửa lỗi' }
+        break
+      }
+
+      case 'SENTENCE_BUILDING': {
+        if (!data.correctSentence) return { valid: false, message: 'Chưa nhập câu đúng' }
+        break
+      }
+    }
+
+    return { valid: true }
+  }
+
+  const hasWordBank = (type) => ['FILL_BLANK', 'VERB_FORM'].includes(type)
+
   return {
-    getQuestionTypeClass,
-    getSafeMetadata,
-    getAnswerPreview,
-    truncateHtml,
+    getQuestionTypeClass,    // ✅ Export
+    getQuestionTypeLabel,
+    getAnswerPreview,        // ✅ Export
+    truncateHtml,            // ✅ Export
+    validateQuestionData,
+    hasWordBank,
   }
 }

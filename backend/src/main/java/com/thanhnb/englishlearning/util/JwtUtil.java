@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -27,22 +28,30 @@ public class JwtUtil {
     }
 
     /**
-     * Generate JWT token with issued timestamp
+     * ✅ Generate JWT token with role
      */
-    public String generateToken(String username) {
+    public String generateToken(String username, String role) {
         Date expiration = new Date(System.currentTimeMillis() + jwtProperties.getExpiration());
+        
+        // Add ROLE_ prefix if not present
+        String roleWithPrefix = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
         return Jwts.builder()
                 .subject(username)
+                .claim("roles", List.of(roleWithPrefix))
                 .issuedAt(new Date())
                 .expiration(expiration)
                 .signWith(getSigningKey())
                 .compact();
     }
-
+    
     /**
-     * Get username from JWT token
+     * Backward compatibility - default to USER role
      */
+    public String generateToken(String username) {
+        return generateToken(username, "USER");
+    }
+
     public String getUsernameFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -51,10 +60,31 @@ public class JwtUtil {
                 .getPayload()
                 .getSubject();
     }
-
+    
     /**
-     * ✅ NEW: Get issued date from token
+     * ✅ Extract roles from JWT token
      */
+    @SuppressWarnings("unchecked")
+    public List<String> getRolesFromToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            
+            Object rolesObj = claims.get("roles");
+            if (rolesObj instanceof List) {
+                return (List<String>) rolesObj;
+            }
+            
+            return List.of("ROLE_USER");
+        } catch (Exception e) {
+            log.warn("Could not extract roles from token: {}", e.getMessage());
+            return List.of("ROLE_USER");
+        }
+    }
+
     public Date getIssuedAtDateFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -64,9 +94,6 @@ public class JwtUtil {
                 .getIssuedAt();
     }
 
-    /**
-     * Get expiration date from token
-     */
     public Date getExpirationDateFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -76,9 +103,6 @@ public class JwtUtil {
                 .getExpiration();
     }
 
-    /**
-     * Validate JWT token (basic validation)
-     */
     public boolean isTokenValid(String token) {
         try {
             Jwts.parser()
@@ -91,52 +115,32 @@ public class JwtUtil {
         }
     }
 
-    /**
-     * ✅ FIXED: Check if token was issued before user's last login
-     * Returns true if token is INVALID (issued before last login/password
-     * change/block)
-     * 
-     * @param token         JWT token to check
-     * @param lastLoginDate User's last login date (from database)
-     * @return true if token is invalid (issued before lastLoginDate)
-     */
     public boolean isTokenIssuedBeforeLastUpdate(String token, LocalDateTime lastLoginDate) {
         if (lastLoginDate == null) {
-            return false; // No last login recorded, token is valid
+            return false;
         }
 
         try {
             Date tokenIssuedAt = getIssuedAtDateFromToken(token);
-
-            // Convert LocalDateTime to Date for comparison
             Date lastUpdateDate = Date.from(lastLoginDate.atZone(ZoneId.systemDefault()).toInstant());
 
-            // ✅ FIX: Add 1-second tolerance to handle same-second timestamps
-            // Token is only invalid if issued MORE THAN 1 second before last login
-            long toleranceMs = 1000; // 1 second tolerance
+            long toleranceMs = 1000;
             long timeDifferenceMs = lastUpdateDate.getTime() - tokenIssuedAt.getTime();
 
-            // Token invalid only if issued > 1 second before lastLoginDate
             boolean isInvalid = timeDifferenceMs > toleranceMs;
 
             if (isInvalid) {
                 log.warn("Token issued at {} before last login/update at {} (diff: {} ms)",
-                        tokenIssuedAt, lastUpdateDate, timeDifferenceMs);
-            } else {
-                log.debug("Token timestamp check passed (issued: {}, lastLogin: {}, diff: {} ms)",
                         tokenIssuedAt, lastUpdateDate, timeDifferenceMs);
             }
 
             return isInvalid;
         } catch (Exception e) {
             log.error("Error checking token issue date: {}", e.getMessage());
-            return true; // Assume invalid if we can't check
+            return true;
         }
     }
 
-    /**
-     * Hash token để lưu vào database (for blacklist)
-     */
     public String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

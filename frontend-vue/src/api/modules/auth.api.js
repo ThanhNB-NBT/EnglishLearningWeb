@@ -171,9 +171,69 @@ export const authAPI = {
     return apiClient.post('/api/auth/admin/logout-all')
   },
 
+  // ==================== TEACHER ENDPOINTS ====================
+  /**
+   * Login teacher
+   * POST /api/auth/teacher/login
+   */
+  loginTeacher: (credentials) => {
+    return apiClient.post('/api/auth/teacher/login', {
+      usernameOrEmail: credentials.usernameOrEmail,
+      password: credentials.password
+    })
+  },
+
+  /**
+   * Create new teacher account (Admin only)
+   * POST /api/auth/teacher/create
+   */
+  createTeacher: (data) => {
+    return apiClient.post('/api/auth/teacher/create', {
+      username: data.username,
+      email: data.email,
+      password: data.password,
+      fullName: data.fullName
+    })
+  },
+
+  /**
+   * Logout teacher
+   * POST /api/auth/teacher/logout
+   */
+  logoutTeacher:  () => {
+    return apiClient.post('/api/auth/teacher/logout')
+  },
+
+  /**
+   * Logout all teacher devices
+   * POST /api/auth/teacher/logout-all
+   */
+  logoutTeacherAll: () => {
+    return apiClient.post('/api/auth/teacher/logout-all')
+  },
+
+  // Password reset cho teacher (giống admin)
+  forgotPasswordTeacher: (data) => {
+    return apiClient.post('/api/auth/teacher/forgot-password', {
+      email: data.email
+    })
+  },
+
+  verifyResetPasswordTeacher: (data) => {
+    return apiClient.post('/api/auth/teacher/verify-reset-password', {
+      email:  data.email,
+      otp: data.otp
+    })
+  },
+
+  resetPasswordTeacher: (data) => {
+    return apiClient.post('/api/auth/teacher/reset-password', {
+      email:  data.email,
+      newPassword: data.newPassword
+    })
+  },
+
   // ==================== LEGACY COMPATIBILITY ====================
-  // Để tương thích với code cũ, giữ lại methods này
-  // Nhưng internally call methods mới
 
   /**
    * @deprecated Use loginUser or loginAdmin instead

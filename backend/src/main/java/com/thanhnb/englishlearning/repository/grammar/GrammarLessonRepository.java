@@ -20,21 +20,19 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
        // ===== ADMIN ===========
        // Tìm tất cả lessons theo topic
        Page<GrammarLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId, Pageable pageable);
+       Page<GrammarLesson> findByTopicId(Long topicId, Pageable pageable);
 
        List<GrammarLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId);
-
-       // Tìm lesson theo topic và trạng thái active
-       List<GrammarLesson> findByTopicIdAndIsActiveOrderByOrderIndexAsc(Long topicId, Boolean isActive);
+       List<GrammarLesson> findByIsActiveTrueOrderByOrderIndexAsc();
 
        // Lấy số thứ tự lớn nhất của lesson trong topic
        @Query("SELECT MAX(gl.orderIndex) FROM GrammarLesson gl WHERE gl.topic.id = :topicId")
        Integer findMaxOrderIndexByTopicId(@Param("topicId") Long topicId);
 
-       @Modifying(clearAutomatically = true, flushAutomatically = true)
-       @Query("update GrammarLesson l set l.orderIndex = l.orderIndex -1" +
-                     "where l.topic.id = :topicId and l.orderIndex > :deletedPosition")
-       int shiftOrderAfterDelete(@Param("topicId") Long topicId,
-                     @Param("deletedPosition") Integer deletedPosition);
+       @Modifying
+       @Query("UPDATE GrammarLesson g SET g.orderIndex = g.orderIndex - 1 " +
+                     "WHERE g.topic.id = :topicId AND g.orderIndex > :deletedOrderIndex")
+       int shiftOrderAfterDelete(Long topicId, Integer deletedOrderIndex);
 
        // Tìm lesson với câu hỏi (sử dụng bảng question)
        @Query("SELECT gl FROM GrammarLesson gl " +
@@ -48,13 +46,10 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
 
        boolean existsByTopicIdAndTitleIgnoreCaseAndIdNot(Long topicId, String title, Long id);
 
-       // Kiểm tra lesson tồn tại và active
-       Boolean existsByIdAndIsActiveTrue(Long lessonId);
-
        // Số lượng lesson trong topic
        long countByTopicId(Long topicId);
 
-       long countByTopicIdAndIsActive(Long topicId, Boolean isActive);
+       int countByTopicIdAndIsActiveTrue(Long topicId);
 
        // ===== USER ============
        // Tìm lesson theo topic, vị trí theo order_index

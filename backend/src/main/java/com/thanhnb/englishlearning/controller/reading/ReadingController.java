@@ -2,267 +2,213 @@ package com.thanhnb.englishlearning.controller.reading;
 
 import com.thanhnb.englishlearning.dto.reading.*;
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
+import com.thanhnb.englishlearning.dto.topic.TopicUserDto;
 import com.thanhnb.englishlearning.entity.reading.UserReadingProgress;
-import com.thanhnb.englishlearning.service.reading.ReadingService;
+import com.thanhnb.englishlearning.service.reading.ReadingLearningService;
+import com.thanhnb.englishlearning.service.topic.UserTopicService;
 import com.thanhnb.englishlearning.security.UserPrincipal;
+import com.thanhnb.englishlearning.enums.ModuleType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import jakarta.validation.Valid;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * USER Controller cho Reading module
+ * ✅ FIXED: Reading Controller
+ * - Loại bỏ try-catch (dùng GlobalExceptionHandler)
+ * - Thêm logging
+ * - API design nhất quán (lessonId trong path)
  */
 @RestController
 @RequestMapping("/api/reading")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('USER')")
+@PreAuthorize("hasRole('USER')")
 @Tag(name = "Reading", description = "API học bài đọc hiểu (dành cho USER)")
 @SecurityRequirement(name = "bearerAuth")
 @Slf4j
 public class ReadingController {
 
-        private final ReadingService readingService;
+        private final ReadingLearningService readingService;
+        private final UserTopicService userTopicService;
 
-        // ═════════════════════════════════════════════════════════════════
-        // GET LESSONS
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // TOPIC APIs
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Lấy danh sách bài đọc với progress
-         */
-        @GetMapping("/lessons")
-        @Operation(summary = "Lấy danh sách bài đọc", description = "Lấy tất cả bài đọc active với tiến độ của user")
-        public ResponseEntity<CustomApiResponse<List<ReadingLessonDTO>>> getAllLessons(
+        @GetMapping("/topics")
+        @Operation(summary = "Lấy danh sách Reading topics")
+        public ResponseEntity<CustomApiResponse<List<TopicUserDto>>> getReadingTopics(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
-                try {
-                        log.info("User {} requesting reading lessons",
-                                        currentUser.getId());
 
-                        List<ReadingLessonDTO> lessons = readingService.getAllLessonsForUser(currentUser.getId());
+                log.info("User {} fetching reading topics", currentUser.getId());
 
-                        log.info("User {} retrieved page {}/{} with {} reading lessons",
-                                        currentUser.getId(),
-                                        lessons.size());
+                List<TopicUserDto> topics = userTopicService.getTopicsForUser(
+                                ModuleType.READING,
+                                currentUser.getId());
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(lessons, "Lấy danh sách bài đọc thành công"));
+                log.debug("Found {} reading topics for user {}", topics.size(), currentUser.getId());
 
-                } catch (Exception e) {
-                        log.error("Error getting reading lessons for user {}: ", currentUser.getId(), e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                topics,
+                                "Lấy danh sách chủ đề bài đọc thành công"));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // GET LESSON DETAIL
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // LESSON APIs
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Lấy chi tiết bài đọc với questions
-         */
+        @GetMapping("/topics/{topicId}/lessons")
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy bài đọc theo topic")
+        public ResponseEntity<CustomApiResponse<List<ReadingLessonDTO>>> getLessonsByTopic(
+                        @AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long topicId) {
+
+                log.info("User {} fetching lessons for reading topic {}",
+                                currentUser.getId(), topicId);
+
+                List<ReadingLessonDTO> lessons = readingService
+                                .getAllLessonsForUser(currentUser.getId(), topicId);
+
+                log.debug("Found {} lessons in reading topic {} for user {}",
+                                lessons.size(), topicId, currentUser.getId());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                lessons,
+                                "Lấy danh sách bài đọc thành công"));
+        }
+
         @GetMapping("/lessons/{lessonId}")
-        @Operation(summary = "Lấy chi tiết bài đọc", description = "Lấy nội dung bài đọc và câu hỏi (check unlock)")
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy chi tiết bài đọc")
         public ResponseEntity<CustomApiResponse<ReadingLessonDTO>> getLessonDetail(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài đọc") @PathVariable Long lessonId) {
-                try {
-                        log.info("User {} accessing reading lesson {}", currentUser.getId(), lessonId);
+                        @PathVariable Long lessonId) {
 
-                        ReadingLessonDTO lesson = readingService.getLessonDetail(lessonId, currentUser.getId());
+                log.info("User {} fetching reading lesson {}", currentUser.getId(), lessonId);
 
-                        log.info("User {} loaded lesson {} (completed: {}, score: {}%)",
-                                        currentUser.getId(),
-                                        lessonId,
-                                        lesson.getIsCompleted() != null && lesson.getIsCompleted(),
-                                        lesson.getScorePercentage() != null ? lesson.getScorePercentage() : 0);
+                ReadingLessonDTO lesson = readingService.getLessonDetail(
+                                lessonId,
+                                currentUser.getId());
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(lesson, "Lấy chi tiết bài đọc thành công"));
-
-                } catch (RuntimeException e) {
-                        log.warn("User {} failed to access lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error getting reading lesson detail: ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                lesson,
+                                "Lấy chi tiết bài đọc thành công"));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // SUBMIT LESSON
-        // ═════════════════════════════════════════════════════════════════
-
-        /**
-         * [USER] Nộp bài đọc và nhận kết quả
-         */
         @PostMapping("/lessons/{lessonId}/submit")
-        @Operation(summary = "Nộp bài đọc", description = "Nộp câu trả lời và nhận kết quả (với anti-cheat 30 giây)")
+        @Operation(summary = "Nộp bài đọc")
         public ResponseEntity<CustomApiResponse<ReadingSubmitResponse>> submitLesson(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài đọc") @PathVariable Long lessonId,
+                        @PathVariable Long lessonId, // ✅ THAY ĐỔI: Lấy từ path
                         @Valid @RequestBody ReadingSubmitRequest request) {
-                try {
-                        log.info("User {} submitting reading lesson {} with {} answers",
-                                        currentUser.getId(),
-                                        lessonId,
-                                        request.getAnswers() != null ? request.getAnswers().size() : 0);
 
-                        ReadingSubmitResponse response = readingService.submitLesson(
-                                        currentUser.getId(), lessonId, request);
+                log.info("User {} submitting reading lesson {}", currentUser.getId(), lessonId);
 
-                        // Build message based on result
-                        String message;
-                        if (response.isCompleted()) {
-                                message = String.format(
-                                                "🎉 Chúc mừng! Bạn đã hoàn thành bài đọc với điểm %.2f%% (%d/%d câu đúng)",
-                                                response.getScorePercentage(),
-                                                response.getCorrectCount(),
-                                                response.getTotalQuestions());
-                        } else {
-                                message = String.format(
-                                                "📊 Bạn đã đạt %.2f%% (%d/%d câu đúng). Cần đạt tối thiểu 80%% để hoàn thành bài",
-                                                response.getScorePercentage(),
-                                                response.getCorrectCount(),
-                                                response.getTotalQuestions());
-                        }
+                // ✅ Set lessonId từ path vào request
+                request.setLessonId(lessonId);
 
-                        log.info("User {} completed reading lesson {} - Score: {:.2f}%, Passed: {}",
-                                        currentUser.getId(),
-                                        lessonId,
-                                        response.getScorePercentage(),
-                                        response.isCompleted());
+                ReadingSubmitResponse response = readingService.submitLesson(
+                                currentUser.getId(), request);
 
-                        return ResponseEntity.ok(CustomApiResponse.success(response, message));
+                String message = response.getIsCompleted()
+                                ? String.format("Chúc mừng! Hoàn thành với %.2f%% điểm",
+                                                response.getScorePercentage())
+                                : String.format("Bạn đạt %.2f%%. Cần 80%% để qua bài",
+                                                response.getScorePercentage());
 
-                } catch (RuntimeException e) {
-                        log.warn("User {} submit failed for lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error submitting reading lesson: ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                log.info("User {} submitted reading lesson {}: completed={}, score={}",
+                                currentUser.getId(), lessonId,
+                                response.getIsCompleted(), response.getScorePercentage());
+
+                return ResponseEntity.ok(CustomApiResponse.success(response, message));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // PROGRESS & HISTORY
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // PROGRESS APIs
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Lấy danh sách bài đã hoàn thành
-         */
         @GetMapping("/progress/completed")
-        @Operation(summary = "Lấy danh sách bài đã hoàn thành", description = "Xem lịch sử các bài đọc đã hoàn thành của user")
+        @Operation(summary = "Lấy danh sách bài đã hoàn thành")
         public ResponseEntity<CustomApiResponse<List<UserReadingProgress>>> getCompletedLessons(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
-                try {
-                        log.info("User {} requesting completed reading lessons", currentUser.getId());
 
-                        List<UserReadingProgress> completedLessons = readingService
-                                        .getCompletedLessons(currentUser.getId());
+                log.debug("User {} fetching completed reading lessons", currentUser.getId());
 
-                        log.info("User {} has completed {} reading lessons",
-                                        currentUser.getId(), completedLessons.size());
+                List<UserReadingProgress> completed = readingService
+                                .getCompletedLessons(currentUser.getId());
 
-                        String message = completedLessons.isEmpty()
-                                        ? "Bạn chưa hoàn thành bài đọc nào"
-                                        : String.format("Bạn đã hoàn thành %d bài đọc", completedLessons.size());
-
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(completedLessons, message));
-
-                } catch (Exception e) {
-                        log.error("Error getting completed reading lessons for user {}: ",
-                                        currentUser.getId(), e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(completed, "Thành công"));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // OPTIONAL: GET PROGRESS SUMMARY
-        // ═════════════════════════════════════════════════════════════════
-
-        /**
-         * [USER] Lấy tổng quan tiến độ học
-         */
         @GetMapping("/progress/summary")
-        @Operation(summary = "Lấy tổng quan tiến độ", description = "Thống kê tổng quan về tiến độ học Reading của user")
+        @Operation(summary = "Lấy tổng quan tiến độ")
         public ResponseEntity<CustomApiResponse<UserReadingProgressSummary>> getProgressSummary(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
-                try {
-                        log.info("User {} requesting reading progress summary", currentUser.getId());
 
-                        // Get completed lessons
-                        List<UserReadingProgress> completedLessons = readingService
-                                        .getCompletedLessons(currentUser.getId());
+                log.info("User {} fetching reading progress summary", currentUser.getId());
 
-                        // Calculate summary
-                        int totalCompleted = completedLessons.size();
-                        double avgScore = completedLessons.stream()
-                                        .mapToDouble(p -> p.getScorePercentage().doubleValue())
-                                        .average()
-                                        .orElse(0.0);
+                List<UserReadingProgress> completedLessons = readingService
+                                .getCompletedLessons(currentUser.getId());
 
-                        int totalAttempts = completedLessons.stream()
-                                        .mapToInt(p -> p.getAttempts() != null ? p.getAttempts() : 0)
-                                        .sum();
+                int totalCompleted = completedLessons.size();
 
-                        UserReadingProgressSummary summary = UserReadingProgressSummary.builder()
-                                        .userId(currentUser.getId())
-                                        .totalCompleted(totalCompleted)
-                                        .averageScore(avgScore)
-                                        .totalAttempts(totalAttempts)
-                                        .recentCompletions(completedLessons.stream()
-                                                        .limit(5)
-                                                        .map(p -> new RecentCompletion(
-                                                                        p.getLesson().getId(),
-                                                                        p.getLesson().getTitle(),
-                                                                        p.getScorePercentage().doubleValue(),
-                                                                        p.getCompletedAt()))
-                                                        .toList())
-                                        .build();
+                // ✅ Chỉ tính average cho các lesson có điểm > 0
+                double avgScore = completedLessons.stream()
+                                .filter(p -> p.getScorePercentage() != null && p.getScorePercentage() > 0)
+                                .mapToDouble(UserReadingProgress::getScorePercentage)
+                                .average()
+                                .orElse(0.0);
 
-                        log.info("User {} progress: {} completed, avg score: {:.2f}%",
-                                        currentUser.getId(), totalCompleted, avgScore);
+                int totalAttempts = completedLessons.stream()
+                                .filter(p -> p.getAttempts() != null)
+                                .mapToInt(UserReadingProgress::getAttempts)
+                                .sum();
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(summary, "Lấy tổng quan tiến độ thành công"));
+                // ✅ Sắp xếp theo thời gian hoàn thành, lấy 5 bài gần nhất
+                List<RecentCompletion> recentCompletions = completedLessons.stream()
+                                .filter(p -> p.getCompletedAt() != null)
+                                .sorted((p1, p2) -> p2.getCompletedAt().compareTo(p1.getCompletedAt()))
+                                .limit(5)
+                                .map(p -> new RecentCompletion(
+                                                p.getLesson().getId(),
+                                                p.getLesson().getTitle(),
+                                                p.getScorePercentage() != null ? p.getScorePercentage() : 0.0,
+                                                p.getCompletedAt()))
+                                .toList();
 
-                } catch (Exception e) {
-                        log.error("Error getting progress summary for user {}: ",
-                                        currentUser.getId(), e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                UserReadingProgressSummary summary = UserReadingProgressSummary.builder()
+                                .userId(currentUser.getId())
+                                .totalCompleted(totalCompleted)
+                                .averageScore(Math.round(avgScore * 100.0) / 100.0)
+                                .totalAttempts(totalAttempts)
+                                .recentCompletions(recentCompletions)
+                                .build();
+
+                log.debug("Reading progress summary for user {}: completed={}, avgScore={}",
+                                currentUser.getId(), totalCompleted, summary.getAverageScore());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                summary,
+                                "Lấy tổng quan tiến độ thành công"));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // INNER DTOs
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // INNER CLASSES
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * DTO cho progress summary
-         */
         @lombok.Data
         @lombok.Builder
         private static class UserReadingProgressSummary {
@@ -273,9 +219,6 @@ public class ReadingController {
                 private List<RecentCompletion> recentCompletions;
         }
 
-        /**
-         * DTO cho recent completion
-         */
         private record RecentCompletion(
                         Long lessonId,
                         String lessonTitle,

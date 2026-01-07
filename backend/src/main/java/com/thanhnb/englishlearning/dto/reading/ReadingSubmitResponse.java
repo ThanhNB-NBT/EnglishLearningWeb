@@ -1,104 +1,106 @@
 package com.thanhnb.englishlearning.dto.reading;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
+import com.thanhnb.englishlearning.enums.EnglishLevel;
+import com.thanhnb.englishlearning.service.level.LevelUpgradeService.LevelUpgradeResult;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Data
 @Builder
-@Schema(description = "Kết quả sau khi nộp bài đọc")
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ReadingSubmitResponse {
 
-        @Schema(description = "ID bài đọc", example = "1")
+        @Schema(description = "ID bài đọc")
         private Long lessonId;
 
-        @Schema(description = "Tiêu đề bài đọc", example = "The Digital Paradox")
+        @Schema(description = "Tiêu đề bài đọc")
         private String lessonTitle;
 
-        @Schema(description = "Tổng số câu hỏi", example = "10")
+        @Schema(description = "Tổng số câu hỏi")
         private Integer totalQuestions;
 
-        @Schema(description = "Số câu trả lời đúng", example = "8")
+        @Schema(description = "Số câu trả lời đúng")
         private Integer correctCount;
 
-        @Schema(description = "Tổng điểm đạt được", example = "40")
+        @Schema(description = "Tổng điểm đạt được")
         private Integer totalScore;
 
-        @Schema(description = "Phần trăm điểm", example = "80.0")
+        @Schema(description = "Phần trăm điểm")
         private Double scorePercentage;
 
-        @Schema(description = "Đã pass (>= 80%) hay chưa", example = "true")
-        private Boolean isPassed;
+        @Schema(description = "Có hoàn thành bài học không")
+        private Boolean isCompleted;
 
-        @Schema(description = "Điểm thưởng nhận được (chỉ tính lần đầu complete)", example = "25")
+        @Schema(description = "Điểm thưởng nhận được")
         private Integer pointsEarned;
 
-        @Schema(description = "Đã mở khóa bài tiếp theo chưa", example = "true")
-        private Boolean hasUnlockedNext;
+        @Schema(description = "Có bài học tiếp theo được mở khóa không")
+        private Boolean hasNextLesson;
 
-        @Schema(description = "ID bài đọc tiếp theo (nếu có)", example = "2")
+        @Schema(description = "ID bài học tiếp theo (nếu có)")
         private Long nextLessonId;
 
         @Schema(description = "Chi tiết kết quả từng câu hỏi")
-        private List<QuestionResultDTO> questionResults;
+        private List<QuestionResultDTO> results;
 
-        @Deprecated
-        @Schema(description = "⚠️ Deprecated: Dùng isPassed thay thế", example = "true")
-        private Boolean completed;
+        // ✅ NEW: Level upgrade information
+        @Schema(description = "Có nâng cấp trình độ không")
+        private Boolean levelUpgraded;
 
-        public Boolean isCompleted() {
-                return this.isPassed != null ? this.isPassed : this.completed;
-        }
+        @Schema(description = "Trình độ cũ (nếu có nâng cấp)")
+        private EnglishLevel oldLevel;
 
-        // ===== FACTORY METHODS =====
+        @Schema(description = "Trình độ mới (nếu có nâng cấp)")
+        private EnglishLevel newLevel;
+
+        @Schema(description = "Thông báo về tiến trình/nâng cấp")
+        private String progressMessage;
 
         public static ReadingSubmitResponse of(
                         Long lessonId,
                         String lessonTitle,
-                        Integer totalQuestions,
-                        Integer correctCount,
-                        Integer totalScore,
-                        Double scorePercentage,
-                        Boolean isPassed,
-                        Integer pointsEarned,
-                        Boolean hasUnlockedNext,
+                        int totalQuestions,
+                        int correctCount,
+                        int totalScore,
+                        double scorePercentage,
+                        boolean isPassed,
+                        int pointsEarned,
+                        boolean hasNextLesson,
                         Long nextLessonId,
-                        List<QuestionResultDTO> questionResults) {
+                        List<QuestionResultDTO> results,
+                        LevelUpgradeResult levelUpgradeResult) {
 
-                return ReadingSubmitResponse.builder()
+                ReadingSubmitResponse response = ReadingSubmitResponse.builder()
                                 .lessonId(lessonId)
                                 .lessonTitle(lessonTitle)
                                 .totalQuestions(totalQuestions)
                                 .correctCount(correctCount)
                                 .totalScore(totalScore)
                                 .scorePercentage(scorePercentage)
-                                .isPassed(isPassed)
+                                .isCompleted(isPassed)
                                 .pointsEarned(pointsEarned)
-                                .hasUnlockedNext(hasUnlockedNext)
+                                .hasNextLesson(hasNextLesson)
                                 .nextLessonId(nextLessonId)
-                                .questionResults(questionResults)
-                                .completed(isPassed) // Backward compatibility
+                                .results(results)
                                 .build();
-        }
 
-        public static ReadingSubmitResponse simple(
-                        Long lessonId,
-                        String lessonTitle,
-                        Integer totalQuestions,
-                        Integer correctCount,
-                        Double scorePercentage,
-                        Boolean isPassed,
-                        List<QuestionResultDTO> questionResults) {
+                // ✅ Add level upgrade info if available
+                if (levelUpgradeResult != null) {
+                        response.setLevelUpgraded(levelUpgradeResult.isUpgraded());
+                        response.setOldLevel(levelUpgradeResult.getOldLevel());
+                        response.setNewLevel(levelUpgradeResult.getNewLevel());
+                        response.setProgressMessage(levelUpgradeResult.getMessage());
+                }
 
-                int totalScore = questionResults.stream()
-                                .mapToInt(QuestionResultDTO::getPoints)
-                                .sum();
-
-                return of(lessonId, lessonTitle, totalQuestions, correctCount,
-                                totalScore, scorePercentage, isPassed, 0,
-                                false, null, questionResults);
+                return response;
         }
 }

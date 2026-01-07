@@ -36,9 +36,9 @@
             type="primary"
             size="large"
             class="!h-12 !px-8 !text-base !font-bold !rounded-full shadow-lg"
-            @click="$router.push('/user/dashboard')"
+            @click="$router.push('/user/home')"
           >
-            Vào Dashboard
+            Vào trang học tập
           </el-button>
         </div>
       </div>

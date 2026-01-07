@@ -1,186 +1,246 @@
+<!-- src/components/admin/shared/questions/BulkCreateDialog.vue - UPDATED -->
 <template>
   <el-dialog
     v-model="visible"
     width="98%"
     top="2vh"
-    class="!rounded-xl !p-0 overflow-hidden flex flex-col"
+    class="!rounded-xl"
     :close-on-click-modal="false"
-    destroy-on-close
     :show-close="false"
+    destroy-on-close
   >
-    <template #header="{ close }">
-      <div
-        class="flex justify-between items-center px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d]"
-      >
+    <template #header>
+      <div class="flex justify-between items-center px-6 py-3 border-b">
         <div class="flex items-center gap-4">
-          <div class="flex flex-col">
-            <h4 class="text-lg font-bold text-gray-800 dark:text-white m-0">Soạn thảo hàng loạt</h4>
-            <span class="text-xs text-gray-500 mt-0.5" v-if="currentLesson">
-              Bài: <b class="text-blue-600">{{ currentLesson.title }}</b>
+          <div>
+            <h4 class="text-lg font-bold m-0">Soạn thảo hàng loạt</h4>
+            <span class="text-xs text-gray-500" v-if="currentLesson">
+              {{ config.lessonLabel }}: <b class="text-blue-600">{{ currentLesson.title }}</b>
             </span>
           </div>
 
-          <div
-            v-if="currentLesson?.content"
-            class="ml-4 pl-4 border-l border-gray-300 dark:border-gray-600"
+          <el-button
+            v-if="hasLessonContent"
+            @click="showContent = !showContent"
+            :type="showContent ? 'primary' : 'default'"
+            link
+            size="small"
           >
-            <el-button
-              @click="showContent = !showContent"
-              :type="showContent ? 'primary' : 'default'"
-              link
-              size="small"
-              class="!font-bold"
-            >
-              <el-icon class="mr-1"><Reading /></el-icon>
-              {{ showContent ? 'Tắt bài đọc' : 'Xem bài đọc' }}
+            <el-icon><component :is="config.contentIcon" /></el-icon>
+            {{ showContent ? `Tắt ${config.contentLabel}` : `Xem ${config.contentLabel}` }}
+          </el-button>
+        </div>
+
+        <el-button @click="handleClose" :icon="Close" circle text />
+      </div>
+    </template>
+
+    <div class="flex overflow-hidden bg-gray-100 dark:bg-[#121212] h-[80vh]">
+      <!-- Left Panel: Lesson Content -->
+      <transition name="el-fade-in-linear">
+        <div
+          v-if="showContent && hasLessonContent"
+          class="w-1/3 min-w-[400px] max-w-[50%] bg-white dark:bg-[#1d1d1d] border-r flex flex-col shadow-lg"
+        >
+          <div class="h-10 px-4 bg-gray-50 dark:bg-[#252525] border-b font-bold flex items-center">
+            <el-icon class="mr-2"><component :is="config.contentIcon" /></el-icon>
+            {{ config.contentLabel }}
+          </div>
+
+          <template v-if="config.moduleType !== 'LISTENING'">
+            <el-tabs v-if="currentLesson.contentTranslation" type="border-card" class="flex-1">
+              <el-tab-pane label="📖 English">
+                <div class="p-6 overflow-y-auto h-full">
+                  <div class="ql-editor !p-0" v-html="currentLesson.content"></div>
+                </div>
+              </el-tab-pane>
+              <el-tab-pane label="🇻🇳 Tiếng Việt">
+                <div class="p-6 overflow-y-auto h-full">
+                  <div class="ql-editor !p-0" v-html="currentLesson.contentTranslation"></div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+            <div v-else class="p-6 overflow-y-auto">
+              <div class="ql-editor !p-0" v-html="currentLesson.content"></div>
+            </div>
+          </template>
+
+          <el-tabs v-else type="border-card" class="flex-1">
+            <el-tab-pane label="🎧 English">
+              <div class="p-6 overflow-y-auto h-full whitespace-pre-wrap">
+                {{ currentLesson.transcript }}
+              </div>
+            </el-tab-pane>
+            <el-tab-pane v-if="currentLesson.transcriptTranslation" label="🇻🇳 Tiếng Việt">
+              <div class="p-6 overflow-y-auto h-full whitespace-pre-wrap">
+                {{ currentLesson.transcriptTranslation }}
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </transition>
+
+      <!-- Right Panel: Question List -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <div
+          class="h-12 px-6 bg-gray-50 dark:bg-[#252525] border-b flex justify-between items-center"
+        >
+          <div class="text-sm text-gray-500">
+            Danh sách: <b class="text-blue-600">{{ questionList.length }}</b> câu hỏi
+            <span v-if="totalPoints > 0" class="ml-3 text-orange-600">
+              | Tổng điểm: <b>{{ totalPoints }}</b>
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <el-button @click="removeAll" :icon="Delete" type="danger" plain size="small">
+              Xóa hết
+            </el-button>
+            <el-button type="primary" :icon="Plus" @click="addNewQuestion" size="small">
+              Thêm dòng
             </el-button>
           </div>
         </div>
 
-        <button
-          @click="close"
-          class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-[#333] dark:hover:text-gray-200 transition-all"
-        >
-          <el-icon :size="20"><Close /></el-icon>
-        </button>
-      </div>
-    </template>
+        <div class="flex-1 overflow-y-auto p-6">
+          <el-empty v-if="questionList.length === 0" description="Chưa có câu hỏi nào">
+            <el-button type="primary" :icon="Plus" @click="addNewQuestion">
+              Thêm câu hỏi đầu tiên
+            </el-button>
+          </el-empty>
 
-    <div class="flex-1 flex overflow-hidden bg-gray-100 dark:bg-[#121212] h-[80vh]">
-      <transition name="el-fade-in-linear">
-        <div
-          v-if="showContent && currentLesson?.content"
-          class="w-1/3 min-w-[400px] max-w-[50%] bg-white dark:bg-[#1d1d1d] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-lg z-10 relative"
-        >
-          <div
-            class="h-10 px-4 bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-gray-700 font-bold text-gray-600 dark:text-gray-300 flex items-center shrink-0 text-sm"
-          >
-            <span class="flex items-center gap-2"
-              ><el-icon><Document /></el-icon> Nội dung bài đọc</span
-            >
-          </div>
-          <div class="flex-1 overflow-y-auto p-6 bg-white dark:bg-[#1d1d1d]">
-            <div
-              class="ql-editor !p-0 text-gray-800 dark:text-gray-200 text-base leading-relaxed"
-              v-html="currentLesson.content"
-            ></div>
-          </div>
-        </div>
-      </transition>
+          <div v-else class="space-y-4">
+            <SingleQuestionEditor
+              v-for="(item, index) in questionList"
+              :key="index"
+              :model-value="item"
+              :index="index"
+              :task-groups="taskGroups"
+              @update:model-value="(val) => updateQuestion(index, val)"
+              @remove="removeQuestion(index)"
+              @clone="cloneQuestion(index)"
+            />
 
-      <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-        <div
-          class="h-12 px-6 bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0"
-        >
-          <div class="text-sm text-gray-500">
-            Danh sách: <b class="text-blue-600">{{ questionList.length }}</b> câu hỏi
-          </div>
-          <div class="flex gap-2">
-            <el-button @click="removeAll" :icon="Delete" type="danger" plain class="!h-8"
-              >Xóa hết</el-button
-            >
-            <el-button type="primary" :icon="Plus" @click="addNewQuestion" class="!h-8 font-bold"
-              >Thêm dòng</el-button
-            >
-          </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-6 space-y-4">
-          <div
-            v-if="questionList.length === 0"
-            class="flex flex-col items-center justify-center h-full text-gray-400"
-          >
-            <el-icon :size="48" class="mb-4"><DocumentAdd /></el-icon>
-            <p>Chưa có câu hỏi nào.</p>
-            <el-button type="primary" plain class="mt-4" @click="addNewQuestion"
-              >Thêm câu hỏi đầu tiên</el-button
-            >
-          </div>
-
-          <SingleQuestionEditor
-            v-for="(item, index) in questionList"
-            :key="index"
-            :model-value="item"
-            :index="index"
-            @update:model-value="(val) => updateQuestion(index, val)"
-            @remove="removeQuestion(index)"
-            @clone="cloneQuestion(index)"
-          />
-
-          <div v-if="questionList.length > 0" class="text-center pt-4 pb-10">
-            <el-button
-              type="primary"
-              plain
-              :icon="Plus"
-              class="!w-full !max-w-md !border-dashed !h-12"
-              @click="addNewQuestion"
-              >Thêm câu hỏi tiếp theo</el-button
-            >
+            <div class="text-center pt-4">
+              <el-button
+                type="primary"
+                plain
+                :icon="Plus"
+                class="!w-full !max-w-md !border-dashed !h-12"
+                @click="addNewQuestion"
+              >
+                Thêm câu hỏi tiếp theo
+              </el-button>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <template #footer>
-      <div
-        class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20"
-      >
-        <el-button @click="visible = false" class="!rounded-lg !h-10 !px-6">Hủy bỏ</el-button>
-        <el-button
-          type="primary"
-          :loading="loading"
-          @click="handleSubmit"
-          class="!rounded-lg !font-bold px-8 !h-10 !text-base shadow-lg shadow-blue-500/20"
-        >
-          Lưu tất cả ({{ questionList.length }})
-        </el-button>
+      <div class="flex justify-between items-center px-6 py-3 border-t">
+        <div class="text-sm text-gray-600">
+          Tổng: <strong class="text-blue-600">{{ questionList.length }}</strong> câu hỏi
+          <span v-if="totalPoints > 0" class="ml-3">
+            | Điểm: <strong class="text-green-600">{{ totalPoints }}</strong>
+          </span>
+        </div>
+        <div class="flex gap-3">
+          <el-button @click="visible = false" :disabled="isLoading">Hủy</el-button>
+          <el-button
+            type="primary"
+            :loading="isLoading"
+            :disabled="questionList.length === 0"
+            @click="handleSubmit"
+          >
+            Lưu tất cả ({{ questionList.length }})
+          </el-button>
+        </div>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, watch } from 'vue'
-import { useGrammarStore } from '@/stores/grammar'
+import { ref, computed, defineAsyncComponent } from 'vue'
+import { Plus, Delete, Close } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, DocumentAdd, Close, Reading, Document } from '@element-plus/icons-vue'
-const SingleQuestionEditor = defineAsyncComponent(
-  () => import('@/components/admin/questions/SingleQuestionEditor.vue'),
-)
+import { useQuestionStore } from '@/stores/admin/questionAdmin'
 
-const props = defineProps({ lessonId: Number })
+const SingleQuestionEditor = defineAsyncComponent(() => import('./SingleQuestionEditor.vue'))
+
+const props = defineProps({
+  config: {
+    type: Object,
+    required: true,
+    validator: (config) => {
+      if (!config || !config.moduleType) {
+        console.error('❌ BulkCreateDialog: config.moduleType is required!')
+        return false
+      }
+      return true
+    },
+  },
+})
+
 const emit = defineEmits(['success'])
-const store = useGrammarStore()
 
+const questionStore = useQuestionStore()
+
+const isLoading = computed(() => questionStore.loading)
 const visible = ref(false)
-const loading = ref(false)
-const questionList = ref([])
 const currentLesson = ref(null)
+const questionList = ref([])
 const showContent = ref(true)
+const startOrderIndex = ref(1)
+
+// ✅ NEW: TaskGroups
+const taskGroups = computed(() => questionStore.taskGroups)
+
+const hasLessonContent = computed(() => {
+  if (!currentLesson.value) return false
+  if (props.config.moduleType === 'LISTENING') {
+    return !!currentLesson.value.transcript
+  }
+  return !!currentLesson.value.content
+})
+
+const totalPoints = computed(() => {
+  return questionList.value.reduce((sum, q) => sum + (q.points || 0), 0)
+})
 
 const createEmptyQuestion = () => ({
+  parentType: props.config.moduleType,
   questionType: 'MULTIPLE_CHOICE',
   questionText: '',
   points: 10,
+  orderIndex: 0,
   explanation: '',
   metadata: {},
   isCollapsed: false,
-  orderIndex: 0,
+  taskGroupId: null, // ✅ NEW: thay thế 3 fields cũ
 })
 
-const open = async () => {
-  questionList.value = [createEmptyQuestion()]
+const open = async (lesson) => {
+  currentLesson.value = lesson
+  questionList.value = []
+  showContent.value = !!hasLessonContent.value
   visible.value = true
 
-  if (props.lessonId) {
-    try {
-      const res = await store.fetchLessonById(props.lessonId)
-      currentLesson.value = res
-      showContent.value = !!(res && res.content && res.content.length > 50)
-    } catch (e) {
-      console.error(e)
-    }
+  // ✅ Load TaskGroups
+  try {
+    await questionStore.fetchTaskGroups(props.config.moduleType, lesson.id)
+  } catch (e) {
+    console.error('Failed to load task groups:', e)
   }
+
+  try {
+    startOrderIndex.value = await questionStore.fetchNextOrder(props.config.moduleType, lesson.id)
+  } catch (e) {
+    console.error('Fetch next order index error:', e)
+    startOrderIndex.value = 1
+  }
+
+  addNewQuestion()
 }
 
 const addNewQuestion = () => {
@@ -196,112 +256,135 @@ const removeQuestion = (index) => {
   questionList.value.splice(index, 1)
 }
 
-const removeAll = () => {
-  ElMessageBox.confirm('Xóa hết danh sách?', 'Warning', { type: 'warning' })
-    .then(() => (questionList.value = []))
-    .catch(() => {})
+const removeAll = async () => {
+  try {
+    await ElMessageBox.confirm('Xóa hết danh sách?', 'Cảnh báo', { type: 'warning' })
+    questionList.value = []
+  } catch {
+    // Cancelled
+  }
 }
 
 const cloneQuestion = (index) => {
   const original = questionList.value[index]
-  const clone = JSON.parse(JSON.stringify(original))
-  clone.isCollapsed = false
-  questionList.value.splice(index + 1, 0, clone)
-  ElMessage.success('Đã nhân bản')
+  const cloned = JSON.parse(JSON.stringify(original))
+  cloned.isCollapsed = false
+  questionList.value.splice(index + 1, 0, cloned)
+  ElMessage.success('Đã nhân bản câu hỏi')
+}
+
+const handleClose = () => {
+  if (questionList.value.length > 0) {
+    ElMessageBox.confirm('Bạn có thay đổi chưa lưu. Đóng dialog này?', 'Xác nhận', {
+      type: 'warning',
+      confirmButtonText: 'Đóng',
+      cancelButtonText: 'Tiếp tục chỉnh sửa',
+    })
+      .then(() => {
+        visible.value = false
+        questionList.value = []
+      })
+      .catch(() => {
+        // Cancelled - do nothing
+      })
+  } else {
+    visible.value = false
+  }
 }
 
 const handleSubmit = async () => {
   if (questionList.value.length === 0) {
-    ElMessage.warning('Danh sách trống')
+    ElMessage.warning('Chưa có câu hỏi nào để lưu')
     return
   }
 
-  loading.value = true
-  try {
-    const payload = questionList.value.map((q, idx) => {
-      const { isCollapsed, metadata, ...rest } = q
+  // ✅ ENHANCED VALIDATION
+  for (let i = 0; i < questionList.value.length; i++) {
+    const q = questionList.value[i]
 
-      const dto = {
-        ...rest,
-        orderIndex: null, // Đặt thứ tự dựa trên vị trí trong danh sách
+    if (!q.questionType) {
+      ElMessage.error(`Câu ${i + 1}: Chưa chọn loại câu hỏi`)
+      return
+    }
+
+    // ✅ FIX: Check metadata instead of q.options
+    const metadata = q.metadata || {}
+
+    if (['MULTIPLE_CHOICE', 'TRUE_FALSE', 'COMPLETE_CONVERSATION'].includes(q.questionType)) {
+      const options = metadata.options || []
+      if (options.length < 2) {
+        ElMessage.error(`Câu ${i + 1}: Cần ít nhất 2 đáp án`)
+        return
       }
+      const hasCorrect = options.some((opt) => opt.isCorrect === true)
+      if (!hasCorrect) {
+        ElMessage.error(`Câu ${i + 1}: Chưa chọn đáp án đúng`)
+        return
+      }
+    }
 
-      if (metadata) {
-        switch (dto.questionType) {
-          case 'MULTIPLE_CHOICE':
-          case 'TRUE_FALSE':
-            dto.options = metadata.options
-            break
-
-          case 'FILL_BLANK':
-          case 'VERB_FORM':
-            dto.blanks = metadata.blanks
-            if (metadata.wordBank) dto.wordBank = metadata.wordBank
-            break
-
-          case 'TEXT_ANSWER':
-            if (metadata.correctAnswer) {
-              dto.blanks = [
-                {
-                  position: 1,
-                  correctAnswers: metadata.correctAnswer.split('|'), // Hỗ trợ nhiều đáp án cách nhau bởi |
-                },
-              ]
-            } else if (metadata.blanks) {
-              dto.blanks = metadata.blanks
-            }
-            break
-
-          case 'SENTENCE_TRANSFORMATION':
-            dto.originalSentence = metadata.originalSentence
-            dto.beginningPhrase = metadata.beginningPhrase
-            dto.correctAnswers = metadata.correctAnswers
-            break
-
-          case 'SENTENCE_BUILDING':
-            dto.words = metadata.words
-            dto.correctSentence = metadata.correctSentence
-            break
-
-          case 'MATCHING':
-            dto.pairs = (metadata.pairs || metadata.matchingPairs || []).map((p, i) => ({
-              ...p,
-              order: p.order || i + 1,
-            }))
-            break
-
-          case 'ERROR_CORRECTION':
-            dto.errorText = metadata.errorText
-            dto.correction = metadata.correction
-            break
-
-          case 'PRONUNCIATION':
-            dto.words = metadata.words
-            dto.categories = metadata.categories
-            dto.classifications = metadata.classifications
-            break
-
-          case 'OPEN_ENDED':
-            dto.suggestedAnswer = metadata.suggestedAnswer
-            dto.timeLimitSeconds = metadata.timeLimitSeconds
-            dto.minWord = metadata.minWord
-            dto.maxWord = metadata.maxWord
-            break
+    if (['FILL_BLANK', 'VERB_FORM', 'TEXT_ANSWER'].includes(q.questionType)) {
+      const blanks = metadata.blanks || []
+      if (blanks.length === 0) {
+        ElMessage.error(`Câu ${i + 1}: Chưa có vị trí điền từ`)
+        return
+      }
+      for (const blank of blanks) {
+        const answers = blank.correctAnswers || []
+        if (answers.length === 0) {
+          ElMessage.error(`Câu ${i + 1}: Vị trí [${blank.position}] chưa có đáp án`)
+          return
         }
       }
+    }
 
-      return dto
+    if (q.questionType === 'MATCHING') {
+      const pairs = metadata.pairs || []
+      if (pairs.length < 2) {
+        ElMessage.error(`Câu ${i + 1}: Cần ít nhất 2 cặp nối`)
+        return
+      }
+    }
+  }
+
+  try {
+    // ✅ FIX: Flatten metadata to root level like QuestionFormDialog does
+    const questionsToSave = questionList.value.map((q, idx) => {
+      const metadata = q.metadata || {}
+
+      // ✅ Merge everything at root level (same as QuestionFormDialog)
+      const payload = {
+        parentType: props.config.moduleType,
+        questionType: q.questionType,
+        questionText: q.questionText || '',
+        points: q.points || 10,
+        orderIndex: startOrderIndex.value + idx,
+        taskGroupId: q.taskGroupId || null,
+        explanation: q.explanation || metadata.explanation || null,
+
+        // ✅ Spread metadata fields at root level
+        ...metadata
+      }
+
+      return payload
     })
 
-    await store.createQuestionsInBulk(props.lessonId, payload)
-    ElMessage.success(`Đã tạo thành công ${payload.length} câu hỏi`)
-    emit('success')
+    console.log('📤 Submitting questions:', questionsToSave)
+
+    await questionStore.createQuestionsBulk(
+      props.config.moduleType,
+      currentLesson.value.id,
+      questionsToSave
+    )
+
     visible.value = false
-  } catch (e) {
-    console.error(e)
-    ElMessage.error(e.response?.data?.message || 'Lỗi khi lưu dữ liệu')
-  } finally {
-    loading.value = false
+    ElMessage.success(`Đã tạo ${questionList.value.length} câu hỏi thành công!`)
+    emit('success')
+
+    questionList.value = []
+  } catch (error) {
+    console.error('❌ Bulk create error:', error)
+    ElMessage.error(error.response?.data?.message || 'Lỗi khi tạo câu hỏi')
   }
 }
 

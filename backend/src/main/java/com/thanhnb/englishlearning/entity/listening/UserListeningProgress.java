@@ -1,21 +1,25 @@
 package com.thanhnb.englishlearning.entity.listening;
 
-import com.thanhnb.englishlearning.entity.User;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.service.common.LessonProgressService;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Data
 @Table(name = "user_listening_progress",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "lesson_id"}))
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@ToString(exclude = {"user", "lesson"})
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class UserListeningProgress implements LessonProgressService.LessonProgress {
     
+    @EqualsAndHashCode.Include
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -29,19 +33,24 @@ public class UserListeningProgress implements LessonProgressService.LessonProgre
     private ListeningLesson lesson;
 
     @Column(name = "is_completed", nullable = false)
+    @Builder.Default
     private Boolean isCompleted = false;
 
-    @Column(name = "score_percentage", precision = 5, scale = 2, nullable = false)
-    private BigDecimal scorePercentage = BigDecimal.ZERO;
+    @Column(name = "score_percentage")
+    @Builder.Default
+    private Double scorePercentage = 0.0;
 
     @Column(name = "attempts", nullable = false)
+    @Builder.Default
     private Integer attempts = 0;
 
     // Listening-specific tracking
     @Column(name = "play_count", nullable = false)
-    private Integer playCount = 0; // Số lần click play
+    @Builder.Default
+    private Integer playCount = 0; // Number of times user clicked play
 
     @Column(name = "has_viewed_transcript", nullable = false)
+    @Builder.Default
     private Boolean hasViewedTranscript = false;
 
     @Column(name = "transcript_viewed_at")
@@ -51,9 +60,11 @@ public class UserListeningProgress implements LessonProgressService.LessonProgre
     private LocalDateTime completedAt;
 
     @Column(name = "created_at")
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at")
+    @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @PrePersist

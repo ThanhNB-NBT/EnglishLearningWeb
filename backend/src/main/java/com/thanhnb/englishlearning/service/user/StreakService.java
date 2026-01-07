@@ -1,95 +1,146 @@
 package com.thanhnb.englishlearning.service.user;
 
-import com.thanhnb.englishlearning.entity.User;
-
-import java.time.LocalDate;
-
-import org.springframework.stereotype.Service;
-
-import com.thanhnb.englishlearning.repository.UserRepository;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.entity.user.UserStats;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
+import com.thanhnb.englishlearning.repository.user.UserStatsRepository;
 
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+
 @Service
 @RequiredArgsConstructor
+@Transactional
 @Slf4j
 public class StreakService {
 
     private final UserRepository userRepository;
+    private final UserStatsRepository statsRepository;
 
-    // Cập nhật streak khi user có hoạt động
+    /**
+     * Update streak when user has activity
+     * 
+     * @param userId User ID
+     * @return true if streak was updated, false if already has streak today
+     */
     public boolean updateStreakOnActivity(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        // Get or create stats
+        UserStats stats = statsRepository.findById(userId)
+                .orElseGet(() -> createNewStats(userId));
 
-        LocalDate today = LocalDate.now();
-        LocalDate lastStreakDate = user.getLastStreakDate();
-
-        if (lastStreakDate != null && lastStreakDate.equals(today)) {
-            log.debug("User {} already has streak for today", today);
-            return false;
+        // Use entity method to update streak
+        boolean updated = stats.updateStreakOnActivity();
+        
+        if (updated) {
+            statsRepository.save(stats);
+            log.info("User {} streak updated: {} days", userId, stats.getCurrentStreak());
+        } else {
+            log.debug("User {} already has streak for today", userId);
         }
-
-        // Lần đầu tiên hoặc streak đã reset
-        if (lastStreakDate == null) {
-            user.setStreakDays(1);
-            user.setLastStreakDate(today);
-            userRepository.save(user);
-            log.info("User {} started new streak", userId);
-            return true;
-        }
-
-        // Check nếu user hoạt động ngày hôm qua
-        if (lastStreakDate.equals(today.minusDays(1))) {
-            // Tăng Streak
-            user.setStreakDays(user.getStreakDays() + 1);
-            user.setLastStreakDate(today);
-            userRepository.save(user);
-            log.info("User {} streak increased to {}", userId, user.getStreakDays());
-            return true;
-        }
-
-        // Streak bị break
-        user.setStreakDays(1);
-        user.setLastStreakDate(today);
-        userRepository.save(user);
-        log.info("User {} streak bị gián đoạn, đưa về 1", userId);
-        return true;
+        
+        return updated;
     }
 
-    // Kiểm tra xem user có streak của hôm nay chưa
+    /**
+     * Check if user has streak today
+     * 
+     * @param userId User ID
+     * @return true if user already studied today
+     */
     public boolean hasStreakToday(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserStats stats = statsRepository.findById(userId)
+                .orElseGet(() -> createNewStats(userId));
 
-        LocalDate today = LocalDate.now();
-        return user.getLastStreakDate() != null &&
-                user.getLastStreakDate().equals(today);
+        return stats.hasStreakToday();
     }
 
-    // Lấy thông tin streak của user
+    /**
+     * Get streak information
+     * 
+     * @param userId User ID
+     * @return StreakInfo with current streak data
+     */
     public StreakInfo getStreakInfo(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        LocalDate today = LocalDate.now();
-        boolean hasStreakToday = user.getLastStreakDate() != null &&
-                user.getLastStreakDate().equals(today);
+        UserStats stats = statsRepository.findById(userId)
+                .orElseGet(() -> createNewStats(userId));
 
         return StreakInfo.builder()
-                .currentStreak(user.getStreakDays())
-                .lastStreakDate(user.getLastStreakDate())
-                .hasStreakToday(hasStreakToday)
+                .currentStreak(stats.getCurrentStreak())
+                .longestStreak(stats.getLongestStreak())
+                .lastStreakDate(stats.getLastStreakDate())
+                .hasStreakToday(stats.hasStreakToday())
                 .build();
     }
 
+    /**
+     * Reset streak for user (manual)
+     * 
+     * Can be called by admin or as penalty
+     */
+    public void resetStreak(Long userId) {
+        UserStats stats = statsRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Stats not found for user: " + userId));
+        
+        stats.resetStreak();
+        statsRepository.save(stats);
+        
+        log.info("Streak reset for user {}", userId);
+    }
+
+    /**
+     * Get streak rank for user
+     * 
+     * Shows where user ranks compared to others
+     */
+    public Long getStreakRank(Long userId) {
+        return statsRepository.getUserRankByStreak(userId);
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * Create new stats for user if doesn't exist
+     */
+    private UserStats createNewStats(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        
+        UserStats stats = UserStats.builder()
+                .userId(userId)
+                .user(user)
+                .totalPoints(0)
+                .currentStreak(0)
+                .longestStreak(0)
+                .totalLessonsCompleted(0)
+                .grammarCompleted(0)
+                .readingCompleted(0)
+                .listeningCompleted(0)
+                .totalStudyTimeMinutes(0)
+                .build();
+        
+        log.warn("Creating missing stats for user: {}", userId);
+        return statsRepository.save(stats);
+    }
+
+    // ==================== DTO ====================
+
+    /**
+     * StreakInfo DTO
+     * 
+     * Added longestStreak field
+     */
     @Data
     @Builder
     public static class StreakInfo {
         private Integer currentStreak;
+        private Integer longestStreak;
         private LocalDate lastStreakDate;
         private boolean hasStreakToday;
     }

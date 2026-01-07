@@ -1,7 +1,9 @@
 package com.thanhnb.englishlearning.config;
 
-import com.thanhnb.englishlearning.entity.User;
-import com.thanhnb.englishlearning.repository.UserRepository;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.entity.user.UserActivity;
+import com.thanhnb.englishlearning.repository.user.UserActivityRepository;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
 import com.thanhnb.englishlearning.service.user.JwtBlacklistService;
 import com.thanhnb.englishlearning.util.JwtUtil;
 import com.thanhnb.englishlearning.service.user.CustomUserDetailsService;
@@ -13,12 +15,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -28,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtBlacklistService jwtBlacklistService;
     private final CustomUserDetailsService userDetailsService;
     private final UserRepository userRepository;
+    private final UserActivityRepository activityRepository;
 
     @Override
     protected void doFilterInternal(
@@ -44,51 +51,62 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractTokenFromRequest(request);
 
             if (token != null) {
-                // 1. Check if token is blacklisted
                 if (jwtBlacklistService.isTokenBlacklisted(token)) {
                     log.debug("Token is blacklisted, request denied");
                     sendErrorResponse(response, "Token đã bị vô hiệu hóa");
                     return;
                 }
 
-                // 2. Validate token format and expiration
                 if (jwtUtil.isTokenValid(token)) {
                     String username = jwtUtil.getUsernameFromToken(token);
-                    
-                    // 3. CRITICAL: Load user and check account status
+
                     Optional<User> userOpt = userRepository.findByUsername(username);
                     if (userOpt.isEmpty()) {
                         log.warn("Token for non-existent user: {}", username);
                         sendErrorResponse(response, "Tài khoản không tồn tại");
                         return;
                     }
-                    
+
                     User user = userOpt.get();
-                    
-                    // CHECK 1: User must be active (not blocked)
+
                     if (!user.getIsActive()) {
                         log.warn("Blocked user attempted access: {}", username);
                         sendErrorResponse(response, "Tài khoản đã bị khóa");
                         return;
                     }
-                    
-                    // CHECK 2: User must be verified (for USER role only)
+
                     if (user.getRole().name().equals("USER") && !user.getIsVerified()) {
                         log.warn("Unverified user attempted access: {}", username);
                         sendErrorResponse(response, "Tài khoản chưa được xác thực");
                         return;
                     }
+
+                    Optional<UserActivity> activityOpt = activityRepository.findByUserId(user.getId());
+                    if (activityOpt.isEmpty()) {
+                        log.warn("User activity not found for user: {}", username);
+                        sendErrorResponse(response, "Dữ liệu người dùng không hợp lệ");
+                        return;
+                    }
+
                     
-                    // CHECK 3: Token must be issued after last login/password change
-                    if (jwtUtil.isTokenIssuedBeforeLastUpdate(token, user.getLastLoginDate())) {
+
+                    UserActivity activity = activityOpt.get();
+
+                    if (jwtUtil.isTokenIssuedBeforeLastUpdate(token, activity.getLastLoginDate())) {
                         log.warn("Token issued before last update for user: {}", username);
                         sendErrorResponse(response, "Phiên đăng nhập đã hết hạn");
                         return;
                     }
-                    
-                    // 4. All checks passed - set authentication
-                    setAuthenticationContext(username, request);
-                    log.debug("JWT authentication successful for user: {}", username);
+
+                    // ✅ Set authentication context
+                    setAuthenticationContext(username, token, request.getRequestURI());
+                    request.setAttribute("userId", user.getId());
+                    // ✅ IMPROVED: Log successful authentication with details
+                    log.debug("JWT authentication successful for user: {} | role: {} | path: {}", 
+                        username, 
+                        user.getRole(), 
+                        request.getRequestURI());
+                        
                 } else {
                     log.debug("JWT token validation failed");
                     sendErrorResponse(response, "Token không hợp lệ hoặc đã hết hạn");
@@ -100,8 +118,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
         } catch (Exception e) {
-            log.error("JWT authentication error: {}", e.getMessage());
-            log.error("Critical Auth Error on path: {}", request.getRequestURI(), e);
+            log.error("JWT authentication error on path {}: {}", 
+                request.getRequestURI(), e.getMessage());
             sendErrorResponse(response, "Lỗi xác thực");
             return;
         }
@@ -111,37 +129,54 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private String extractTokenFromRequest(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
-
         return null;
     }
 
-    private void setAuthenticationContext(String username, HttpServletRequest request) {
+    /**
+     * ✅ Set authentication context with roles from JWT token
+     * Spring Security will handle role checking via @PreAuthorize
+     * 
+     * @param username Username from token
+     * @param token JWT token
+     * @param requestPath Current request path (for logging)
+     */
+    private void setAuthenticationContext(String username, String token, String requestPath) {
         try {
+            // Get roles from JWT token
+            List<String> rolesFromToken = jwtUtil.getRolesFromToken(token);
+            List<GrantedAuthority> authorities = rolesFromToken.stream()
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+            
+            // ✅ IMPROVED: Detailed logging
+            log.debug("Setting auth for user: {} | roles: {} | authorities: {} | path: {}", 
+                username, 
+                rolesFromToken, 
+                authorities.stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.joining(", ")),
+                requestPath);
+
+            // Load user details
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            
-            UsernamePasswordAuthenticationToken authToken = 
-                new UsernamePasswordAuthenticationToken(
+
+            // ✅ Create authentication with roles from JWT
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     userDetails,
-                    null, 
-                    userDetails.getAuthorities()
-                );
-            
+                    null,
+                    authorities);
+
             SecurityContextHolder.getContext().setAuthentication(authToken);
             
-            try {
-                Long userId = (Long) userDetails.getClass().getMethod("getId").invoke(userDetails);
-                request.setAttribute("userId", userId);
-            } catch (Exception e) {
-                log.debug("Could not set userId attribute: {}", e.getMessage());
-            }
-            
+            // ✅ IMPROVED: Confirm authentication set
+            log.debug("Authentication successfully set in SecurityContext for: {}", username);
+
         } catch (Exception e) {
-            log.error("Failed to load user details for: {}", username, e);
-            throw new RuntimeException("User not found");
+            log.error("Failed to set authentication for: {} on path: {}", username, requestPath, e);
+            throw new RuntimeException("Authentication setup failed");
         }
     }
 
@@ -150,26 +185,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(String.format(
-            "{\"success\":false,\"message\":\"%s\",\"statusCode\":401}", 
-            message
-        ));
+                "{\"success\":false,\"message\":\"%s\",\"statusCode\":401}",
+                message));
     }
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         String path = request.getRequestURI();
-        
-        log.info("Checking filter for path: {}", path);
-        // Kiểm tra null safety
-        if (path == null) return false;
+
+        // ✅ IMPROVED: More detailed logging
+        if (path == null) {
+            log.warn("Request URI is null");
+            return false;
+        }
 
         boolean shouldSkip =
-                // MEDIA FILES
                 path.startsWith("/media/") ||
                 path.startsWith("/uploads/") ||
                 path.startsWith("/api/debug/audio/") ||
-                
-                // User Auth - Public
                 path.contains("/auth/user/login") ||
                 path.contains("/auth/user/register") ||
                 path.contains("/auth/user/verify-email") ||
@@ -177,26 +210,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 path.contains("/auth/user/forgot-password") ||
                 path.contains("/auth/user/verify-reset-password") ||
                 path.contains("/auth/user/reset-password") ||
-
-                // Admin Auth - Public
                 path.contains("/auth/admin/login") ||
                 path.contains("/auth/admin/forgot-password") ||
                 path.contains("/auth/admin/verify-reset-password") ||
                 path.contains("/auth/admin/reset-password") ||
-
-                // Swagger UI v3 (SpringDoc)
+                path.contains("/auth/teacher/login") ||
+                path.contains("/auth/teacher/forgot-password") ||
+                path.contains("/auth/teacher/verify-reset-password") ||
+                path.contains("/auth/teacher/reset-password") ||
                 path.startsWith("/swagger-ui") ||
                 path.startsWith("/v3/api-docs") ||
                 path.startsWith("/actuator") ||
                 path.contains("/swagger-resources") ||
                 path.contains("/webjars");
-        
+
         if (shouldSkip) {
-            log.info("Skipping JWT filter for public endpoint: {}", path);
+            log.trace("Skipping JWT filter for public endpoint: {}", path);
         } else {
-            log.info("Applying JWT filter for protected endpoint: {}", path);
+            log.trace("Applying JWT filter for protected endpoint: {}", path);
         }
-        
+
         return shouldSkip;
     }
 }

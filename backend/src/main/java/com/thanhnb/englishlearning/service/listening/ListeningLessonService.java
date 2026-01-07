@@ -1,29 +1,33 @@
 package com.thanhnb.englishlearning.service.listening;
 
 import com.thanhnb.englishlearning.dto.listening.ListeningLessonDTO;
-import com.thanhnb.englishlearning.dto.listening. request.CreateListeningLessonRequest;
-import com.thanhnb.englishlearning.dto.listening.request.UpdateListeningLessonRequest;
 import com.thanhnb.englishlearning.entity.listening.ListeningLesson;
-import com.thanhnb.englishlearning.entity.question.Question;
-import com.thanhnb.englishlearning. enums.ParentType;
+import com.thanhnb.englishlearning.entity.topic.Topic;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.listening.ListeningLessonRepository;
-import com.thanhnb.englishlearning. repository.listening.UserListeningProgressRepository;
-import com.thanhnb. englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.listening.UserListeningProgressRepository;
+import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.topic.TopicRepository;
+import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.user.UserService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain. Pageable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation. Transactional;
-import org. springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java. util.List;
+import java.util.Comparator;
+import java.util.List;
 
 /**
- * Service xử lý CRUD cho Listening Lessons
- * Tách riêng concerns: chỉ quản lý lesson entity + audio files
+ * Includes: CRUD + Audio Upload + Pagination + Order + Status Toggle
  */
 @Service
 @RequiredArgsConstructor
@@ -32,295 +36,259 @@ import java. util.List;
 public class ListeningLessonService {
 
     private final ListeningLessonRepository lessonRepository;
-    private final UserListeningProgressRepository progressRepository;
+    private final TopicRepository topicRepository;
     private final QuestionRepository questionRepository;
-    private final ListeningOrderService orderService;
-    private final ListeningQuestionService questionService;
-    private final AudioStorageService audioStorageService;
-
-    private static final int DEFAULT_POINTS_REWARD = 25;
+    private final UserListeningProgressRepository progressRepository;
+    private final AudioStorageService audioStorage;
+    private final TeacherPermissionService teacherPermissionService;
+    private final UserService userService;
 
     // ═════════════════════════════════════════════════════════════════
     // READ OPERATIONS
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Lấy tất cả lessons với pagination (bao gồm inactive)
-     */
-    public Page<ListeningLessonDTO> getAllLessonsPaginated(Pageable pageable) {
-        log.info("[ADMIN] Loading all listening lessons with pagination");
-
-        return lessonRepository.findAll(pageable)
-                .map(lesson -> {
-                    ListeningLessonDTO dto = convertToDTO(lesson);
-                    long questionCount = questionRepository.countByParentTypeAndParentId(
-                            ParentType.LISTENING, lesson.getId());
-                    dto.setQuestionCount((int) questionCount);
-                    return dto;
-                });
+    public Page<ListeningLessonDTO> getLessonsByTopic(Long topicId, Pageable pageable) {
+        return lessonRepository.findByTopicId(topicId, pageable)
+                .map(this::toDTO);
     }
 
-    /**
-     * [ADMIN] Lấy chi tiết 1 lesson
-     */
-    public ListeningLessonDTO getLessonDetail(Long lessonId) {
-        log.info("[ADMIN] Loading lesson detail: lessonId={}", lessonId);
+    public ListeningLessonDTO getLessonById(Long id) {
+        ListeningLesson lesson = findLessonById(id);
 
-        ListeningLesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + lessonId));
-
-        ListeningLessonDTO dto = convertToDTO(lesson);
-
-        long questionCount = questionRepository.countByParentTypeAndParentId(
-                ParentType.LISTENING, lessonId);
-        dto.setQuestionCount((int) questionCount);
-
-        return dto;
+        return toDTO(lesson);
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // CREATE OPERATIONS
+    // CREATE
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Tạo lesson mới với audio file
-     */
-    public ListeningLessonDTO createLesson(CreateListeningLessonRequest request, MultipartFile audioFile) 
+    public ListeningLessonDTO createLesson(ListeningLessonDTO dto, MultipartFile audioFile)
             throws IOException {
-        log.info("[ADMIN] Creating new listening lesson:  {}", request.getTitle());
+        validateForCreate(dto);
+        teacherPermissionService.checkTopicPermission(dto.getTopicId());
 
-        // Validate unique title
-        if (lessonRepository.existsByTitleIgnoreCase(request.getTitle())) {
-            throw new RuntimeException("Tiêu đề bài nghe đã tồn tại");
+        if (lessonRepository.existsByTitleIgnoreCase(dto.getTitle())) {
+            throw new IllegalArgumentException("Title already exists");
         }
 
-        // Create entity WITHOUT audio URL first
-        ListeningLesson lesson = new ListeningLesson();
-        lesson.setTitle(request.getTitle());
-        lesson.setTranscript(request.getTranscript());
-        lesson.setTranscriptTranslation(request.getTranscriptTranslation());
-        lesson.setDifficulty(request.getDifficulty() != null 
-                ? request.getDifficulty()
-                : ListeningLesson. Difficulty.BEGINNER);
-        lesson.setOrderIndex(request.getOrderIndex());
-        lesson.setTimeLimitSeconds(request.getTimeLimitSeconds() != null 
-                ? request.getTimeLimitSeconds() 
-                : 600);
-        lesson.setPointsReward(request.getPointsReward() != null 
-                ?  request.getPointsReward() 
-                : DEFAULT_POINTS_REWARD);
-        lesson.setAllowUnlimitedReplay(request.getAllowUnlimitedReplay() != null 
-                ? request.getAllowUnlimitedReplay() 
-                : true);
-        lesson.setMaxReplayCount(request.getMaxReplayCount() != null 
-                ? request.getMaxReplayCount() 
-                : 3);
-        lesson.setIsActive(request.getIsActive() != null 
-                ? request.getIsActive() 
-                : true);
-        lesson.setCreatedAt(LocalDateTime.now());
+        Topic topic = topicRepository.findById(dto.getTopicId())
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
-        // Save to get ID first
-        ListeningLesson savedLesson = lessonRepository.save(lesson);
-        log.info("Created lesson entity with ID: {}", savedLesson.getId());
+        User currentUser = userService.getCurrentUser();
 
-        // Upload audio with REAL lesson ID
+        // Create WITHOUT audio URL first
+        ListeningLesson lesson = ListeningLesson.builder()
+                .topic(topic)
+                .title(dto.getTitle())
+                .transcript(dto.getTranscript())
+                .transcriptTranslation(dto.getTranscriptTranslation())
+                .orderIndex(dto.getOrderIndex())
+                .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 600)
+                .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 25)
+                .allowUnlimitedReplay(dto.getAllowUnlimitedReplay() != null ? dto.getAllowUnlimitedReplay() : true)
+                .maxReplayCount(dto.getMaxReplayCount() != null ? dto.getMaxReplayCount() : 3)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .createdAt(LocalDateTime.now())
+                .modifiedBy(currentUser)
+                .build();
+
+        // Save to get ID
+        ListeningLesson saved = lessonRepository.save(lesson);
+
+        // Upload audio with real lesson ID
         if (audioFile != null && !audioFile.isEmpty()) {
-            String audioUrl = audioStorageService.uploadAudio(audioFile, savedLesson.getId());
-            savedLesson.setAudioUrl(audioUrl);
-            savedLesson = lessonRepository.save(savedLesson);
-            log.info("Uploaded audio file: {}", audioUrl);
+            String audioUrl = audioStorage.uploadAudio(audioFile, saved.getId());
+            saved.setAudioUrl(audioUrl);
+            saved = lessonRepository.save(saved);
+            log.info("Uploaded audio: {}", audioUrl);
         }
 
-        log.info("Created listening lesson:  id={}, title='{}'", savedLesson.getId(), savedLesson.getTitle());
+        log.info("Created listening lesson: id={}, title={}", saved.getId(), saved.getTitle());
 
-        return convertToDTO(savedLesson);
+        return toDTO(saved);
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // UPDATE OPERATIONS
+    // UPDATE
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Cập nhật lesson (audio file optional)
-     */
-    public ListeningLessonDTO updateLesson(Long id, UpdateListeningLessonRequest request, 
-            MultipartFile audioFile) throws IOException {
-        log.info("[ADMIN] Updating listening lesson: id={}", id);
+    public ListeningLessonDTO updateLesson(Long id, ListeningLessonDTO dto, MultipartFile audioFile)
+            throws IOException {
+        ListeningLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
 
-        ListeningLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + id));
-
-        // Check unique title (if provided and different)
-        if (request.getTitle() != null &&
-                !request.getTitle().equals(lesson.getTitle()) &&
-                lessonRepository.existsByTitleIgnoreCaseAndIdNot(request.getTitle(), id)) {
-            throw new RuntimeException("Tiêu đề bài nghe đã tồn tại");
+        if (dto.getTitle() != null && !dto.getTitle().equals(lesson.getTitle())) {
+            if (lessonRepository.existsByTitleIgnoreCaseAndIdNot(dto.getTitle(), id)) {
+                throw new IllegalArgumentException("Title already exists");
+            }
         }
 
-        // Update audio file if provided
+        User currentUser = userService.getCurrentUser();
+        lesson.setModifiedBy(currentUser);
+
+        // Update audio if provided
         if (audioFile != null && !audioFile.isEmpty()) {
-            String newAudioUrl = audioStorageService.updateAudio(audioFile, id, lesson.getAudioUrl());
+            String newAudioUrl = audioStorage.updateAudio(audioFile, id, lesson.getAudioUrl());
             lesson.setAudioUrl(newAudioUrl);
-            log.info("Updated audio file: {}", newAudioUrl);
+            log.info("Updated audio: {}", newAudioUrl);
         }
 
-        // Update fields (only if provided)
-        if (request.getTitle() != null) {
-            lesson.setTitle(request.getTitle());
-        }
-        if (request.getTranscript() != null) {
-            lesson.setTranscript(request.getTranscript());
-        }
-        if (request.getTranscriptTranslation() != null) {
-            lesson.setTranscriptTranslation(request.getTranscriptTranslation());
-        }
-        if (request.getDifficulty() != null) {
-            lesson.setDifficulty(request.getDifficulty());
-        }
-        if (request.getOrderIndex() != null) {
-            lesson.setOrderIndex(request.getOrderIndex());
-        }
-        if (request.getTimeLimitSeconds() != null) {
-            lesson.setTimeLimitSeconds(request.getTimeLimitSeconds());
-        }
-        if (request.getPointsReward() != null) {
-            lesson.setPointsReward(request.getPointsReward());
-        }
-        if (request.getAllowUnlimitedReplay() != null) {
-            lesson.setAllowUnlimitedReplay(request.getAllowUnlimitedReplay());
-        }
-        if (request.getMaxReplayCount() != null) {
-            lesson.setMaxReplayCount(request.getMaxReplayCount());
-        }
-        if (request.getIsActive() != null) {
-            lesson.setIsActive(request.getIsActive());
-        }
+        updateFields(lesson, dto);
 
-        ListeningLesson savedLesson = lessonRepository.save(lesson);
+        ListeningLesson saved = lessonRepository.save(lesson);
         log.info("Updated listening lesson: id={}", id);
 
-        return convertToDTO(savedLesson);
+        return toDTO(saved);
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // DELETE OPERATIONS
+    // DELETE
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Set isActive = false
-     */
-    public void deactivateLesson(Long id) {
-        log.info("[ADMIN] Soft deleting listening lesson: id={}", id);
-
-        ListeningLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + id));
-
-        lesson.setIsActive(false);
-        lessonRepository.save(lesson);
-
-        log.info("Soft deleted listening lesson: id={}", id);
-    }
-
-    /**
-     * [ADMIN] Delete lesson permanently
-     * Cascade:  questions (via QuestionService) + progress + audio file
-     */
     public void deleteLesson(Long id) {
-        log.info("[ADMIN] Deleting listening lesson: id={}", id);
+        ListeningLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
+        Long topicId = lesson.getTopic().getId();
+        Integer orderIndex = lesson.getOrderIndex();
 
-        ListeningLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + id));
-
-        Integer deletedOrderIndex = lesson.getOrderIndex();
-
-        // 1. Delete questions
-        List<Question> questions = questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(
-                ParentType.LISTENING, id);
-
-        if (!questions.isEmpty()) {
-            List<Long> questionIds = questions.stream()
-                    .map(Question::getId)
-                    .toList();
-
-            questionService.bulkDeleteQuestions(questionIds);
-            log.info("Deleted {} questions for lesson {}", questionIds.size(), lesson.getTitle());
-        }
-
-        // 2. Delete user progress
+        // Delete progress
         progressRepository.deleteByLessonId(id);
-        log.info("Deleted user progress for lesson {}", id);
 
-        // 3. Delete audio file
+        // Delete audio
         if (lesson.getAudioUrl() != null) {
-            audioStorageService.deleteAudio(lesson.getAudioUrl());
-            log.info("Deleted audio file: {}", lesson.getAudioUrl());
+            audioStorage.deleteAudio(lesson.getAudioUrl());
         }
 
-        // 4. Delete lesson
+        // Delete lesson (questions cascade via listener)
         lessonRepository.delete(lesson);
-        log.info("Permanently deleted listening lesson: id={}", id);
+        log.info("Deleted listening lesson: id={}", id);
 
-        // 5. Reorder remaining lessons
-        orderService.reorderLessonsAfterDelete(deletedOrderIndex);
+        // Reorder
+        reorderAfterDelete(topicId, orderIndex);
     }
 
-    /**
-     * [ADMIN] Activate/Deactivate lesson
-     */
-    public void toggleLessonStatus(Long id) {
-        log.info("[ADMIN] Toggling lesson status: id={}", id);
+    // ═════════════════════════════════════════════════════════════════
+    // STATUS TOGGLE
+    // ═════════════════════════════════════════════════════════════════
 
-        ListeningLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài nghe không tồn tại với id: " + id));
+    public void toggleStatus(Long id) {
+        ListeningLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
 
         lesson.setIsActive(!lesson.getIsActive());
         lessonRepository.save(lesson);
 
-        log.info("Lesson {} is now {}", id, lesson.getIsActive() ? "active" : "inactive");
+        log.info("Toggled lesson {} status to: {}", id, lesson.getIsActive());
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // ORDER OPERATIONS
+    // ORDER MANAGEMENT
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Lấy orderIndex tiếp theo
-     */
-    public Integer getNextOrderIndex() {
-        Integer maxOrder = lessonRepository.findMaxOrderIndex();
+    public void fixOrderIndexes(Long topicId) {
+        // Lấy danh sách
+        List<ListeningLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
+        
+        // ✅ Sort lại trong memory để đảm bảo ổn định (ID tăng dần nếu trùng Order)
+        lessons.sort(Comparator.comparingInt(ListeningLesson::getOrderIndex)
+                .thenComparingLong(ListeningLesson::getId));
 
-        if (maxOrder != null) {
-            log.info("Max lesson orderIndex: {}", maxOrder);
-            return maxOrder + 1;
+        boolean changed = false;
+        for (int i = 0; i < lessons.size(); i++) {
+            ListeningLesson lesson = lessons.get(i);
+            int expected = i + 1;
+            
+            if (!Integer.valueOf(expected).equals(lesson.getOrderIndex())) {
+                lesson.setOrderIndex(expected);
+                changed = true;
+            }
         }
 
-        log.info("No lessons found, returning 1");
-        return 1;
+        if (changed) {
+            lessonRepository.saveAll(lessons);
+            log.info("Fixed order indexes for {} lessons in topic {}", lessons.size(), topicId);
+        }
+    }
+
+    public Integer getNextOrderIndex(Long topicId) {
+        Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
+        return (max != null ? max : 0) + 1;
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // CONVERSION
+    // PRIVATE HELPERS
     // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * Convert entity to DTO
-     */
-    private ListeningLessonDTO convertToDTO(ListeningLesson lesson) {
-        ListeningLessonDTO dto = new ListeningLessonDTO();
-        dto.setId(lesson.getId());
-        dto.setTitle(lesson.getTitle());
-        dto.setAudioUrl(lesson.getAudioUrl());
-        dto.setTranscript(lesson.getTranscript());
-        dto.setTranscriptTranslation(lesson. getTranscriptTranslation());
-        dto.setDifficulty(lesson.getDifficulty() != null ? lesson.getDifficulty().name() : "BEGINNER");
-        dto.setTimeLimitSeconds(lesson.getTimeLimitSeconds());
-        dto.setOrderIndex(lesson.getOrderIndex());
-        dto.setPointsReward(lesson.getPointsReward());
-        dto.setAllowUnlimitedReplay(lesson.getAllowUnlimitedReplay());
-        dto.setMaxReplayCount(lesson.getMaxReplayCount());
-        dto.setIsActive(lesson.getIsActive());
-        dto.setCreatedAt(lesson.getCreatedAt());
-        return dto;
+    private ListeningLesson findLessonById(Long id) {
+        return lessonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lesson not found: " + id));
+    }
+
+    private void validateForCreate(ListeningLessonDTO dto) {
+        if (dto.getTitle() == null || dto.getTitle().isBlank()) {
+            throw new IllegalArgumentException("Title is required");
+        }
+        if (dto.getTranscript() == null || dto.getTranscript().isBlank()) {
+            throw new IllegalArgumentException("Transcript is required");
+        }
+        if (dto.getOrderIndex() == null || dto.getOrderIndex() < 1) {
+            throw new IllegalArgumentException("Order index must be >= 1");
+        }
+    }
+
+    private void updateFields(ListeningLesson lesson, ListeningLessonDTO dto) {
+        if (dto.getTitle() != null)
+            lesson.setTitle(dto.getTitle());
+        if (dto.getTranscript() != null)
+            lesson.setTranscript(dto.getTranscript());
+        if (dto.getTranscriptTranslation() != null)
+            lesson.setTranscriptTranslation(dto.getTranscriptTranslation());
+        if (dto.getOrderIndex() != null)
+            lesson.setOrderIndex(dto.getOrderIndex());
+        if (dto.getTimeLimitSeconds() != null)
+            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
+        if (dto.getPointsReward() != null)
+            lesson.setPointsReward(dto.getPointsReward());
+        if (dto.getAllowUnlimitedReplay() != null)
+            lesson.setAllowUnlimitedReplay(dto.getAllowUnlimitedReplay());
+        if (dto.getMaxReplayCount() != null)
+            lesson.setMaxReplayCount(dto.getMaxReplayCount());
+        if (dto.getIsActive() != null)
+            lesson.setIsActive(dto.getIsActive());
+    }
+
+    private void reorderAfterDelete(Long topicId, Integer deletedPosition) {
+        List<ListeningLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
+
+        lessons.stream()
+                .filter(l -> l.getOrderIndex() > deletedPosition)
+                .forEach(l -> l.setOrderIndex(l.getOrderIndex() - 1));
+
+        lessonRepository.saveAll(lessons);
+    }
+
+    private ListeningLessonDTO toDTO(ListeningLesson lesson) {
+        long questionCount = questionRepository.countByParentTypeAndParentId(
+                ParentType.LISTENING, lesson.getId());
+
+        return ListeningLessonDTO.builder()
+                .id(lesson.getId())
+                .topicId(lesson.getTopic().getId())
+                .topicName(lesson.getTopic().getName())
+                .title(lesson.getTitle())
+                .audioUrl(lesson.getAudioUrl())
+                .transcript(lesson.getTranscript())
+                .transcriptTranslation(lesson.getTranscriptTranslation())
+                .orderIndex(lesson.getOrderIndex())
+                .timeLimitSeconds(lesson.getTimeLimitSeconds())
+                .pointsReward(lesson.getPointsReward())
+                .allowUnlimitedReplay(lesson.getAllowUnlimitedReplay())
+                .maxReplayCount(lesson.getMaxReplayCount())
+                .isActive(lesson.getIsActive())
+                .createdAt(lesson.getCreatedAt())
+                .questionCount((int) questionCount)
+                .modifiedAt(lesson.getModifiedAt())
+                .modifiedBy(lesson.getModifiedBy() != null ? lesson.getModifiedBy().getId() : null)
+                .build();
     }
 }

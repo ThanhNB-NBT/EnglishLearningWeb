@@ -27,7 +27,14 @@ public interface UserReadingProgressRepository extends JpaRepository<UserReading
         /**
          * Tìm các bài đã hoàn thành của user, sắp xếp theo thời gian
          */
-        List<UserReadingProgress> findByUserIdAndIsCompletedTrueOrderByCompletedAtDesc(Long userId);
+        @Query("""
+                            SELECT p FROM UserReadingProgress p
+                            JOIN FETCH p.lesson l
+                            WHERE p.user.id = :userId
+                            AND p.isCompleted = true
+                            ORDER BY p.completedAt DESC
+                        """)
+        List<UserReadingProgress> findByUserIdAndIsCompletedTrueOrderByCompletedAtDesc(@Param("userId") Long userId);
 
         // ==================== EXISTENCE CHECKS ====================
 
@@ -49,6 +56,14 @@ public interface UserReadingProgressRepository extends JpaRepository<UserReading
         @Query("SELECT COUNT(DISTINCT p.user.id) FROM UserReadingProgress p " +
                         "WHERE p.lesson.id = :lessonId AND p.isCompleted = true")
         long countCompletedUsersByLessonId(@Param("lessonId") Long lessonId);
+
+        @Query("SELECT COUNT(p) FROM UserReadingProgress p " +
+                        "WHERE p.user.id = :userId " +
+                        "AND p.lesson.topic.id = :topicId " +
+                        "AND p.isCompleted = true")
+        long countCompletedLessonsByUserAndTopic(
+                        @Param("userId") Long userId,
+                        @Param("topicId") Long topicId);
 
         /**
          * Tính tổng số lần thử của tất cả user cho một lesson

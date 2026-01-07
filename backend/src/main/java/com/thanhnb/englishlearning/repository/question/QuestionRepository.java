@@ -2,9 +2,6 @@ package com.thanhnb.englishlearning.repository.question;
 
 import com.thanhnb.englishlearning.entity.question.Question;
 import com.thanhnb.englishlearning.enums.ParentType;
-import com.thanhnb.englishlearning.enums.QuestionType;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -17,194 +14,51 @@ import java.util.Optional;
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, Long> {
 
-       // ==================== TÌM THEO PARENT ====================
+       // Hàm Update thứ tự (Dùng cho chức năng Sắp xếp lại)
+       @Modifying
+       @Query("UPDATE Question q SET q.orderIndex = :orderIndex WHERE q.id = :id")
+       void updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
 
-       /**
-        * Tìm tất cả câu hỏi theo parentType và parentId, sắp xếp theo orderIndex
-        */
+       // Hàm Lấy Max Order (Để tính số thứ tự cho câu hỏi mới tạo) - ĐÃ THÊM MỚI
+       @Query("SELECT MAX(q.orderIndex) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId")
+       Optional<Integer> findMaxOrderIndexByLessonId(@Param("parentType") ParentType parentType,
+                     @Param("parentId") Long parentId);
+
+       // Lấy danh sách câu hỏi theo bài học (Sắp xếp theo thứ tự) - Core
        List<Question> findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType parentType, Long parentId);
 
-       /**
-        * Tìm tất cả câu hỏi theo parentType và parentId với phân trang
-        */
-       Page<Question> findByParentTypeAndParentId(ParentType parentType, Long parentId, Pageable pageable);
+       List<Question> findByParentTypeAndParentIdAndTaskGroupIsNullOrderByOrderIndexAsc(ParentType parentType,
+                     Long parentId);
 
-       /**
-        * Tìm câu hỏi theo parentType
-        */
-       Page<Question> findByParentType(ParentType parentType, Pageable pageable);
+       // Lấy câu hỏi thuộc về một Task Group cụ thể
+       List<Question> findByTaskGroupIdOrderByOrderIndexAsc(Long taskGroupId);
 
-       /**
-        * Tìm câu hỏi theo parentId
-        */
-       Page<Question> findByParentId(Long parentId, Pageable pageable);
-
-       // ==================== TÌM THEO QUESTION TYPE ====================
-
-       /**
-        * Tìm câu hỏi theo questionType
-        */
-       Page<Question> findByQuestionType(QuestionType questionType, Pageable pageable);
-
-       /**
-        * Tìm câu hỏi theo parentType, parentId và questionType
-        */
-       List<Question> findByParentTypeAndParentIdAndQuestionType(
+       long countByParentTypeAndParentIdAndTaskGroupIsNull(
                      ParentType parentType,
-                     Long parentId,
-                     QuestionType questionType);
+                     Long parentId);
 
-       /**
-        * Tìm câu hỏi theo parentType, parentId và questionType với phân trang
-        */
-       Page<Question> findByParentTypeAndParentIdAndQuestionType(
-                     ParentType parentType,
-                     Long parentId,
-                     QuestionType questionType,
-                     Pageable pageable);
+       // Đếm số câu hỏi trong một bài học
+       @Query("SELECT COUNT(q) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId")
+       Long countByParentTypeAndParentId(@Param("parentType") ParentType parentType,
+                     @Param("parentId") Long parentId);
 
-       // ==================== ĐẾM SỐ LƯỢNG ====================
-
-       /**
-        * Đếm số câu hỏi theo parentType
-        */
-       Long countByParentType(ParentType parentType);
-
-       /**
-        * Đếm số câu hỏi theo parentType và parentId
-        */
-       Long countByParentTypeAndParentId(ParentType parentType, Long parentId);
-
-       /**
-        * Đếm số câu hỏi theo questionType
-        */
-       Long countByQuestionType(QuestionType questionType);
-
-       /**
-        * Đếm số câu hỏi theo parentType, parentId và questionType
-        */
-       Long countByParentTypeAndParentIdAndQuestionType(
-                     ParentType parentType,
-                     Long parentId,
-                     QuestionType questionType);
-
-       // ==================== XÓA ====================
-
-       /**
-        * Xóa tất cả câu hỏi theo parentType và parentId
-        */
-       void deleteByParentTypeAndParentId(ParentType parentType, Long parentId);
-
-       /**
-        * Xóa câu hỏi theo questionType
-        */
-       void deleteByQuestionType(QuestionType questionType);
-
-       // ==================== TÌM KIẾM NÂNG CAO ====================
-
-       /**
-        * Tìm kiếm câu hỏi theo keyword trong questionText
-        */
-       @Query("SELECT q FROM Question q WHERE LOWER(q.questionText) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-       Page<Question> searchByQuestionText(@Param("keyword") String keyword, Pageable pageable);
-
-       /**
-        * Tìm kiếm câu hỏi theo keyword trong questionText và parentType
-        */
-       @Query("SELECT q FROM Question q WHERE q.parentType = :parentType " +
-                     "AND LOWER(q.questionText) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-       Page<Question> searchByQuestionTextAndParentType(
-                     @Param("keyword") String keyword,
-                     @Param("parentType") ParentType parentType,
-                     Pageable pageable);
-
-       /**
-        * Tìm kiếm câu hỏi theo nhiều điều kiện
-        */
-       @Query("SELECT q FROM Question q WHERE " +
-                     "(:parentType IS NULL OR q.parentType = :parentType) AND " +
-                     "(:parentId IS NULL OR q.parentId = :parentId) AND " +
-                     "(:questionType IS NULL OR q.questionType = :questionType) AND " +
-                     "(:keyword IS NULL OR LOWER(q.questionText) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-       Page<Question> searchWithFilters(
-                     @Param("parentType") ParentType parentType,
+       // Đếm số câu hỏi trong một bài học thuộc nhóm task cụ thể
+       @Query("SELECT COUNT(q) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId AND q.taskGroup = :taskGroup")
+       Long countByParentTypeAndParentIdAndTaskGroup(@Param("parentType") ParentType parentType,
                      @Param("parentId") Long parentId,
-                     @Param("questionType") QuestionType questionType,
-                     @Param("keyword") String keyword,
-                     Pageable pageable);
+                     @Param("taskGroup") String taskGroup);
 
-       // ==================== THỐNG KÊ ====================
+       @Query("SELECT COALESCE(MAX(q.orderIndex), 0) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId")
+       Integer findMaxOrderIndexByParent(@Param("parentType") ParentType parentType, @Param("parentId") Long parentId);
+       // -------------------------------------------------------------------------
+       // CÁC HÀM HỖ TRỢ TASK GROUPING (Cho giao diện Grouped View)
+       // -------------------------------------------------------------------------
 
-       /**
-        * Thống kê số lượng câu hỏi theo từng QuestionType
-        */
-       @Query("SELECT q.questionType, COUNT(q) FROM Question q GROUP BY q.questionType")
-       List<Object[]> countByQuestionTypeGrouped();
-
-       /**
-        * Thống kê số lượng câu hỏi theo từng ParentType
-        */
-       @Query("SELECT q.parentType, COUNT(q) FROM Question q GROUP BY q.parentType")
-       List<Object[]> countByParentTypeGrouped();
-
-       /**
-        * Lấy tổng điểm của tất cả câu hỏi theo parentType và parentId
-        */
-       @Query("SELECT COALESCE(SUM(q.points), 0) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId")
-       Integer getTotalPointsByParent(@Param("parentType") ParentType parentType, @Param("parentId") Long parentId);
-
-       // ==================== KIỂM TRA TỒN TẠI ====================
-
-       /**
-        * Kiểm tra có câu hỏi nào với parentType và parentId không
-        */
-       boolean existsByParentTypeAndParentId(ParentType parentType, Long parentId);
-
-       /**
-        * Kiểm tra có câu hỏi nào với questionType không
-        */
-       boolean existsByQuestionType(QuestionType questionType);
-
-       // ==================== LẤY THEO ORDER INDEX ====================
-
-       /**
-        * Lấy câu hỏi đầu tiên (orderIndex nhỏ nhất) theo parent
-        */
-       Optional<Question> findFirstByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType parentType, Long parentId);
-
-       /**
-        * Lấy câu hỏi cuối cùng (orderIndex lớn nhất) theo parent
-        */
-       Optional<Question> findFirstByParentTypeAndParentIdOrderByOrderIndexDesc(ParentType parentType, Long parentId);
-
-       /**
-        * Lấy câu hỏi theo orderIndex cụ thể
-        */
-       Optional<Question> findByParentTypeAndParentIdAndOrderIndex(
-                     ParentType parentType,
-                     Long parentId,
-                     Integer orderIndex);
-
-       // ==================== LẤY THEO ĐIỂM ====================
-
-       /**
-        * Lấy câu hỏi có điểm >= minPoints
-        */
-       Page<Question> findByPointsGreaterThanEqual(Integer minPoints, Pageable pageable);
-
-       /**
-        * Lấy câu hỏi theo parentType, parentId và điểm >= minPoints
-        */
-       List<Question> findByParentTypeAndParentIdAndPointsGreaterThanEqual(
-                     ParentType parentType,
-                     Long parentId,
-                     Integer minPoints);
-
-       @Modifying
-       @Query("UPDATE Question q SET q.orderIndex = q.orderIndex - 1 " +
-                     "WHERE q.parentType = :parentType AND q.parentId = :parentId " +
-                     "AND q.orderIndex > :deletedPosition")
-       int shiftOrderAfterDelete(@Param("parentType") ParentType parentType,
-                     @Param("parentId") Long parentId,
-                     @Param("deletedPosition") Integer deletedPosition);
+       // Kiểm tra lesson có task structure không
+       @Query("SELECT CASE WHEN COUNT(tg) > 0 THEN true ELSE false END " +
+                     "FROM TaskGroup tg " +
+                     "WHERE tg.parentType = :parentType AND tg.parentId = :parentId")
+       boolean hasTaskStructure(
+                     @Param("parentType") ParentType parentType,
+                     @Param("parentId") Long parentId);
 }

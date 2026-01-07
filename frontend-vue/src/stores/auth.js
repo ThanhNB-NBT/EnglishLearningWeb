@@ -1,148 +1,272 @@
 import { defineStore } from 'pinia'
 import { authAPI } from '@/api/modules/auth.api.js'
+import { userAPI } from '@/api/modules/user.api.js'
 import { useToast } from 'vue-toastification'
-
-/**
- * Helper an toàn để parse JSON từ localStorage
- */
-function safeJSONParse(value) {
-  if (value === null || value === undefined) return null
-  if (value === 'undefined' || value === 'null') return null
-  try {
-    return JSON.parse(value)
-  } catch (e) {
-    console.warn('safeJSONParse: invalid JSON value in localStorage', value, e)
-    return null
-  }
-}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    userToken: localStorage.getItem('userToken') || null,
-    adminToken: localStorage.getItem('adminToken') || null,
-    user: safeJSONParse(localStorage.getItem('user')) || null,
-    admin: safeJSONParse(localStorage.getItem('admin')) || null,
+    // Tokens
+    userToken: localStorage.getItem('userToken'),
+    adminToken: localStorage.getItem('adminToken'),
+    teacherToken: localStorage.getItem('teacherToken'),
+
+    // User Data objects
+    user: JSON.parse(localStorage.getItem('user') || 'null'),
+    admin: JSON.parse(localStorage.getItem('admin') || 'null'),
+    teacher: JSON.parse(localStorage.getItem('teacher') || 'null'),
+
+    // Authenticated Flags
     isUserAuthenticated: !!localStorage.getItem('userToken'),
     isAdminAuthenticated: !!localStorage.getItem('adminToken'),
+    isTeacherAuthenticated: !!localStorage.getItem('teacherToken'),
+
     isLoggingOut: false,
   }),
 
   getters: {
-    // ✅ FIX: Getter cho user login
-    isUserLoggedIn: (state) => state.isUserAuthenticated && !!state.user,
-
-    // ✅ FIX: Getter cho admin login
-    isAdminLoggedIn: (state) => state.isAdminAuthenticated && !!state.admin,
-
-    currentUser: (state) => state.user,
-    currentAdmin: (state) => state.admin,
-
-    // ✅ FIX: Check role ADMIN từ cả user VÀ admin object
-    isAdmin: (state) => {
-      // Nếu đăng nhập qua admin endpoint
-      if (state.admin?.role === 'ADMIN') return true
-      // Hoặc nếu user có role ADMIN (case đăng nhập nhầm)
-      if (state.user?.role === 'ADMIN') return true
-      return false
+    // Helper xác định role hiện tại dựa trên URL
+    currentRole() {
+      const path = window.location.pathname
+      if (path.startsWith('/admin')) return 'ADMIN'
+      if (path.startsWith('/teacher')) return 'TEACHER'
+      return 'USER'
     },
+
+    currentUser() {
+      if (this.currentRole === 'ADMIN') return this.admin
+      if (this.currentRole === 'TEACHER') return this.teacher
+      return this.user
+    },
+
+    isLoggedIn() {
+      if (this.currentRole === 'ADMIN') return this.isAdminAuthenticated
+      if (this.currentRole === 'TEACHER') return this.isTeacherAuthenticated
+      return this.isUserAuthenticated
+    },
+
+    hasRole: (state) => (role) => state.currentUser?.role === role,
+
+    userLevel: (state) => state.currentUser?.englishLevel || null,
+
+    isLevelSufficient: (state) => (requiredLevel) => {
+      if (!requiredLevel) return true
+      if (!state.currentUser?.englishLevel) return false
+
+      const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+      const userLevelIndex = levels.indexOf(state.currentUser.englishLevel)
+      const requiredLevelIndex = levels.indexOf(requiredLevel)
+
+      return userLevelIndex >= requiredLevelIndex
+    }
   },
 
   actions: {
-    // Clear all auth data
-    clearLocalAuth() {
-      localStorage.removeItem('userToken')
-      localStorage.removeItem('user')
-      localStorage.removeItem('adminToken')
-      localStorage.removeItem('admin')
+    // ==================== 1. INITIALIZATION & SYNC ====================
 
-      this.userToken = null
-      this.user = null
-      this.adminToken = null
-      this.admin = null
-      this.isUserAuthenticated = false
-      this.isAdminAuthenticated = false
-
-      console.log('Local auth data cleared')
+    // Được gọi bởi roleGuard để đồng bộ state từ localStorage
+    checkAuth() {
+      if (localStorage.getItem('userToken')) {
+        this.isUserAuthenticated = true
+        try {
+          this.user = JSON.parse(localStorage.getItem('user'))
+        } catch (e) {
+          console.error('Error parsing user from localStorage', e)
+        }
+      }
+      if (localStorage.getItem('adminToken')) {
+        this.isAdminAuthenticated = true
+        try {
+          this.admin = JSON.parse(localStorage.getItem('admin'))
+        } catch (e) {
+          console.error('Error parsing admin from localStorage', e)
+        }
+      }
+      if (localStorage.getItem('teacherToken')) {
+        this.isTeacherAuthenticated = true
+        try {
+          this.teacher = JSON.parse(localStorage.getItem('teacher'))
+        } catch (e) {
+          console.error('Error parsing teacher from localStorage', e)
+        }
+      }
     },
 
-    // ==================== USER ACTIONS ====================
+    // ==================== 2. CLEAR DATA ACTIONS (Fix lỗi của bạn tại đây) ====================
+    // RoleGuard gọi các hàm này khi token hết hạn hoặc lỗi data
 
-    async register(userData) {
+    clearUser() {
+      this.user = null
+      this.userToken = null
+      this.isUserAuthenticated = false
+      localStorage.removeItem('user')
+      localStorage.removeItem('userToken')
+    },
+
+    clearAdmin() {
+      this.admin = null
+      this.adminToken = null
+      this.isAdminAuthenticated = false
+      localStorage.removeItem('admin')
+      localStorage.removeItem('adminToken')
+    },
+
+    clearTeacher() {
+      this.teacher = null
+      this.teacherToken = null
+      this.isTeacherAuthenticated = false
+      localStorage.removeItem('teacher')
+      localStorage.removeItem('teacherToken')
+    },
+
+    // ==================== 3. PROFILE MANAGEMENT ====================
+
+    async fetchProfile() {
+      try {
+        // Gọi song song 3 API để lấy full data
+        const [profileRes, statsRes, activityRes] = await Promise.allSettled([
+          userAPI.getProfile(),
+          userAPI.getStats(),
+          userAPI.getActivity(),
+        ])
+
+        if (profileRes.status === 'rejected') throw profileRes.reason
+        const baseProfile = profileRes.value.data.data
+
+        // Stats & Activity có thể null nếu backend chưa tạo record
+        const stats = statsRes.status === 'fulfilled' ? statsRes.value.data.data : {}
+        const activity = activityRes.status === 'fulfilled' ? activityRes.value.data.data : {}
+
+        const fullProfile = {
+          ...baseProfile,
+          stats: stats,
+          activity: activity,
+        }
+
+        this.updateLocalState(fullProfile)
+        return fullProfile
+      } catch (error) {
+        console.error('Fetch profile error:', error)
+        if (error.response?.status === 401) {
+          // Token hỏng -> Clear đúng role
+          if (this.currentRole === 'ADMIN') this.clearAdmin()
+          else if (this.currentRole === 'TEACHER') this.clearTeacher()
+          else this.clearUser()
+        }
+        return null
+      }
+    },
+
+    async updateProfile(data) {
       const toast = useToast()
       try {
-        const response = await authAPI.registerUser(userData)
-        toast.success('Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác thực.')
-        return { success: true, data: response.data }
+        const response = await userAPI.updateProfile(data)
+        const updatedBase = response.data.data
+
+        // Merge data mới vào data cũ để không mất stats/activity
+        const currentData = this.currentUser || {}
+        const newProfile = { ...currentData, ...updatedBase }
+
+        this.updateLocalState(newProfile)
+
+        toast.success('Cập nhật thông tin thành công!')
+        return newProfile
       } catch (error) {
-        const message = error.response?.data?.message || 'Đăng ký thất bại! Vui lòng thử lại.'
-        toast.error(message)
+        toast.error(error.response?.data?.message || 'Cập nhật thất bại')
         throw error
       }
     },
 
-    async login(credentials) {
+    async changePassword(data) {
       const toast = useToast()
       try {
-        const response = await authAPI.loginUser(credentials)
-        const authData = response.data.data
-        const token = authData.token
-        const user = {
-          id: authData.id,
-          username: authData.username,
-          email: authData.email,
-          fullName: authData.fullName,
-          role: authData.role,
-          totalPoints: authData.totalPoints || 0,
-          streakDays: authData.streakDays || 0,
-        }
-
-        if (user.role === 'ADMIN') {
-          toast.error('Vui lòng đăng nhập qua trang quản trị viên!')
-          throw new Error('Admin should use admin login page')
-        }
-
-        localStorage.setItem('userToken', token)
-        localStorage.setItem('user', JSON.stringify(user))
-
-        this.userToken = token
-        this.user = user
-        this.isUserAuthenticated = true
-
-        toast.success('Đăng nhập thành công!')
-        return { success: true, user }
+        await userAPI.changePassword(data)
+        toast.success('Đổi mật khẩu thành công!')
+        return true
       } catch (error) {
-        const message = error.response?.data?.message || 'Đăng nhập thất bại! Vui lòng thử lại.'
-        if (!error.message?.includes('Admin should use')) {
-          toast.error(message)
-        }
+        toast.error(error.response?.data?.message || 'Đổi mật khẩu thất bại')
+        throw error
+      }
+    },
+
+    // Helper update state
+    updateLocalState(profileData) {
+      const role = profileData.role
+      if (role === 'ADMIN') {
+        this.admin = profileData
+        localStorage.setItem('admin', JSON.stringify(profileData))
+      } else if (role === 'TEACHER') {
+        this.teacher = profileData
+        localStorage.setItem('teacher', JSON.stringify(profileData))
+      } else {
+        this.user = profileData
+        localStorage.setItem('user', JSON.stringify(profileData))
+      }
+    },
+
+    // ==================== 4. LOGIN ACTIONS ====================
+
+    async loginUser(credentials) {
+      return this.handleLogin(authAPI.loginUser, credentials, 'user')
+    },
+    async loginAdmin(credentials) {
+      return this.handleLogin(authAPI.loginAdmin, credentials, 'admin')
+    },
+    async loginTeacher(credentials) {
+      return this.handleLogin(authAPI.loginTeacher, credentials, 'teacher')
+    },
+
+    async handleLogin(apiFunc, credentials, type) {
+      const toast = useToast()
+      try {
+        const response = await apiFunc(credentials)
+        const data = response.data.data
+
+        const tokenKey = `${type}Token`
+        this[tokenKey] = data.token
+        localStorage.setItem(tokenKey, data.token)
+
+        if (type === 'user') this.isUserAuthenticated = true
+        if (type === 'admin') this.isAdminAuthenticated = true
+        if (type === 'teacher') this.isTeacherAuthenticated = true
+
+        // Lấy profile ngay lập tức để có role check
+        await this.fetchProfile()
+
+        toast.success(`Đăng nhập thành công!`)
+        return response
+      } catch (error) {
+        const msg = error.response?.data?.message || 'Đăng nhập thất bại'
+        // Chỉ toast lỗi nếu không phải lỗi quyền (vì roleGuard hoặc view sẽ handle lỗi quyền riêng)
+        if (!msg.includes('quyền')) toast.error(msg)
+        throw error
+      }
+    },
+
+    // ==================== 5. REGISTER & AUTH ACTIONS ====================
+
+    async register(data) {
+      const toast = useToast()
+      try {
+        const res = await authAPI.registerUser(data)
+        toast.success('Đăng ký thành công! Vui lòng kiểm tra email.')
+        return res
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Đăng ký thất bại')
         throw error
       }
     },
 
     async verifyEmail(email, otp) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.verifyEmail({ email, otp })
-        toast.success('Xác thực email thành công! Bạn có thể đăng nhập ngay bây giờ.')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message =
-          error.response?.data?.message || 'Xác thực email thất bại! Vui lòng thử lại.'
-        toast.error(message)
-        throw error
-      }
+      return await authAPI.verifyEmail({ email, otp })
     },
 
     async resendVerifyEmail(email) {
       const toast = useToast()
       try {
-        const response = await authAPI.resendVerifyEmail({ email })
-        toast.success('Gửi lại mã xác thực thành công! Vui lòng kiểm tra email.')
-        return { success: true, data: response.data }
+        await authAPI.resendVerifyEmail({ email })
+        toast.success('Đã gửi lại mã OTP!')
       } catch (error) {
-        const message =
-          error.response?.data?.message || 'Gửi lại mã xác thực thất bại! Vui lòng thử lại.'
-        toast.error(message)
+        toast.error(error.response?.data?.message || 'Gửi lại mã thất bại')
         throw error
       }
     },
@@ -150,224 +274,52 @@ export const useAuthStore = defineStore('auth', {
     async forgotPassword(email) {
       const toast = useToast()
       try {
-        const response = await authAPI.forgotPassword({ email })
-        toast.success('Mã OTP đặt lại mật khẩu đã được gửi đến email!')
-        return { success: true, data: response.data }
+        const res = await authAPI.forgotPassword({ email })
+        toast.success('Đã gửi OTP khôi phục mật khẩu!')
+        return res
       } catch (error) {
-        const message = error.response?.data?.message || 'Gửi OTP thất bại'
-        toast.error(message)
+        toast.error(error.response?.data?.message || 'Gửi yêu cầu thất bại')
         throw error
       }
     },
 
     async verifyResetPassword(email, otp) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.verifyResetPassword({ email, otp })
-        toast.success('Xác thực OTP thành công!')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Xác thực OTP thất bại'
-        toast.error(message)
-        throw error
-      }
+      return await authAPI.verifyResetPassword({ email, otp })
     },
 
     async resetPassword(email, newPassword) {
       const toast = useToast()
       try {
-        const response = await authAPI.resetPassword({ email, newPassword })
-        toast.success('Đặt lại mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới.')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Đặt lại mật khẩu thất bại'
-        toast.error(message)
-        throw error
-      }
-    },
-
-    async logoutUser() {
-      const toast = useToast()
-      if (this.isLoggingOut) return
-      this.isLoggingOut = true
-      try {
-        await authAPI.logoutUser().catch((e) => {
-          console.error('API logoutUser failed:', e)
-        })
-      } finally {
-        this.clearLocalAuth()
-        toast.success('Đăng xuất thành công!')
-        this.isLoggingOut = false
-      }
-    },
-
-    async logoutUserAll() {
-      const toast = useToast()
-      if (this.isLoggingOut) return
-      this.isLoggingOut = true
-      try {
-        await authAPI.logoutUserAll().catch(() => {})
-      } finally {
-        this.clearLocalAuth()
-        toast.success('Đã đăng xuất tất cả thiết bị!')
-        this.isLoggingOut = false
-      }
-    },
-
-    // ==================== ADMIN ACTIONS ====================
-
-    async loginAdmin(credentials) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.loginAdmin(credentials)
-        const authData = response.data.data
-        const token = authData.token
-        const admin = {
-          id: authData.userId,
-          username: authData.username,
-          email: authData.email,
-          fullName: authData.fullName,
-          role: authData.role,
-        }
-
-        if (admin.role !== 'ADMIN') {
-          toast.error('Tài khoản không có quyền quản trị!')
-          throw new Error('Not an admin account')
-        }
-
-        localStorage.setItem('adminToken', token)
-        localStorage.setItem('admin', JSON.stringify(admin))
-
-        this.adminToken = token
-        this.admin = admin
-        this.isAdminAuthenticated = true
-
-        toast.success('Đăng nhập quản trị thành công!')
-        return { success: true, admin }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Đăng nhập thất bại! Vui lòng thử lại.'
-        if (!error.message?.includes('Not an admin')) {
-          toast.error(message)
-        }
-        throw error
-      }
-    },
-
-    async createAdmin(adminData) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.createAdmin(adminData)
-        toast.success('Tạo tài khoản quản trị thành công!')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Tạo tài khoản thất bại'
-        toast.error(message)
-        throw error
-      }
-    },
-
-    async forgotPasswordAdmin(email) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.forgotPasswordAdmin({ email })
-        toast.success('Mã OTP đặt lại mật khẩu đã được gửi đến email!')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Gửi OTP thất bại'
-        toast.error(message)
-        throw error
-      }
-    },
-
-    async verifyResetPasswordAdmin(email, otp) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.verifyResetPasswordAdmin({ email, otp })
-        toast.success('Xác thực OTP thành công!')
-        return { success: true, data: response.data }
-      } catch (error) {
-        const message = error.response?.data?.message || 'Xác thực OTP thất bại'
-        toast.error(message)
-        throw error
-      }
-    },
-
-    async resetPasswordAdmin(email, newPassword) {
-      const toast = useToast()
-      try {
-        const response = await authAPI.resetPasswordAdmin({ email, newPassword })
+        const res = await authAPI.resetPassword({ email, newPassword })
         toast.success('Đặt lại mật khẩu thành công!')
-        return { success: true, data: response.data }
+        return res
       } catch (error) {
-        const message = error.response?.data?.message || 'Đặt lại mật khẩu thất bại'
-        toast.error(message)
+        toast.error(error.response?.data?.message || 'Đặt lại mật khẩu thất bại')
         throw error
       }
     },
 
-    async logoutAdmin() {
-      const toast = useToast()
-      if (this.isLoggingOut) return
+    // ==================== 6. LOGOUT ====================
+
+    async logout(role) {
       this.isLoggingOut = true
-      try {
-        await authAPI.logoutAdmin().catch((e) => {
-          console.warn('logoutAdmin api error (ignored):', e?.response?.status, e?.message)
-        })
-      } finally {
-        this.clearLocalAuth()
-        toast.success('Đăng xuất thành công!')
-        this.isLoggingOut = false
-      }
-    },
-
-    async logoutAdminAll() {
       const toast = useToast()
-      if (this.isLoggingOut) return
-      this.isLoggingOut = true
       try {
-        await authAPI.logoutAdminAll().catch(() => {})
+        if (role === 'ADMIN') await authAPI.logoutAdmin().catch(() => {})
+        else if (role === 'TEACHER') await authAPI.logoutTeacher().catch(() => {})
+        else await authAPI.logoutUser().catch(() => {})
       } finally {
-        this.clearLocalAuth()
-        toast.success('Đã đăng xuất tất cả thiết bị!')
+        // Clear local state
+        if (role === 'ADMIN') this.clearAdmin()
+        else if (role === 'TEACHER') this.clearTeacher()
+        else this.clearUser() // Default clear user
+
         this.isLoggingOut = false
-      }
-    },
+        toast.info('Đã đăng xuất')
 
-    // ==================== COMMON METHODS ====================
-
-    async logout(type = 'USER') {
-      if (type === 'ADMIN') return this.logoutAdmin()
-      return this.logoutUser()
-    },
-
-    async logoutAll(type = 'USER') {
-      if (type === 'ADMIN') return this.logoutAdminAll()
-      return this.logoutUserAll()
-    },
-
-    checkAuth(type = 'USER') {
-      if (type === 'ADMIN') {
-        const token = localStorage.getItem('adminToken')
-        const admin = safeJSONParse(localStorage.getItem('admin'))
-        if (token && admin) {
-          this.adminToken = token
-          this.admin = admin
-          this.isAdminAuthenticated = true
-          return true
-        }
-        this.isAdminAuthenticated = false
-        return false
-      } else {
-        const token = localStorage.getItem('userToken')
-        const user = safeJSONParse(localStorage.getItem('user'))
-        if (token && user) {
-          this.userToken = token
-          this.user = user
-          this.isUserAuthenticated = true
-          return true
-        }
-        this.isUserAuthenticated = false
-        return false
+        // Chuyển hướng về trang login tương ứng
+        const loginPath = role === 'ADMIN' ? '/admin/login' : '/auth/login'
+        window.location.href = loginPath
       }
     },
   },

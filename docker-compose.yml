@@ -42,30 +42,30 @@ services:
     environment:
       # ===== SPRING PROFILE =====
       SPRING_PROFILES_ACTIVE: dev
-      
+
       # ===== DATABASE =====
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      
+
       # ===== REDIS =====
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      
+
       # ===== EMAIL =====
       SPRING_MAIL_HOST: smtp.gmail.com
       SPRING_MAIL_PORT: 587
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
-      
+
       # ===== JWT =====
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
-      
+
       # ===== AI API =====
       AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY}
       AI_GROQ_API_KEY: ${AI_GROQ_API_KEY}
-      
+
       # ===== APP CONFIG =====
       APP_NAME: "English Learning App"
       APP_FRONTEND_URL: http://localhost:5173
@@ -73,7 +73,7 @@ services:
       # ===== AUDIO STORAGE =====
       APP_AUDIO_UPLOAD_DIR: /app/media/listening
       APP_AUDIO_MAX_FILE_SIZE: 52428800
-      
+
       # ===== JPA =====
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "true"
@@ -81,11 +81,11 @@ services:
       # ===== FILE UPLOAD =====
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 50MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 50MB
-      
+
       # ===== DEVTOOLS =====
       SPRING_DEVTOOLS_RESTART_ENABLED: "true"
       SPRING_DEVTOOLS_LIVERELOAD_ENABLED: "true"
-      
+
       # ===== LOGGING =====
       LOG_LEVEL_APP: INFO
       LOG_LEVEL_SECURITY: INFO
@@ -98,12 +98,12 @@ services:
       CLEANUP_CRON: "0 0 2 * * *"
 
     command: ./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
-      
+
     volumes:
-        - ./backend/src:/workspace/src
-        - ./backend/pom.xml:/workspace/pom.xml
-        - ./media/listening:/app/media/listening
-        - maven-repo:/root/.m2
+      - ./backend/src:/workspace/src
+      - ./backend/pom.xml:/workspace/pom.xml
+      - ./media/listening:/app/media/listening
+      - maven-repo:/root/.m2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8980/actuator/health"]
       interval: 30s
@@ -124,8 +124,18 @@ services:
       - /app/node_modules
     environment:
       VITE_API_PROXY_TARGET: http://app:8980
+      DANGEROUSLY_DISABLE_HOST_CHECK: "true"
     depends_on:
       - app
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --url http://frontend:5173
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    networks:
+      - default
 
 volumes:
   postgres-data:

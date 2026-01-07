@@ -40,7 +40,7 @@ public class UserDto {
     private UserRole role;
     
     @Schema(description = "Cấp độ tiếng Anh của người dùng", example = "BEGINNER")
-    private EnglishLevel englishLevel = EnglishLevel.BEGINNER;
+    private EnglishLevel englishLevel;
     
     @Schema(description = "Tổng điểm của người dùng", example = "100")
     private Integer totalPoints = 0;

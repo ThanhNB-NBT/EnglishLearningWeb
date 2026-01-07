@@ -1,26 +1,52 @@
 <template>
-  <div class="w-full">
-    <div class="text-base text-gray-600 dark:text-gray-400 mb-3 font-serif italic">
-      <span v-for="(word, idx) in shuffledWords" :key="idx">
-        {{ word }}<span v-if="idx < shuffledWords.length - 1" class="mx-1">/</span>
-      </span>
+  <div class="w-full mt-1 text-base text-gray-800 dark:text-gray-200">
+    <div class="mb-3 select-none text-left font-medium tracking-wide">
+      {{ shuffledWordsString }}
     </div>
-
-    <input
-      type="text"
-      :value="modelValue"
-      @input="$emit('update:modelValue', $event.target.value)"
-      class="w-full bg-transparent border-b border-gray-400 focus:border-black dark:focus:border-white outline-none py-1 px-0 text-lg font-medium text-blue-800 dark:text-blue-300 placeholder-gray-300"
-      placeholder="Viết lại câu hoàn chỉnh..."
-    />
+    <div class="flex items-center gap-2">
+      <input
+        type="text"
+        :value="modelValue || ''"
+        @input="$emit('update:modelValue', $event.target.value)"
+        :disabled="disabled"
+        class="w-full border-b border-gray-400 bg-transparent py-1 px-1 outline-none focus:border-blue-600 focus:border-b-2 transition-colors placeholder-gray-400"
+        :class="getInputClass()"
+        placeholder="Sắp xếp thành câu hoàn chỉnh..."
+      />
+      <div v-if="disabled && showFeedback" class="shrink-0">
+        <span v-if="isCorrect" class="text-green-600 font-bold text-lg">✓</span>
+        <span v-else class="text-red-500 font-bold text-lg">✕</span>
+      </div>
+    </div>
   </div>
 </template>
+
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useQuestionData } from '@/composables/questions/useQuestionData'
-const props = defineProps(['question', 'modelValue'])
+import { computed, ref, onMounted } from 'vue'
+
+const props = defineProps({
+  question: { type: Object, required: true },
+  modelValue: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
+  showFeedback: { type: Boolean, default: false },
+})
 defineEmits(['update:modelValue'])
-const { buildingWords } = useQuestionData(props)
+
 const shuffledWords = ref([])
-onMounted(() => { shuffledWords.value = [...buildingWords.value] }) // Giữ nguyên thứ tự để gợi ý như đề bài
+onMounted(() => {
+  const data = props.question?.data || props.question?.metadata || {}
+  const rawWords = data.words || data.buildingWords || []
+  shuffledWords.value = [...rawWords].sort(() => Math.random() - 0.5)
+})
+const shuffledWordsString = computed(() => shuffledWords.value.join(' / '))
+
+// ✅ FIX: Chỉ dùng API, không tự tính
+const isCorrect = computed(() => {
+  return props.question.isCorrect === true
+})
+
+const getInputClass = () => {
+  if (!props.disabled || !props.showFeedback) return ''
+  return isCorrect.value ? 'text-green-700 font-bold' : 'text-red-600 border-red-500'
+}
 </script>

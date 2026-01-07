@@ -1,6 +1,65 @@
 // src/utils/textFormatter.js
 
 /**
+ * Format ngày tháng năm + giờ phút
+ * Input: "2025-12-28T20:30:00.000Z"
+ * Output: "20:30 28/12/2025"
+ */
+export function formatDate(dateString) {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+
+    // Kiểm tra nếu date không hợp lệ
+    if (isNaN(date.getTime())) return dateString
+
+    return new Intl.DateTimeFormat('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(date)
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return dateString
+  }
+}
+
+/**
+ * Format chỉ ngày tháng năm
+ * Output: "28/12/2025"
+ */
+export function formatDateOnly(dateString) {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(date)
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return dateString
+  }
+}
+
+/**
+ * Format tiền tệ (nếu cần sau này)
+ * Output: "100.000 ₫"
+ */
+export function formatCurrency(amount) {
+  if (amount === undefined || amount === null) return '0 ₫'
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND'
+  }).format(amount)
+}
+
+/**
  * Format transcript text by removing escape characters and normalizing whitespace
  * @param {string} text - Raw transcript text
  * @returns {string} - Formatted text

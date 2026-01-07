@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -15,7 +16,9 @@ public class SubmitAnswerRequest {
     @Schema(description = "ID của câu hỏi", example = "1")
     private Long questionId;
 
-    @NotNull(message = "Câu trả lời không được để trống")
-    @Schema(description = "Câu trả lời của người dùng", example = "Đáp án A")
-    private Object answer; // Người dùng trả lời
+    @Schema(description = "Danh sách ID đáp án đã chọn (cho câu trắc nghiệm)", example = "[1, 2]")
+    private List<Long> selectedOptions;
+
+    @Schema(description = "Câu trả lời dạng text (cho điền từ, viết lại câu)", example = "I go to school")
+    private String textAnswer;
 }

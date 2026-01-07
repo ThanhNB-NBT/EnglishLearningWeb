@@ -1,57 +1,70 @@
 package com.thanhnb.englishlearning.service.reading;
 
+import com.thanhnb.englishlearning.entity.reading.ReadingLesson;
 import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.reading.ReadingLessonRepository;
+import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.question.TaskGroupRepository;
+import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
 import com.thanhnb.englishlearning.service.question.BaseQuestionService;
-import lombok.RequiredArgsConstructor;
+import com.thanhnb.englishlearning.service.question.TaskGroupService;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * ✅ REFACTORED: Reading Question Service
- * Chỉ chứa logic RIÊNG của Reading
- * Tất cả CRUD đã có sẵn từ BaseQuestionService
+ * Reading Question Service
+ * Handles CRUD operations for questions in reading lessons
+ * WITH Teacher Access Validation
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ReadingQuestionService extends BaseQuestionService {
 
     private final ReadingLessonRepository lessonRepository;
-    private final ReadingOrderService orderService;
 
-    /**
-     * ✅ Override: Chỉ định ParentType
-     */
+    public ReadingQuestionService(
+            QuestionRepository questionRepository,
+            TeacherPermissionService teacherPermissionService,
+            ReadingLessonRepository lessonRepository,
+            TaskGroupService taskGroupService,
+            TaskGroupRepository taskGroupRepository) {
+        super(questionRepository, teacherPermissionService, taskGroupService, taskGroupRepository);
+        this.lessonRepository = lessonRepository;
+    }
+
     @Override
     protected ParentType getParentType() {
         return ParentType.READING;
     }
 
-    /**
-     * ✅ Override: Validate lesson exists
-     */
     @Override
     protected void validateLessonExists(Long lessonId) {
         if (!lessonRepository.existsById(lessonId)) {
-            throw new RuntimeException("Bài đọc không tồn tại với id: " + lessonId);
+            throw new ResourceNotFoundException("Bài đọc không tồn tại với id: " + lessonId);
         }
     }
 
     /**
-     * ✅ Override: Reorder after delete (Reading specific)
+     * ✅ KEY METHOD: Get topicId from reading lesson
+     * This enables teacher access validation
      */
     @Override
-    protected void reorderAfterDelete(Long lessonId, Integer deletedOrderIndex) {
-        orderService.reorderQuestionsAfterDelete(lessonId, deletedOrderIndex);
+    protected Long getTopicIdFromLesson(Long lessonId) {
+        ReadingLesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Bài đọc không tồn tại với id: " + lessonId));
+        
+        return lesson.getTopic().getId();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // 🎯 READING-SPECIFIC METHODS (nếu có)
-    // ═══════════════════════════════════════════════════════════════════════
+    // =========================================================================
+    // READING-SPECIFIC METHODS
+    // =========================================================================
 
     /**
-     * ✅ Example: Get reading statistics (Reading specific)
+     * Get question statistics for a reading lesson
      */
     public ReadingQuestionStats getQuestionStats(Long lessonId) {
         validateLessonExists(lessonId);
@@ -59,13 +72,24 @@ public class ReadingQuestionService extends BaseQuestionService {
         long total = questionRepository.countByParentTypeAndParentId(
                 ParentType.READING, lessonId);
 
-        // Reading-specific stats
         return new ReadingQuestionStats(total);
     }
 
     /**
-     * ✅ Inner class for stats
+     * Get total questions count for a topic
      */
+    public long countQuestionsInTopic(Long topicId) {
+        return lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId)
+                .stream()
+                .mapToLong(lesson -> questionRepository.countByParentTypeAndParentId(
+                        ParentType.READING, lesson.getId()))
+                .sum();
+    }
+
+    // =========================================================================
+    // INNER CLASS
+    // =========================================================================
+
     public static class ReadingQuestionStats {
         private final long totalQuestions;
 
@@ -77,15 +101,4 @@ public class ReadingQuestionService extends BaseQuestionService {
             return totalQuestions;
         }
     }
-
-    // Tất cả CRUD methods đều inherit từ BaseQuestionService:
-    // - createQuestion(dto)
-    // - updateQuestion(id, dto)
-    // - deleteQuestion(id)
-    // - getQuestionsByLesson(lessonId)
-    // - getQuestionsByLessonPaginated(lessonId, pageable)
-    // - createQuestionsInBulk(lessonId, dtos)
-    // - bulkDeleteQuestions(ids)
-    // - copyQuestionsToLesson(sourceId, targetId)
-    // - getNextOrderIndex(lessonId)
 }

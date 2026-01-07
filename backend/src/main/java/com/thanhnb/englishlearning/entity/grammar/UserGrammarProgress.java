@@ -1,22 +1,26 @@
 package com.thanhnb.englishlearning.entity.grammar;
 
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-import com.thanhnb.englishlearning.entity.User;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.service.common.LessonProgressService;
+
 @Entity
 @Table(name = "user_grammar_progress",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "lesson_id"}))
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@ToString(exclude = {"user", "lesson"})
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class UserGrammarProgress implements LessonProgressService.LessonProgress {
+    
+    @EqualsAndHashCode.Include
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -30,27 +34,34 @@ public class UserGrammarProgress implements LessonProgressService.LessonProgress
     private GrammarLesson lesson;
 
     @Column(name = "is_completed")
+    @Builder.Default
     private Boolean isCompleted = false;
 
-    @Column(name = "score_percentage", precision = 5, scale = 2)
-    private BigDecimal scorePercentage = BigDecimal.ZERO;
+    @Column(name = "score_percentage")
+    @Builder.Default
+    private Double scorePercentage = 0.0;
 
     @Column(name = "reading_time")
-    private Integer readingTime = 0; // Thời gian đọc bài học (tính bằng giây)
+    @Builder.Default
+    private Integer readingTime = 0;
 
     @Column(name = "has_scrolled_to_end")
+    @Builder.Default
     private Boolean hasScrolledToEnd = false;
 
     @Column(name = "attempts")
+    @Builder.Default
     private Integer attempts = 0;
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
     @Column(name = "created_at")
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at")
+    @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @PrePersist
@@ -67,5 +78,4 @@ public class UserGrammarProgress implements LessonProgressService.LessonProgress
     protected void preUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-
 }

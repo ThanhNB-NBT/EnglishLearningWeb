@@ -1,3 +1,4 @@
+<!-- src/components/admin/grammar/LessonList.vue - GRAMMAR VERSION -->
 <template>
   <div class="w-full">
     <div
@@ -11,11 +12,16 @@
           class="!w-64"
           @change="handleTopicChange"
         >
-          <el-option v-for="topic in topics" :key="topic.id" :label="topic.name" :value="topic.id">
+          <el-option
+            v-for="topic in topicsList"
+            :key="topic.id"
+            :label="topic.name"
+            :value="topic.id"
+          >
             <span class="float-left">{{ topic.name }}</span>
-            <el-tag size="small" type="info" class="float-right ml-2">{{
-              topic.levelRequired
-            }}</el-tag>
+            <el-tag size="small" type="info" class="float-right ml-2">
+              {{ topic.levelRequired }}
+            </el-tag>
           </el-option>
         </el-select>
 
@@ -98,9 +104,7 @@
 
               <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 <span class="flex items-center gap-1">
-                  <el-icon>
-                    <Timer />
-                  </el-icon>
+                  <el-icon><Timer /></el-icon>
                   {{ formatTime(row.timeLimitSeconds) }}
                 </span>
 
@@ -108,15 +112,11 @@
                   v-if="row.questionCount > 0"
                   class="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-1.5 rounded"
                 >
-                  <el-icon>
-                    <QuestionFilled />
-                  </el-icon>
+                  <el-icon><QuestionFilled /></el-icon>
                   {{ row.questionCount }} câu hỏi
                 </span>
 
-                <span
-                  class="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium"
-                >
+                <span class="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium">
                   +{{ row.pointsReward }} điểm
                 </span>
               </div>
@@ -140,24 +140,17 @@
           <template #default="{ row }">
             <el-dropdown trigger="click" @command="(cmd) => handleActionCommand(cmd, row)">
               <el-button link class="!text-gray-400 hover:!text-gray-600 dark:hover:!text-gray-200">
-                <el-icon :size="20" class="rotate-90">
-                  <MoreFilled />
-                </el-icon>
+                <el-icon :size="20" class="rotate-90"><MoreFilled /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu class="min-w-[160px]">
                   <el-dropdown-item command="questions" :icon="QuestionFilled">
                     Quản lý câu hỏi
                   </el-dropdown-item>
-                  <el-dropdown-item command="edit" :icon="Edit">
-                    Chỉnh sửa bài học
+                  <el-dropdown-item command="edit" :icon="Edit" divided>
+                    Chỉnh sửa
                   </el-dropdown-item>
-                  <el-dropdown-item
-                    command="delete"
-                    :icon="Delete"
-                    divided
-                    class="!text-red-500 hover:!bg-red-50"
-                  >
+                  <el-dropdown-item command="delete" :icon="Delete" class="!text-red-500">
                     Xóa bài học
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -167,15 +160,13 @@
         </el-table-column>
       </el-table>
 
-      <div
-        class="py-3 px-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] flex justify-end"
-      >
+      <div v-if="filteredLessons.length > 0" class="flex justify-center p-4">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="filteredLessons.length"
-          layout="total, sizes, prev, pager, next, jumper"
+          layout="total, sizes, prev, pager, next"
           background
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
@@ -186,17 +177,10 @@
     <LessonFormDialog
       ref="lessonFormRef"
       :topic-id="selectedTopicId"
-      @success="handleFormSuccess"
+      @success="loadLessons"
     />
 
-    <el-dialog
-      v-model="previewVisible"
-      title="Chi tiết bài học"
-      width="800px"
-      align-center
-      destroy-on-close
-      class="!rounded-xl"
-    >
+    <el-dialog v-model="previewVisible" title="Chi tiết bài học" width="70%" top="5vh">
       <LessonPreview v-if="previewLesson" :lesson="previewLesson" />
     </el-dialog>
   </div>
@@ -204,25 +188,24 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useGrammarStore } from '@/stores/grammar'
+import { useGrammarAdminStore } from '@/stores/admin/grammarAdmin'
+import { useTopicStore } from '@/composables/useTopicStore'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import {
-  Plus,
-  Refresh,
-  Tools,
-  Edit,
-  Delete,
-  Timer,
-  QuestionFilled,
-  Search,
-  MoreFilled,
+  Plus, Refresh, Tools, Edit, Delete, Timer,
+  QuestionFilled, Search, MoreFilled,
 } from '@element-plus/icons-vue'
 import LessonFormDialog from './LessonFormDialog.vue'
 import LessonPreview from './LessonPreview.vue'
 
-const props = defineProps({ initTopicId: Number })
+const props = defineProps({
+  initTopicId: Number,
+})
+
 const emit = defineEmits(['view-questions'])
-const store = useGrammarStore()
+
+const grammarStore = useGrammarAdminStore()
+const topicOps = useTopicStore('GRAMMAR')
 
 // State
 const lessonFormRef = ref(null)
@@ -234,18 +217,34 @@ const filterType = ref('')
 const previewVisible = ref(false)
 const previewLesson = ref(null)
 
-// Computed
-const topics = computed(() => store.topics)
-const lessonsLoading = computed(() => store.lessonsLoading)
+// ✅ FIX: Safely access topics with validation
+const topicsList = computed(() => {
+  const rawTopics = topicOps.topics.value || []
+
+  // Filter out invalid entries
+  return rawTopics.filter(topic =>
+    topic &&
+    typeof topic === 'object' &&
+    topic.id !== undefined &&
+    topic.name !== undefined
+  )
+})
+
+const lessonsLoading = computed(() => grammarStore.lessonsLoading)
 
 const filteredLessons = computed(() => {
-  let result = [...store.lessons]
+  let result = [...(grammarStore.lessons || [])]
+
   if (searchQuery.value.trim()) {
-    result = result.filter((l) => l.title.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    result = result.filter((l) =>
+      l.title && l.title.toLowerCase().includes(searchQuery.value.toLowerCase())
+    )
   }
+
   if (filterType.value) {
     result = result.filter((l) => l.lessonType === filterType.value)
   }
+
   return result
 })
 
@@ -254,81 +253,75 @@ const paginatedLessons = computed(() => {
   return filteredLessons.value.slice(start, start + pageSize.value)
 })
 
-// Actions Handlers
+// Actions
 const handleCreate = () => lessonFormRef.value?.openCreate()
 
 const handleActionCommand = (command, row) => {
-  switch (command) {
-    case 'questions':
-      handleViewQuestions(row)
-      break
-    case 'edit':
-      handleEdit(row)
-      break
-    case 'delete':
-      handleDelete(row)
-      break
+  const actions = {
+    questions: () => handleViewQuestions(row),
+    edit: () => handleEdit(row),
+    delete: () => handleDelete(row),
   }
+  actions[command]?.()
 }
 
 const handleEdit = (lesson) => lessonFormRef.value?.openEdit(lesson)
 
 const handleViewDetail = async (row) => {
-  const fullLesson = await store.fetchLessonById(row.id)
-  previewLesson.value = fullLesson
-  previewVisible.value = true
-}
-
-const handleFormSuccess = async () => {
-  await loadLessons()
+  try {
+    const fullLesson = await grammarStore.fetchLessonDetail(row.id)
+    previewLesson.value = fullLesson
+    previewVisible.value = true
+  } catch (e) {
+    console.error('Error fetching lesson:', e)
+    ElMessage.error('Không thể tải chi tiết bài học')
+  }
 }
 
 const handleDelete = async (lesson) => {
   try {
-    await ElMessageBox.confirm(`Xóa "${lesson.title}"?`, 'Cảnh báo', {
-      type: 'warning',
-      confirmButtonText: 'Xóa',
-      cancelButtonText: 'Hủy',
-      confirmButtonClass: 'el-button--danger',
-    })
-    await store.deleteLesson(lesson.id)
-    ElMessage.success('Đã xóa bài học')
+    await ElMessageBox.confirm(
+      `Bạn có chắc muốn xóa bài học "${lesson.title}"?\nTất cả câu hỏi liên quan sẽ bị xóa!`,
+      'Xác nhận xóa',
+      {
+        type: 'warning',
+        confirmButtonText: 'Xóa',
+        cancelButtonText: 'Hủy',
+      },
+    )
+    await grammarStore.deleteLesson(lesson.id)
     await loadLessons()
   } catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error('Xóa bài học thất bại.')
-      console.error(e)
-    }
+    if (e !== 'cancel') console.error(e)
   }
 }
 
-const handleToggleActive = async (lesson) => {
-  const newStatus = lesson.isActive
-  const actionName = newStatus ? 'kích hoạt' : 'tắt'
-
+const handleToggleActive = async (row) => {
   try {
-    if (newStatus) {
-      await store.activateLesson(lesson.id)
-    } else {
-      await store.deactivateLesson(lesson.id)
-    }
-    ElMessage.success(`Đã ${actionName} bài học`)
+    await grammarStore.toggleLessonStatus(row.id)
   } catch (e) {
-    // Revert UI nếu lỗi
-    lesson.isActive = !newStatus
-    ElMessage.error(`Lỗi khi ${actionName} bài học.`)
     console.error(e)
   }
 }
 
 const loadLessons = async () => {
-  if (selectedTopicId.value) await store.fetchLessons(selectedTopicId.value, { size: 1000 })
+  if (!selectedTopicId.value) return
+
+  try {
+    await grammarStore.fetchLessons(selectedTopicId.value, { size: 1000 })
+  } catch (error) {
+    console.error('Error loading lessons:', error)
+    ElMessage.error('Không thể tải danh sách bài học')
+  }
 }
 
 const handleTopicChange = (val) => {
   selectedTopicId.value = val
-  if (val) loadLessons()
-  else store.clearLessons()
+  if (val) {
+    loadLessons()
+  } else {
+    grammarStore.lessons = []
+  }
 }
 
 const formatTime = (seconds) => {
@@ -339,13 +332,32 @@ const formatTime = (seconds) => {
 }
 
 const handleRefresh = () => loadLessons()
-const handleValidateOrder = () => store.validateLessonsOrder(selectedTopicId.value)
+
+const handleValidateOrder = async () => {
+  if (!selectedTopicId.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      'Chuẩn hóa thứ tự các bài học (1, 2, 3...)?\nThao tác này sẽ sắp xếp lại tất cả lessons.',
+      'Xác nhận',
+      { type: 'info', confirmButtonText: 'Đồng ý', cancelButtonText: 'Hủy' }
+    )
+
+    await grammarStore.fixLessonOrder(selectedTopicId.value)
+    ElMessage.success('Đã chuẩn hóa thứ tự thành công')
+    await loadLessons()
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
+}
+
 const handleViewQuestions = (row) => emit('view-questions', row)
 
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
 }
+
 const handlePageChange = (val) => {
   currentPage.value = val
 }
@@ -358,11 +370,19 @@ watch(
       loadLessons()
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onMounted(async () => {
-  if (store.topics.length === 0) await store.fetchTopics({ size: 100 })
+  console.log('🔄 [Grammar LessonList] Mounting')
+
+  try {
+    await topicOps.fetchTopics({ size: 100 })
+    console.log('✅ [Grammar LessonList] Topics loaded:', topicsList.value.length)
+  } catch (error) {
+    console.error('❌ [Grammar LessonList] Error:', error)
+    ElMessage.error('Không thể tải danh sách chủ đề')
+  }
 })
 </script>
 
@@ -371,7 +391,6 @@ onMounted(async () => {
   transform: rotate(90deg);
 }
 
-/* Override Element table header for dark mode */
 html.dark :deep(.el-table__header th) {
   background-color: #252525 !important;
   color: #a3a3a3 !important;

@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authGuard } from './guards/authGuard'
-import { adminGuard } from './guards/adminGuard'
+import { roleGuard } from './guards/roleGuard' // ✅ CHỈ CẦN 1 GUARD
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -62,7 +61,7 @@ const router = createRouter({
     {
       path: '/user',
       component: () => import('@/layouts/HomeLayout.vue'),
-      beforeEnter: authGuard,
+      beforeEnter: roleGuard,
       children: [
         {
           path: 'home',
@@ -78,7 +77,7 @@ const router = createRouter({
         },
         {
           path: 'change-password',
-          name: 'change-password',
+          name: 'user-change-password',
           component: () => import('@/views/ChangePasswordView.vue'),
           meta: { title: 'Change Password' },
         },
@@ -91,14 +90,14 @@ const router = createRouter({
         {
           path: 'grammar/lesson/:lessonId',
           name: 'user-grammar-lesson',
-          component: () => import('@/views/user/grammar/LessonPlayerView.vue'),
+          component: () => import('@/views/user/grammar/GrammarPlayerView.vue'),
           meta: { title: 'Grammar Lesson' },
         },
         {
           path: 'reading',
           name: 'user-reading',
-          component: () => import('@/views/user/reading/ReadingPlayerView.vue'),
-          meta: { title: 'Reading Lessons' },
+          component: () => import('@/views/user/reading/ReadingTopicsView.vue'),
+          meta: { requiresAuth: true },
         },
         {
           path: 'reading/lesson/:lessonId',
@@ -110,7 +109,7 @@ const router = createRouter({
         {
           path: 'listening',
           name: 'user-listening',
-          component: () => import('@/views/user/listening/ListeningPlayerView.vue'),
+          component: () => import('@/views/user/listening/ListeningTopicsView.vue'),
           meta: { title: 'Listening Lessons' },
         },
         {
@@ -123,7 +122,7 @@ const router = createRouter({
       ],
     },
 
-    // ==================== ADMIN ROUTES ====================
+    // ==================== ADMIN LOGIN ====================
     {
       path: '/admin/login',
       name: 'admin-login',
@@ -137,10 +136,11 @@ const router = createRouter({
       },
     },
 
+    // ==================== ADMIN ROUTES ====================
     {
       path: '/admin',
-      component: () => import('@/layouts/AdminDashboardLayout.vue'),
-      beforeEnter: adminGuard,
+      component: () => import('@/layouts/ManagementLayout.vue'),
+      beforeEnter: roleGuard, // ✅ Dùng chung 1 guard
       children: [
         {
           path: 'dashboard',
@@ -163,32 +163,92 @@ const router = createRouter({
         {
           path: 'users',
           name: 'admin-users',
-          component: () => import('@/views/admin/UsersManagementView.vue'),
+          component: () => import('@/views/admin/user/UsersManagementView.vue'),
           meta: { title: 'Users Management' },
         },
         {
           path: 'grammar',
           name: 'admin-grammar',
-          component: () => import('@/views/admin/GrammarManagementView.vue'),
+          component: () => import('@/views/admin/grammar/GrammarManagementView.vue'),
           meta: { title: 'Grammar Management' },
         },
         {
           path: 'reading',
           name: 'admin-reading',
-          component: () => import('@/views/admin/ReadingManagementView.vue'),
+          component: () => import('@/views/admin/reading/ReadingManagementView.vue'),
           meta: { title: 'Reading Management' },
         },
         {
           path: 'listening',
           name: 'admin-listening',
-          component: () => import('@/views/admin/ListeningManagementView.vue'),
+          component: () => import('@/views/admin/listening/ListeningManagementView.vue'),
           meta: { title: 'Listening Management' },
         },
         {
           path: 'cleanup-user',
           name: 'admin-cleanup-user',
-          component: () => import('@/views/admin/CleanupManagementView.vue'),
+          component: () => import('@/views/admin/user/CleanupManagementView.vue'),
           meta: { title: 'Cleanup User' },
+        },
+      ],
+    },
+
+    // ==================== TEACHER LOGIN ====================
+    {
+      path: '/teacher/login',
+      name: 'teacher-login',
+      component: () => import('@/views/teacher/TeacherLoginView.vue'),
+      beforeEnter: (to, from, next) => {
+        const teacherToken = localStorage.getItem('teacherToken')
+        if (teacherToken) {
+          console.log('✅ Teacher already logged in, redirect to dashboard')
+          return next('/teacher/dashboard')
+        }
+        next()
+      },
+    },
+
+    // ==================== TEACHER ROUTES ====================
+    {
+      path: '/teacher',
+      component: () => import('@/layouts/ManagementLayout.vue'),
+      beforeEnter: roleGuard, // ✅ Dùng chung 1 guard
+      children: [
+        {
+          path: 'dashboard',
+          name: 'teacher-dashboard',
+          component: () => import('@/views/teacher/TeacherDashboardView.vue'),
+          meta: { title: 'Teacher Dashboard' },
+        },
+        {
+          path: 'profile',
+          name: 'teacher-profile',
+          component: () => import('@/views/ProfileView.vue'),
+          meta: { title: 'Profile' },
+        },
+        {
+          path: 'change-password',
+          name: 'teacher-change-password',
+          component: () => import('@/views/ChangePasswordView.vue'),
+          meta: { title: 'Change Password' },
+        },
+        {
+          path: 'grammar',
+          name: 'teacher-grammar',
+          component: () => import('@/views/admin/grammar/GrammarManagementView.vue'),
+          meta: { title: 'Grammar Management' },
+        },
+        {
+          path: 'reading',
+          name: 'teacher-reading',
+          component: () => import('@/views/admin/reading/ReadingManagementView.vue'),
+          meta: { title: 'Reading Management' },
+        },
+        {
+          path: 'listening',
+          name: 'teacher-listening',
+          component: () => import('@/views/admin/listening/ListeningManagementView.vue'),
+          meta: { title: 'Listening Management' },
         },
       ],
     },
@@ -196,10 +256,17 @@ const router = createRouter({
     // ==================== 404 ====================
     {
       path: '/:pathMatch(.*)*',
-      name: 'not-found',
+      name: 'NotFound',
       component: () => import('@/views/NotFoundView.vue'),
+      meta: { public: true },
     },
   ],
+})
+
+// ==================== GLOBAL NAVIGATION GUARD ====================
+router.beforeEach((to, from, next) => {
+  console.log('🧭 Navigation:', { from: from.path, to: to.path })
+  next()
 })
 
 export default router

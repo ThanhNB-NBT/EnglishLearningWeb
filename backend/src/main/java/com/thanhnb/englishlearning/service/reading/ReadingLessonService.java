@@ -2,11 +2,17 @@ package com.thanhnb.englishlearning.service.reading;
 
 import com.thanhnb.englishlearning.dto.reading.ReadingLessonDTO;
 import com.thanhnb.englishlearning.entity.reading.ReadingLesson;
-import com.thanhnb.englishlearning.entity.question.Question;
+import com.thanhnb.englishlearning.entity.topic.Topic;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.reading.ReadingLessonRepository;
 import com.thanhnb.englishlearning.repository.reading.UserReadingProgressRepository;
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.topic.TopicRepository;
+import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.user.UserService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -15,15 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
-/**
- * Service chuyên xử lý CRUD cho Reading Lessons
- * Refactored:
- * - Remove QuestionOptionRepository (deprecated)
- * - Use QuestionService for cascade operations
- * - Consistent with Grammar/Listening modules
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,230 +31,225 @@ import java.util.List;
 public class ReadingLessonService {
 
     private final ReadingLessonRepository lessonRepository;
-    private final UserReadingProgressRepository progressRepository;
+    private final TopicRepository topicRepository;
     private final QuestionRepository questionRepository;
-    private final ReadingOrderService orderService;
-    private final ReadingQuestionService questionService;
+    private final UserReadingProgressRepository progressRepository;
+    private final TeacherPermissionService teacherPermissionService;
+    private final UserService userService;
 
-    private static final int DEFAULT_POINTS_REWARD = 25;
+    // ═════════════════════════════════════════════════════════════════
+    // READ OPERATIONS
+    // ═════════════════════════════════════════════════════════════════
 
-    /**
-     * [ADMIN] Lấy tất cả lessons với pagination (bao gồm inactive)
-     */
-    public Page<ReadingLessonDTO> getAllLessonsPaginated(Pageable pageable) {
-        log.info("[ADMIN] Loading all reading lessons with pagination");
+    public Page<ReadingLessonDTO> getLessonsByTopic(Long topicId, Pageable pageable) {
 
-        return lessonRepository.findAll(pageable)
-                .map(lesson -> {
-                    ReadingLessonDTO dto = convertToDTO(lesson);
-                    long questionCount = questionRepository.countByParentTypeAndParentId(
-                            ParentType.READING, lesson.getId());
-                    dto.setQuestionCount((int) questionCount);
-                    return dto;
-                });
+        return lessonRepository.findByTopicId(topicId, pageable)
+                .map(this::toDTO);
     }
 
-    /**
-     * [ADMIN] Lấy chi tiết 1 lesson
-     */
-    public ReadingLessonDTO getLessonDetail(Long lessonId) {
-        log.info("[ADMIN] Loading lesson detail: lessonId={}", lessonId);
+    public ReadingLessonDTO getLessonById(Long id) {
+        ReadingLesson lesson = findLessonById(id);
 
-        ReadingLesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Bài đọc không tồn tại với id: " + lessonId));
-
-        ReadingLessonDTO dto = convertToDTO(lesson);
-
-        long questionCount = questionRepository.countByParentTypeAndParentId(
-                ParentType.READING, lessonId);
-        dto.setQuestionCount((int) questionCount);
-
-        return dto;
+        return toDTO(lesson);
     }
 
-    /**
-     * [ADMIN] Tạo lesson mới
-     */
+    // ═════════════════════════════════════════════════════════════════
+    // CREATE
+    // ═════════════════════════════════════════════════════════════════
+
     public ReadingLessonDTO createLesson(ReadingLessonDTO dto) {
-        log.info("[ADMIN] Creating new reading lesson: {}", dto.getTitle());
+        validateForCreate(dto);
 
-        validateLessonDTO(dto);
-
+        teacherPermissionService.checkTopicPermission(dto.getTopicId());
         if (lessonRepository.existsByTitleIgnoreCase(dto.getTitle())) {
-            throw new RuntimeException("Tiêu đề bài đọc đã tồn tại");
+            throw new IllegalArgumentException("Title already exists");
         }
 
-        ReadingLesson lesson = new ReadingLesson();
-        lesson.setTitle(dto.getTitle());
-        lesson.setContent(dto.getContent());
-        lesson.setContentTranslation(dto.getContentTranslation());
-        lesson.setDifficulty(dto.getDifficulty() != null
-                ? ReadingLesson.Difficulty.valueOf(dto.getDifficulty())
-                : ReadingLesson.Difficulty.BEGINNER);
-        lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds() != null
-                ? dto.getTimeLimitSeconds()
-                : 600);
-        lesson.setOrderIndex(dto.getOrderIndex());
-        lesson.setPointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : DEFAULT_POINTS_REWARD);
-        lesson.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
-        lesson.setCreatedAt(LocalDateTime.now());
+        Topic topic = topicRepository.findById(dto.getTopicId())
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
-        ReadingLesson savedLesson = lessonRepository.save(lesson);
-        log.info("Created reading lesson: id={}, title='{}'", savedLesson.getId(), savedLesson.getTitle());
+        User currentUser = userService.getCurrentUser();
 
-        return convertToDTO(savedLesson);
+        ReadingLesson lesson = ReadingLesson.builder()
+                .topic(topic)
+                .title(dto.getTitle())
+                .content(dto.getContent())
+                .contentTranslation(dto.getContentTranslation())
+                .orderIndex(dto.getOrderIndex())
+                .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 600)
+                .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 25)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .createdAt(LocalDateTime.now())
+                .modifiedBy(currentUser)
+                .build();
+
+        ReadingLesson saved = lessonRepository.save(lesson);
+        log.info("Created reading lesson: id={}, title={}", saved.getId(), saved.getTitle());
+
+        return toDTO(saved);
     }
 
-    /**
-     * [ADMIN] Cập nhật lesson
-     */
+    // ═════════════════════════════════════════════════════════════════
+    // UPDATE
+    // ═════════════════════════════════════════════════════════════════
+
     public ReadingLessonDTO updateLesson(Long id, ReadingLessonDTO dto) {
-        log.info("[ADMIN] Updating reading lesson: id={}", id);
+        ReadingLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
 
-        ReadingLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài đọc không tồn tại với id: " + id));
-
-        if (lessonRepository.existsByTitleIgnoreCaseAndIdNot(dto.getTitle(), id)) {
-            throw new RuntimeException("Tiêu đề bài đọc đã tồn tại");
+        if (dto.getTitle() != null && !dto.getTitle().equals(lesson.getTitle())) {
+            if (lessonRepository.existsByTitleIgnoreCaseAndIdNot(dto.getTitle(), id)) {
+                throw new IllegalArgumentException("Title already exists");
+            }
         }
 
-        lesson.setTitle(dto.getTitle());
-        lesson.setContent(dto.getContent());
-        lesson.setContentTranslation(dto.getContentTranslation());
-        lesson.setOrderIndex(dto.getOrderIndex());
+        User currentUser = userService.getCurrentUser();
+        lesson.setModifiedBy(currentUser);
 
-        if (dto.getDifficulty() != null) {
-            lesson.setDifficulty(ReadingLesson.Difficulty.valueOf(dto.getDifficulty()));
-        }
+        updateFields(lesson, dto);
 
-        if (dto.getTimeLimitSeconds() != null) {
-            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
-        }
-
-        if (dto.getPointsReward() != null) {
-            lesson.setPointsReward(dto.getPointsReward());
-        }
-
-        if (dto.getIsActive() != null) {
-            lesson.setIsActive(dto.getIsActive());
-        }
-
-        ReadingLesson savedLesson = lessonRepository.save(lesson);
+        ReadingLesson saved = lessonRepository.save(lesson);
         log.info("Updated reading lesson: id={}", id);
 
-        return convertToDTO(savedLesson);
+        return toDTO(saved);
     }
 
-    /**
-     * [ADMIN] set isActive = false
-     */
-    public void deactiveLesson(Long id) {
-        log.info("[ADMIN] Soft deleting reading lesson: id={}", id);
+    // ═════════════════════════════════════════════════════════════════
+    // DELETE
+    // ═════════════════════════════════════════════════════════════════
 
-        ReadingLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài đọc không tồn tại với id: " + id));
-
-        lesson.setIsActive(false);
-        lessonRepository.save(lesson);
-
-        log.info("Soft deleted reading lesson: id={}", id);
-    }
-
-    /**
-     * [ADMIN] delete lesson
-     * Cascade: questions (via QuestionService) + progress
-     */
     public void deleteLesson(Long id) {
-        log.info("[ADMIN] deleting reading lesson: id={}", id);
+        ReadingLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
+        Long topicId = lesson.getTopic().getId();
+        Integer orderIndex = lesson.getOrderIndex();
 
-        ReadingLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài đọc không tồn tại với id: " + id));
-
-        Integer deletedOrderIndex = lesson.getOrderIndex();
-
-        List<Question> questions = questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(
-                ParentType.READING, id);
-
-        if (!questions.isEmpty()) {
-            List<Long> questionIds = questions.stream()
-                    .map(Question::getId)
-                    .toList();
-
-            questionService.bulkDeleteQuestions(questionIds);
-            log.info("Deleted {} questions for lesson {}", questionIds.size(), lesson.getTitle());
-        }
-
+        // Delete progress
         progressRepository.deleteByLessonId(id);
-        log.info("Deleted user progress for lesson {}", id);
 
+        // Delete lesson (questions cascade via listener)
         lessonRepository.delete(lesson);
-        log.info("Permanently deleted reading lesson: id={}", id);
+        log.info("Deleted reading lesson: id={}", id);
 
-        orderService.reorderLessonsAfterDelete(deletedOrderIndex);
+        // Reorder
+        reorderAfterDelete(topicId, orderIndex);
     }
 
-    /**
-     * [ADMIN] Activate/Deactivate lesson
-     */
-    public void toggleLessonStatus(Long id) {
-        log.info("[ADMIN] Toggling lesson status: id={}", id);
+    // ═════════════════════════════════════════════════════════════════
+    // STATUS TOGGLE
+    // ═════════════════════════════════════════════════════════════════
 
-        ReadingLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài đọc không tồn tại với id: " + id));
+    public void toggleStatus(Long id) {
+        ReadingLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
 
         lesson.setIsActive(!lesson.getIsActive());
         lessonRepository.save(lesson);
 
-        log.info("Lesson {} is now {}", id, lesson.getIsActive() ? "active" : "inactive");
+        log.info("Toggled lesson {} status to: {}", id, lesson.getIsActive());
     }
 
-    /**
-     * [ADMIN] Lấy orderIndex tiếp theo
-     */
-    public Integer getNextOrderIndex() {
-        Integer maxOrder = lessonRepository.findMaxOrderIndex();
+    // ═════════════════════════════════════════════════════════════════
+    // ORDER MANAGEMENT
+    // ═════════════════════════════════════════════════════════════════
 
-        if (maxOrder != null) {
-            log.info("Max lesson orderIndex: {}", maxOrder);
-            return maxOrder + 1;
+    public void fixOrderIndexes(Long topicId) {
+        // Lấy danh sách
+        List<ReadingLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
+        
+        // ✅ Sort lại trong memory để đảm bảo ổn định (ID tăng dần nếu trùng Order)
+        lessons.sort(Comparator.comparingInt(ReadingLesson::getOrderIndex)
+                .thenComparingLong(ReadingLesson::getId));
+
+        boolean changed = false;
+        for (int i = 0; i < lessons.size(); i++) {
+            ReadingLesson lesson = lessons.get(i);
+            int expected = i + 1;
+            
+            if (!Integer.valueOf(expected).equals(lesson.getOrderIndex())) {
+                lesson.setOrderIndex(expected);
+                changed = true;
+            }
         }
 
-        log.info("No lessons found, returning 1");
-        return 1;
+        if (changed) {
+            lessonRepository.saveAll(lessons);
+            log.info("Fixed order indexes for {} lessons in topic {}", lessons.size(), topicId);
+        }
     }
 
-    /**
-     * Validate lesson DTO
-     */
-    private void validateLessonDTO(ReadingLessonDTO dto) {
-        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
-            throw new RuntimeException("Tiêu đề không được để trống");
-        }
+    public Integer getNextOrderIndex(Long topicId) {
+        Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
+        return (max != null ? max : 0) + 1;
+    }
 
-        if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
-            throw new RuntimeException("Nội dung không được để trống");
-        }
+    // ═════════════════════════════════════════════════════════════════
+    // PRIVATE HELPERS
+    // ═════════════════════════════════════════════════════════════════
 
+    private ReadingLesson findLessonById(Long id) {
+        return lessonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lesson not found: " + id));
+    }
+
+    private void validateForCreate(ReadingLessonDTO dto) {
+        if (dto.getTitle() == null || dto.getTitle().isBlank()) {
+            throw new IllegalArgumentException("Title is required");
+        }
+        if (dto.getContent() == null || dto.getContent().isBlank()) {
+            throw new IllegalArgumentException("Content is required");
+        }
         if (dto.getOrderIndex() == null || dto.getOrderIndex() < 1) {
-            throw new RuntimeException("OrderIndex phải lớn hơn 0");
+            throw new IllegalArgumentException("Order index must be >= 1");
         }
     }
 
-    /**
-     * Convert entity to DTO
-     */
-    private ReadingLessonDTO convertToDTO(ReadingLesson lesson) {
-        ReadingLessonDTO dto = new ReadingLessonDTO();
-        dto.setId(lesson.getId());
-        dto.setTitle(lesson.getTitle());
-        dto.setContent(lesson.getContent());
-        dto.setContentTranslation(lesson.getContentTranslation());
-        dto.setDifficulty(lesson.getDifficulty() != null ? lesson.getDifficulty().name() : "INTERMEDIATE");
-        dto.setTimeLimitSeconds(lesson.getTimeLimitSeconds());
-        dto.setOrderIndex(lesson.getOrderIndex());
-        dto.setPointsReward(lesson.getPointsReward());
-        dto.setIsActive(lesson.getIsActive());
-        dto.setCreatedAt(lesson.getCreatedAt());
-        return dto;
+    private void updateFields(ReadingLesson lesson, ReadingLessonDTO dto) {
+        if (dto.getTitle() != null)
+            lesson.setTitle(dto.getTitle());
+        if (dto.getContent() != null)
+            lesson.setContent(dto.getContent());
+        if (dto.getContentTranslation() != null)
+            lesson.setContentTranslation(dto.getContentTranslation());
+        if (dto.getOrderIndex() != null)
+            lesson.setOrderIndex(dto.getOrderIndex());
+        if (dto.getTimeLimitSeconds() != null)
+            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
+        if (dto.getPointsReward() != null)
+            lesson.setPointsReward(dto.getPointsReward());
+        if (dto.getIsActive() != null)
+            lesson.setIsActive(dto.getIsActive());
+    }
+
+    private void reorderAfterDelete(Long topicId, Integer deletedPosition) {
+        List<ReadingLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
+
+        lessons.stream()
+                .filter(l -> l.getOrderIndex() > deletedPosition)
+                .forEach(l -> l.setOrderIndex(l.getOrderIndex() - 1));
+
+        lessonRepository.saveAll(lessons);
+    }
+
+    private ReadingLessonDTO toDTO(ReadingLesson lesson) {
+        long questionCount = questionRepository.countByParentTypeAndParentId(
+                ParentType.READING, lesson.getId());
+
+        return ReadingLessonDTO.builder()
+                .id(lesson.getId())
+                .topicId(lesson.getTopic().getId())
+                .topicName(lesson.getTopic().getName())
+                .title(lesson.getTitle())
+                .content(lesson.getContent())
+                .contentTranslation(lesson.getContentTranslation())
+                .orderIndex(lesson.getOrderIndex())
+                .timeLimitSeconds(lesson.getTimeLimitSeconds())
+                .pointsReward(lesson.getPointsReward())
+                .isActive(lesson.getIsActive())
+                .createdAt(lesson.getCreatedAt())
+                .questionCount((int) questionCount)
+                .modifiedAt(lesson.getModifiedAt())
+                .modifiedBy(lesson.getModifiedBy() != null ? lesson.getModifiedBy().getId() : null)
+                .build();
     }
 }

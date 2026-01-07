@@ -1,10 +1,11 @@
 package com.thanhnb.englishlearning.service.user;
 
 import com.thanhnb.englishlearning.dto.user.OtpData;
-import com.thanhnb.englishlearning.entity.User;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.enums.OtpType;
 import com.thanhnb.englishlearning.exception.*;
-import com.thanhnb.englishlearning.repository.UserRepository;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;

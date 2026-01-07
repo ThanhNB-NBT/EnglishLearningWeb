@@ -1,175 +1,298 @@
 package com.thanhnb.englishlearning.controller.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.*;
-import com.thanhnb.englishlearning.dto.grammar.request.SubmitLessonRequest;
-import com.thanhnb.englishlearning.dto.grammar.response.LessonResultResponse;
+import com.thanhnb.englishlearning.dto.topic.TopicUserDto;
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
-import com.thanhnb.englishlearning.entity.User;
-import com.thanhnb.englishlearning.repository.UserRepository;
-import com.thanhnb.englishlearning.service.grammar.GrammarService;
-
+import com.thanhnb.englishlearning.entity.grammar.UserGrammarProgress;
+import com.thanhnb.englishlearning.security.UserPrincipal;
+import com.thanhnb.englishlearning.service.grammar.GrammarLearningService;
+import com.thanhnb.englishlearning.service.topic.UserTopicService;
+import com.thanhnb.englishlearning.enums.ModuleType;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.security.core.Authentication;
 
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/grammar")
 @RequiredArgsConstructor
-@Tag(name = "Grammar", description = "API ngữ pháp cho user - Metadata-based")
+@PreAuthorize("hasRole('USER')")
+@Tag(name = "Grammar", description = "API ngữ pháp cho user")
+@SecurityRequirement(name = "bearerAuth")
 public class GrammarController {
 
-        private final GrammarService grammarService;
-        private final UserRepository userRepository;
+        private final GrammarLearningService grammarService;
+        private final UserTopicService userTopicService;
+
+        // ═══════════════════════════════════════════════════════════
+        // TOPIC APIs
+        // ═══════════════════════════════════════════════════════════
 
         @GetMapping("/topics")
-        @Operation(summary = "Lấy danh sách topics với lessons", description = "Trả về tất cả topics với lessons và progress của user")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
-                        @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
-        })
-        public ResponseEntity<CustomApiResponse<List<GrammarTopicDTO>>> getAccessibleTopics(
-                        Authentication authentication) {
-                try {
-                        Long userId = getCurrentUserId(authentication);
-                        List<GrammarTopicDTO> topics = grammarService.getAccessibleTopicsForUser(userId);
+        @Operation(summary = "Lấy danh sách Grammar topics", description = "Trả về danh sách chủ đề ngữ pháp kèm bài học")
+        public ResponseEntity<CustomApiResponse<List<TopicUserDto>>> getGrammarTopics(
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
 
-                        return ResponseEntity.ok(CustomApiResponse.success(topics,
-                                        "Lấy danh sách topic thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse
-                                                        .badRequest("Lỗi khi lấy danh sách topic: " + e.getMessage()));
-                }
+                log.info("User {} fetching grammar topics", currentUser.getId());
+
+                List<TopicUserDto> topics = userTopicService.getTopicsForUser(
+                                ModuleType.GRAMMAR,
+                                currentUser.getId());
+
+                log.debug("Found {} grammar topics for user {}", topics.size(), currentUser.getId());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                topics,
+                                "Lấy danh sách chủ đề ngữ pháp thành công"));
         }
 
-        @GetMapping("/topics/{topicId}")
-        @Operation(summary = "Lấy chi tiết topic", description = "Trả về chi tiết của một topic cụ thể với tiến trình của người dùng")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy chi tiết topic thành công"),
-                        @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
-        })
-        public ResponseEntity<CustomApiResponse<GrammarTopicDTO>> getTopicDetails(
+        // ═══════════════════════════════════════════════════════════
+        // LESSON APIs
+        // ═══════════════════════════════════════════════════════════
+
+        @GetMapping("/topics/{topicId}/lessons")
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy bài học theo topic")
+        public ResponseEntity<CustomApiResponse<List<GrammarLessonDTO>>> getLessonsByTopic(
                         @Parameter(description = "ID của topic") @PathVariable Long topicId,
-                        Authentication authentication) {
-                try {
-                        Long userId = getCurrentUserId(authentication);
-                        GrammarTopicDTO topic = grammarService.getTopicWithProgress(topicId, userId);
-                        return ResponseEntity.ok(CustomApiResponse.success(topic,
-                                        "Lấy chi tiết topic thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse
-                                                        .badRequest("Lỗi khi lấy chi tiết topic: " + e.getMessage()));
-                }
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+
+                log.info("User {} fetching lessons for grammar topic {}",
+                                currentUser.getId(), topicId);
+
+                List<GrammarLessonDTO> lessons = grammarService.getAllLessonsForUser(
+                                currentUser.getId(),
+                                topicId);
+
+                log.debug("Found {} lessons in grammar topic {} for user {}",
+                                lessons.size(), topicId, currentUser.getId());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                lessons,
+                                "Lấy danh sách bài học thành công"));
         }
 
+        // ✅ FIXED: Thêm try-catch để debug
         @GetMapping("/lessons/{lessonId}")
-        @Operation(summary = "Lấy nội dung bài học", description = "Trả về nội dung của một bài học cụ thể với questions (metadata-based, auto-shuffle options)")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy nội dung bài học thành công"),
-                        @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
-        })
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy nội dung bài học")
         public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> getLessonContent(
                         @Parameter(description = "ID của bài học") @PathVariable Long lessonId,
-                        Authentication authentication) {
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+
+                log.info("User {} fetching grammar lesson {}", currentUser.getId(), lessonId);
+
                 try {
-                        Long userId = getCurrentUserId(authentication);
-                        GrammarLessonDTO lesson = grammarService.getLessonContent(lessonId, userId);
-                        return ResponseEntity.ok(CustomApiResponse.success(lesson,
-                                        "Lấy nội dung bài học thành công"));
+                        GrammarLessonDTO lesson = grammarService.getLessonDetail(
+                                        lessonId,
+                                        currentUser.getId());
+
+                        log.info("✅ Service returned lesson: {}", lesson.getTitle());
+                        log.info("✅ Has groupedQuestions: {}", lesson.getGroupedQuestions() != null);
+
+                        if (lesson.getGroupedQuestions() != null) {
+                                log.info("  - Tasks: {}",
+                                                lesson.getGroupedQuestions().getTasks() != null
+                                                                ? lesson.getGroupedQuestions().getTasks().size()
+                                                                : 0);
+                                log.info("  - Standalone: {}",
+                                                lesson.getGroupedQuestions().getStandaloneQuestions() != null
+                                                                ? lesson.getGroupedQuestions().getStandaloneQuestions()
+                                                                                .size()
+                                                                : 0);
+                        }
+
+                        CustomApiResponse<GrammarLessonDTO> response = CustomApiResponse.success(
+                                        lesson,
+                                        "Lấy nội dung bài học thành công");
+
+                        log.info("✅ Built response successfully");
+
+                        return ResponseEntity.ok(response);
+
                 } catch (Exception e) {
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse
-                                                        .badRequest("Lỗi khi lấy nội dung bài học: " + e.getMessage()));
+                        log.error("❌ ERROR in getLessonContent: {}", e.getMessage(), e);
+                        throw e;
+                }
+        }
+
+        // ✅ TEST ENDPOINT - Thêm vào GrammarController
+
+        @GetMapping("/lessons/{lessonId}/test")
+        @Operation(summary = "TEST - Lấy lesson đơn giản")
+        public ResponseEntity<Map<String, Object>> testGetLesson(
+                        @PathVariable Long lessonId,
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+
+                log.info("🧪 TEST: User {} fetching lesson {}", currentUser.getId(), lessonId);
+
+                try {
+                        // Step 1: Get lesson from service
+                        GrammarLessonDTO lesson = grammarService.getLessonDetail(lessonId, currentUser.getId());
+                        log.info("✅ Step 1: Got lesson from service");
+
+                        // Step 2: Build simple response (NO groupedQuestions)
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("id", lesson.getId());
+                        response.put("title", lesson.getTitle());
+                        response.put("lessonType", lesson.getLessonType());
+                        response.put("topicId", lesson.getTopicId());
+                        log.info("✅ Step 2: Built simple response");
+
+                        // Step 3: Try to get questions count
+                        if (lesson.getGroupedQuestions() != null) {
+                                log.info("✅ Step 3: Has groupedQuestions");
+                                response.put("hasQuestions", true);
+
+                                // DON'T serialize groupedQuestions yet
+                                // response.put("groupedQuestions", lesson.getGroupedQuestions());
+                        } else {
+                                log.warn("⚠️ Step 3: No groupedQuestions!");
+                                response.put("hasQuestions", false);
+                        }
+
+                        log.info("✅ Step 4: Returning response");
+                        return ResponseEntity.ok(response);
+
+                } catch (Exception e) {
+                        log.error("❌ TEST ERROR: {}", e.getMessage(), e);
+
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        errorResponse.put("error", e.getMessage());
+                        errorResponse.put("class", e.getClass().getSimpleName());
+
+                        return ResponseEntity.status(500).body(errorResponse);
                 }
         }
 
         @PostMapping("/lessons/submit")
-        @Operation(summary = "Nộp bài tập", description = "Nộp bài tập cho một bài học và trả về kết quả kèm gợi ý (metadata-based validation)")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Nộp bài tập thành công"),
-                        @ApiResponse(responseCode = "400", description = "Dữ liệu yêu cầu không hợp lệ")
-        })
-        public ResponseEntity<CustomApiResponse<LessonResultResponse>> submitLesson(
-                        @Valid @RequestBody SubmitLessonRequest request,
-                        Authentication authentication) {
-                try {
-                        Long userId = getCurrentUserId(authentication);
-                        LessonResultResponse result = grammarService.submitLesson(userId, request);
+        @Operation(summary = "Nộp bài tập")
+        public ResponseEntity<CustomApiResponse<GrammarSubmitResponse>> submitLesson(
+                        @Valid @RequestBody GrammarSubmitRequest request,
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
 
-                        String message = result.isPassed()
-                                        ? "Hoàn thành bài học thành công! Điểm: " + result.score()
-                                        : "Submit bài học thành công. Xem gợi ý trong kết quả để cải thiện!";
+                log.info("User {} submitting grammar lesson {}",
+                                currentUser.getId(), request.getLessonId());
 
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse
-                                                        .badRequest("Lỗi khi submit bài làm: " + e.getMessage()));
-                }
+                GrammarSubmitResponse result = grammarService.submitLesson(
+                                currentUser.getId(),
+                                request);
+
+                String message = result.getIsPassed()
+                                ? "Hoàn thành bài học thành công! Điểm: " + result.getTotalScore()
+                                : "Đã nộp bài. Hãy xem lại các gợi ý để cải thiện điểm số!";
+
+                log.info("User {} submitted grammar lesson {}: passed={}, score={}",
+                                currentUser.getId(), request.getLessonId(),
+                                result.getIsPassed(), result.getScorePercentage());
+
+                return ResponseEntity.ok(CustomApiResponse.success(result, message));
         }
 
-        @GetMapping("/progress")
-        @Operation(summary = "Lấy tiến trình người dùng", description = "Trả về tiến trình của người dùng trên các chủ đề và bài học")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy tiến trình thành công"),
-                        @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
-        })
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> getUserProgress(
-                        Authentication authentication) {
-                try {
-                        Long userId = getCurrentUserId(authentication);
-                        List<GrammarTopicDTO> topics = grammarService.getAccessibleTopicsForUser(userId);
+        // ═══════════════════════════════════════════════════════════
+        // PROGRESS APIs
+        // ═══════════════════════════════════════════════════════════
 
-                        int totalTopics = topics.size();
-                        int completedTopics = (int) topics.stream()
-                                        .filter(t -> t.getCompletedLessons() != null && t.getTotalLessons() != null)
-                                        .filter(t -> t.getCompletedLessons().equals(t.getTotalLessons()))
-                                        .count();
+        @GetMapping("/progress/completed")
+        @Operation(summary = "Lấy danh sách bài đã hoàn thành")
+        public ResponseEntity<CustomApiResponse<List<UserGrammarProgress>>> getCompletedLessons(
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
 
-                        int totalLessons = topics.stream()
-                                        .mapToInt(t -> t.getTotalLessons() != null ? t.getTotalLessons() : 0)
-                                        .sum();
+                log.debug("User {} fetching completed grammar lessons", currentUser.getId());
 
-                        int completedLessons = topics.stream()
-                                        .mapToInt(t -> t.getCompletedLessons() != null ? t.getCompletedLessons() : 0)
-                                        .sum();
+                List<UserGrammarProgress> completed = grammarService.getCompletedLessons(
+                                currentUser.getId());
 
-                        Map<String, Object> progress = Map.of(
-                                        "topics", topics,
-                                        "summary", Map.of(
-                                                        "totalTopics", totalTopics,
-                                                        "completedTopics", completedTopics,
-                                                        "totalLessons", totalLessons,
-                                                        "completedLessons", completedLessons,
-                                                        "completionRate",
-                                                        totalLessons > 0 ? (completedLessons * 100 / totalLessons)
-                                                                        : 0));
-
-                        return ResponseEntity.ok(CustomApiResponse.success(progress,
-                                        "Lấy tiến trình học tập thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest(
-                                                        "Lỗi khi lấy tiến trình học tập: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(completed, "Thành công"));
         }
 
-        private Long getCurrentUserId(Authentication authentication) {
-                String username = authentication.getName();
-                User user = userRepository.findByUsername(username)
-                                .orElseThrow(() -> new RuntimeException("User không tồn tại"));
-                return user.getId();
+        @GetMapping("/progress/summary")
+        @Operation(summary = "Lấy tổng quan tiến độ học tập")
+        public ResponseEntity<CustomApiResponse<GrammarProgressSummary>> getProgressSummary(
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+
+                log.info("User {} fetching grammar progress summary", currentUser.getId());
+
+                List<UserGrammarProgress> completedLessons = grammarService.getCompletedLessons(
+                                currentUser.getId());
+
+                int totalCompleted = completedLessons.size();
+
+                // ✅ Chỉ tính average cho các lesson có điểm > 0
+                double avgScore = completedLessons.stream()
+                                .filter(p -> p.getScorePercentage() != null && p.getScorePercentage() > 0)
+                                .mapToDouble(UserGrammarProgress::getScorePercentage)
+                                .average()
+                                .orElse(0.0);
+
+                int totalAttempts = completedLessons.stream()
+                                .filter(p -> p.getAttempts() != null)
+                                .mapToInt(UserGrammarProgress::getAttempts)
+                                .sum();
+
+                // ✅ Sắp xếp đúng theo completed_at
+                List<RecentCompletion> recentCompletions = completedLessons.stream()
+                                .filter(p -> p.getCompletedAt() != null)
+                                .sorted((p1, p2) -> p2.getCompletedAt().compareTo(p1.getCompletedAt()))
+                                .limit(5)
+                                .map(p -> new RecentCompletion(
+                                                p.getLesson().getId(),
+                                                p.getLesson().getTitle(),
+                                                p.getScorePercentage() != null ? p.getScorePercentage() : 0.0,
+                                                p.getCompletedAt()))
+                                .toList();
+
+                GrammarProgressSummary summary = GrammarProgressSummary.builder()
+                                .userId(currentUser.getId())
+                                .totalCompleted(totalCompleted)
+                                .averageScore(Math.round(avgScore * 100.0) / 100.0)
+                                .totalAttempts(totalAttempts)
+                                .recentCompletions(recentCompletions)
+                                .build();
+
+                log.debug("Grammar progress summary for user {}: completed={}, avgScore={}",
+                                currentUser.getId(), totalCompleted, summary.getAverageScore());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                summary,
+                                "Lấy tổng quan tiến độ thành công"));
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // INNER CLASSES
+        // ═══════════════════════════════════════════════════════════
+
+        @lombok.Data
+        @lombok.Builder
+        private static class GrammarProgressSummary {
+                private Long userId;
+                private int totalCompleted;
+                private double averageScore;
+                private int totalAttempts;
+                private List<RecentCompletion> recentCompletions;
+        }
+
+        private record RecentCompletion(
+                        Long lessonId,
+                        String lessonTitle,
+                        double score,
+                        LocalDateTime completedAt) {
         }
 }

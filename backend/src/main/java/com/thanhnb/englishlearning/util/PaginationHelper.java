@@ -1,71 +1,58 @@
 package com.thanhnb.englishlearning.util;
 
+import com.thanhnb.englishlearning.dto.PaginatedResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Component
 public class PaginationHelper {
-    
-    private static final int DEFAULT_PAGE = 0;
-    private static final int DEFAULT_SIZE = 10;
-    private static final int MAX_SIZE = 100;
-    private static final String DEFAULT_SORT = "orderIndex,asc";
 
     /**
-     * Tạo Pageable từ request parameters với validation
+     * Tạo Pageable từ các tham số request
      */
-    public static Pageable createPageable(Integer page, Integer size, String sort) {
-        // Validate và set defaults
-        int validPage = (page == null || page < 0) ? DEFAULT_PAGE : page;
-        int validSize = validateSize(size);
+    public static Pageable createPageable(int page, int size, String sort) {
+        int pageNo = page > 0 ? page - 1 : 0; // Spring Page bắt đầu từ 0
         
-        // Parse sort parameter
-        Sort sortObj = parseSort(sort);
-        
-        return PageRequest.of(validPage, validSize, sortObj);
-    }
+        Sort.Direction direction = Sort.Direction.ASC;
+        String sortProperty = "id";
 
-    /**
-     * Validate size parameter
-     */
-    private static int validateSize(Integer size) {
-        if (size == null || size <= 0) {
-            return DEFAULT_SIZE;
-        }
-        // Giới hạn max size để tránh overload
-        return Math.min(size, MAX_SIZE);
-    }
-
-    /**
-     * Parse sort string thành Sort object
-     * Format: "field,direction" hoặc "field1,asc|field2,desc"
-     */
-    private static Sort parseSort(String sort) {
-        if (sort == null || sort.trim().isEmpty()) {
-            sort = DEFAULT_SORT;
-        }
-
-        try {
-            String[] sortParams = sort.split("\\|");
-            Sort result = null;
-
-            for (String param : sortParams) {
-                String[] parts = param.split(",");
-                String field = parts[0].trim();
-                Sort.Direction direction = (parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim()))
-                        ? Sort.Direction.DESC
-                        : Sort.Direction.ASC;
-
-                Sort newSort = Sort.by(direction, field);
-                result = (result == null) ? newSort : result.and(newSort);
+        if (sort != null && !sort.isEmpty()) {
+            String[] parts = sort.split(":");
+            sortProperty = parts[0];
+            if (parts.length > 1 && "desc".equalsIgnoreCase(parts[1])) {
+                direction = Sort.Direction.DESC;
             }
-
-            return result;
-        } catch (Exception e) {
-            // Fallback to default sort if parsing fails
-            return Sort.by(Sort.Direction.ASC, "orderIndex");
         }
+
+        // Mặc định sort theo ID nếu không parse được hoặc sort rỗng
+        return PageRequest.of(pageNo, size, Sort.by(direction, sortProperty));
+    }
+
+    /**
+     * Chuyển đổi từ Spring Page<Entity> sang PaginatedResponse<DTO>
+     */
+    public static <T, R> PaginatedResponse<R> toPaginatedResponse(Page<T> pageData, Function<T, R> mapper) {
+        PaginatedResponse<R> response = new PaginatedResponse<>();
+        
+        // Convert List<Entity> -> List<DTO>
+        List<R> dtoList = pageData.getContent().stream()
+                .map(mapper)
+                .collect(Collectors.toList());
+
+        response.setContent(dtoList);
+        response.setPage(pageData.getNumber() + 1); // Trả về frontend số trang bắt đầu từ 1
+        response.setSize(pageData.getSize());
+        response.setTotalElements(pageData.getTotalElements());
+        response.setTotalPages(pageData.getTotalPages());
+        response.setLast(pageData.isLast());
+
+        return response;
     }
 }

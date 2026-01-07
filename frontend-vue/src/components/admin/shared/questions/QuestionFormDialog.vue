@@ -1,180 +1,108 @@
+<!-- src/components/admin/shared/questions/QuestionFormDialog.vue - FIXED -->
 <template>
   <el-dialog
-    v-model="dialogVisible"
-    width="90%"
-    top="5vh"
-    class="!rounded-xl !p-0 overflow-hidden flex flex-col"
-    :close-on-click-modal="false"
+    v-model="visible"
+    :title="form.id ? 'Cập nhật câu hỏi' : 'Tạo câu hỏi mới'"
+    width="800px"
     destroy-on-close
-    :show-close="false"
+    :close-on-click-modal="false"
+    class="!rounded-xl"
+    top="5vh"
   >
-    <template #header="{ close }">
-      <div
-        class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d]"
+    <div v-loading="loading" class="p-2">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-position="top"
+        class="flex flex-col gap-4"
       >
-        <div class="flex items-center gap-4">
-          <h4 class="text-xl font-bold text-gray-800 dark:text-white m-0">{{ dialogTitle }}</h4>
-
-          <div
-            v-if="currentLesson?.content"
-            class="pl-4 border-l border-gray-300 dark:border-gray-600"
-          >
-            <el-button
-              @click="showContent = !showContent"
-              :type="showContent ? 'primary' : 'default'"
-              link
-              size="small"
-              class="!font-bold"
+        <div class="flex gap-4">
+          <el-form-item label="Loại câu hỏi" prop="questionType" class="flex-1">
+            <el-select
+              v-model="form.questionType"
+              placeholder="Chọn loại câu hỏi"
+              :disabled="!!form.id"
+              @change="handleTypeChange"
+              class="w-full"
             >
-              <el-icon class="mr-1"><Reading /></el-icon>
-              {{ showContent ? 'Tắt bài đọc' : 'Xem bài đọc' }}
-            </el-button>
-          </div>
+              <el-option-group label="Cơ bản">
+                <el-option label="Trắc nghiệm (Multiple Choice)" value="MULTIPLE_CHOICE" />
+                <el-option label="Đúng / Sai (True/False)" value="TRUE_FALSE" />
+                <el-option label="Điền từ (Fill in the Blank)" value="FILL_BLANK" />
+                <el-option label="Trả lời ngắn (Text Answer)" value="TEXT_ANSWER" />
+              </el-option-group>
+              <el-option-group label="Nâng cao">
+                <el-option label="Nối từ (Matching)" value="MATCHING" />
+                <el-option label="Sắp xếp câu (Sentence Building)" value="SENTENCE_BUILDING" />
+                <el-option label="Viết lại câu (Transformation)" value="SENTENCE_TRANSFORMATION" />
+                <el-option label="Tìm lỗi sai (Error Correction)" value="ERROR_CORRECTION" />
+                <el-option label="Phát âm (Pronunciation)" value="PRONUNCIATION" />
+                <el-option label="Câu hỏi mở (Open Ended)" value="OPEN_ENDED" />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="Điểm số" prop="points" class="w-40">
+            <el-input-number v-model="form.points" :min="1" :max="100" class="!w-full" />
+          </el-form-item>
         </div>
 
-        <button
-          @click="handleClose"
-          class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-[#333] transition-all"
-        >
-          <el-icon :size="20"><Close /></el-icon>
-        </button>
-      </div>
-    </template>
+        <el-form-item label="Nội dung câu hỏi" prop="questionText">
+          <QuillRichEditor
+            v-model="form.questionText"
+            placeholder="Nhập nội dung câu hỏi..."
+            height="150px"
+          />
+        </el-form-item>
 
-    <div class="flex-1 flex overflow-hidden bg-gray-100 dark:bg-[#121212] h-[80vh]">
-      <transition name="el-fade-in-linear">
+        <el-form-item label="Giải thích đáp án">
+          <el-input
+            v-model="form.explanation"
+            type="textarea"
+            :rows="2"
+            placeholder="Giải thích chi tiết (hiển thị sau khi user nộp bài)..."
+          />
+        </el-form-item>
+
+        <el-divider content-position="left" class="!my-4">
+          <span class="text-gray-500 font-bold text-xs uppercase flex items-center gap-2">
+            <el-icon><Collection /></el-icon>
+            Task Grouping (Optional)
+          </span>
+        </el-divider>
+
+        <TaskGroupSelector
+          v-model="form.taskGroupId"
+          :task-groups="taskGroups"
+          :loading="taskGroupsLoading"
+          @create-task="handleCreateTaskGroup"
+        />
+
+        <el-divider content-position="left" class="!my-4">
+          <span class="text-gray-500 font-bold text-xs uppercase">Cấu hình đáp án</span>
+        </el-divider>
+
         <div
-          v-if="showContent && currentLesson?.content"
-          class="w-1/3 min-w-[350px] bg-white dark:bg-[#1d1d1d] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-lg z-10"
+          class="bg-gray-50 dark:bg-[#1d1d1d] p-4 rounded-lg border border-gray-200 dark:border-gray-700"
         >
-          <div
-            class="h-10 px-4 bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-gray-700 font-bold text-gray-600 dark:text-gray-300 flex items-center shrink-0"
-          >
-            <el-icon class="mr-2"><Document /></el-icon> Nội dung bài học
-          </div>
-          <div class="flex-1 overflow-y-auto p-6">
-            <div
-              class="ql-editor !p-0 text-gray-800 dark:text-gray-200 text-base leading-relaxed"
-              v-html="currentLesson.content"
-            ></div>
-          </div>
+          <!-- ✅ FIX: Bind metadata prop and handle update -->
+          <component
+            :is="currentFormComponent"
+            v-if="currentFormComponent"
+            :metadata="formMetadata"
+            @update:metadata="handleMetadataUpdate"
+          />
+          <el-empty v-else description="Vui lòng chọn loại câu hỏi" :image-size="60" />
         </div>
-      </transition>
-
-      <div class="flex-1 overflow-y-auto p-6">
-        <el-form
-          ref="formRef"
-          :model="formData"
-          :rules="formRules"
-          label-position="top"
-          class="max-w-4xl mx-auto pb-10"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-            <el-form-item label="Loại câu hỏi" prop="questionType">
-              <el-select
-                v-model="formData.questionType"
-                class="!w-full"
-                :disabled="dialogMode === 'edit'"
-                @change="handleQuestionTypeChange"
-                filterable
-              >
-                <el-option-group label="Cơ bản">
-                  <el-option label="Trắc nghiệm" value="MULTIPLE_CHOICE" />
-                  <el-option label="Đúng/Sai" value="TRUE_FALSE" />
-                  <el-option label="Điền từ" value="FILL_BLANK" />
-                  <el-option label="Chia động từ" value="VERB_FORM" />
-                  <el-option label="Trả lời ngắn" value="TEXT_ANSWER" />
-                </el-option-group>
-                <el-option-group label="Nâng cao">
-                  <el-option label="Nối từ" value="MATCHING" />
-                  <el-option label="Sắp xếp câu" value="SENTENCE_BUILDING" />
-                  <el-option label="Viết lại câu" value="SENTENCE_TRANSFORMATION" />
-                  <el-option label="Tìm lỗi sai" value="ERROR_CORRECTION" />
-                  <el-option label="Phát âm" value="PRONUNCIATION" />
-                  <el-option label="Câu hỏi mở" value="OPEN_ENDED" />
-                </el-option-group>
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="Thứ tự" prop="orderIndex">
-              <el-input-number
-                v-model="formData.orderIndex"
-                :min="1"
-                class="!w-full"
-                controls-position="right"
-              />
-            </el-form-item>
-
-            <el-form-item label="Điểm số" prop="points">
-              <el-input-number
-                v-model="formData.points"
-                :min="1"
-                class="!w-full"
-                controls-position="right"
-              />
-            </el-form-item>
-          </div>
-
-          <el-form-item prop="questionText" class="!mb-6">
-            <template #label>
-              <div class="flex justify-between w-full">
-                <span>Nội dung câu hỏi</span>
-                <el-tag size="small" type="info" effect="plain" class="font-normal"
-                  >Có thể để trống</el-tag
-                >
-              </div>
-            </template>
-            <div
-              class="w-full border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-[#252525]"
-            >
-              <QuillRichEditor
-                v-model="formData.questionText"
-                placeholder="Nhập nội dung (hoặc để trống)..."
-                height="150px"
-              />
-            </div>
-          </el-form-item>
-
-          <div
-            class="bg-gray-50 dark:bg-[#252525] p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 mb-6"
-          >
-            <h3
-              class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase mb-4 flex items-center gap-2"
-            >
-              <el-icon><Tools /></el-icon> Cấu hình đáp án
-            </h3>
-
-            <component
-              :is="currentFormComponent"
-              v-model:metadata="formData.metadata"
-              :question-type="formData.questionType"
-            />
-          </div>
-
-          <el-form-item label="Giải thích đáp án" prop="explanation">
-            <el-input
-              v-model="formData.explanation"
-              type="textarea"
-              :rows="3"
-              placeholder="Giải thích..."
-            />
-          </el-form-item>
-        </el-form>
-      </div>
+      </el-form>
     </div>
 
     <template #footer>
-      <div
-        class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] z-20"
-      >
-        <el-button @click="handleClose" class="!rounded-lg !h-10 !px-6">Hủy</el-button>
-        <el-button
-          type="primary"
-          :loading="loading"
-          @click="submitForm"
-          class="!rounded-lg !font-bold px-8 !h-10"
-        >
-          {{ submitButtonText }}
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+        <el-button @click="handleClose">Hủy bỏ</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          {{ form.id ? 'Cập nhật' : 'Tạo mới' }}
         </el-button>
       </div>
     </template>
@@ -182,145 +110,220 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, watch } from 'vue'
-import { useGrammarStore } from '@/stores/grammar'
-import { useGrammarQuestionForm } from '@/composables/grammar/useGrammarQuestions'
+import { ref, computed, defineAsyncComponent, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Collection } from '@element-plus/icons-vue'
+import { useQuestionStore } from '@/stores/admin/questionAdmin'
 import QuillRichEditor from '@/components/common/QuillRichEditor.vue'
-import { Close, Reading, Document, Tools, EditPen } from '@element-plus/icons-vue'
+import TaskGroupSelector from './TaskGroupSelector.vue'
 
-// Import Components Lazy
-const MultipleChoiceForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/MultipleChoiceForm.vue'),
-)
-const FillBlankForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/FillBlankForm.vue'),
-)
-const MatchingForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/MatchingForm.vue'),
-)
-const SentenceBuildingForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/SentenceBuildingForm.vue'),
-)
-const ErrorCorrectionForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/ErrorCorrectionForm.vue'),
-)
-const PronunciationForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/PronunciationForm.vue'),
-)
-const OpenEndedForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/OpenEndedForm.vue'),
-)
+const MultipleChoiceForm = defineAsyncComponent(() => import('./forms/MultipleChoiceForm.vue'))
+const FillBlankForm = defineAsyncComponent(() => import('./forms/FillBlankForm.vue'))
+const MatchingForm = defineAsyncComponent(() => import('./forms/MatchingForm.vue'))
+const TextAnswerForm = defineAsyncComponent(() => import('./forms/TextAnswerForm.vue'))
+const SentenceBuildingForm = defineAsyncComponent(() => import('./forms/SentenceBuildingForm.vue'))
 const SentenceTransformationForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/SentenceTransformationForm.vue'),
+  () => import('./forms/SentenceTransformationForm.vue'),
 )
-const VerbFormForm = defineAsyncComponent(
-  () => import('@/components/admin/questions/VerbFormForm.vue'),
-)
+const ErrorCorrectionForm = defineAsyncComponent(() => import('./forms/ErrorCorrectionForm.vue'))
+const PronunciationForm = defineAsyncComponent(() => import('./forms/PronunciationForm.vue'))
+const OpenEndedForm = defineAsyncComponent(() => import('./forms/OpenEndedForm.vue'))
 
-const props = defineProps({ lessonId: Number })
-const emit = defineEmits(['success'])
-const formRef = ref(null)
+const props = defineProps({
+  config: { type: Object, required: true },
+  currentLesson: Object,
+})
+
+const emit = defineEmits(['submit'])
+const questionStore = useQuestionStore()
+
+const visible = ref(false)
 const loading = ref(false)
-const store = useGrammarStore()
-const currentLesson = ref(null)
-const showContent = ref(true)
+const submitting = ref(false)
+const formRef = ref(null)
+const currentLessonId = ref(null)
 
-const {
-  dialogVisible,
-  dialogMode,
-  formData,
-  formRules,
-  dialogTitle,
-  submitButtonText,
-  openCreateDialog: originalOpenCreate,
-  openEditDialog: originalOpenEdit,
-  closeDialog,
-  handleQuestionTypeChange,
-  handleSubmit,
-} = useGrammarQuestionForm()
+const taskGroups = computed(() => questionStore.taskGroups)
+const taskGroupsLoading = computed(() => questionStore.taskGroupsLoading)
 
-// --- LOGIC LOAD BÀI ĐỌC (ĐÃ SỬA) ---
-const loadLessonContent = async (lId) => {
-  if (!lId) return
-  try {
-    const res = await store.fetchLessonById(lId)
-    currentLesson.value = res
-    // Chỉ hiện panel nếu có nội dung > 50 ký tự
-    showContent.value = !!(res && res.content && res.content.length > 50)
-  } catch (e) {
-    console.error(e)
-  }
+const defaultForm = {
+  id: null,
+  questionType: '',
+  questionText: '',
+  points: 1,
+  explanation: '',
+  taskGroupId: null,
+  orderIndex: 1,
 }
 
-const openCreate = async (lId) => {
-  // Ưu tiên lId truyền vào, nếu không thì dùng props.lessonId
-  const idToUse = lId || props.lessonId
-  await originalOpenCreate(idToUse)
-  await loadLessonContent(idToUse)
-}
+const form = ref({ ...defaultForm })
 
-const openEdit = async (q) => {
-  originalOpenEdit(q)
-  // Lấy lessonId từ parentId của câu hỏi, hoặc props
-  const idToUse = q.parentId || q.lessonId || props.lessonId
-  if (idToUse) await loadLessonContent(idToUse)
-}
-// ------------------------------------
+// ✅ FIX: Separate metadata object for form components
+const formMetadata = ref({})
 
-const handleClose = () => {
-  closeDialog()
-  if (formRef.value) formRef.value.resetFields()
-}
-
-const submitForm = async () => {
-  loading.value = true
-  try {
-    const success = await handleSubmit(formRef.value)
-    if (success) {
-      emit('success')
-      closeDialog()
-    }
-  } catch (error) {
-    console.error(error)
-  } finally {
-    loading.value = false
-  }
+const rules = {
+  questionType: [{ required: true, message: 'Vui lòng chọn loại câu hỏi', trigger: 'change' }],
+  points: [{ required: true, message: 'Nhập điểm số', trigger: 'blur' }],
 }
 
 const currentFormComponent = computed(() => {
-  const type = formData.value.questionType
-  switch (type) {
-    case 'MULTIPLE_CHOICE':
-    case 'TRUE_FALSE':
-      return MultipleChoiceForm
-    case 'FILL_BLANK':
-    case 'TEXT_ANSWER':
-      return FillBlankForm
-    case 'VERB_FORM':
-      return VerbFormForm
-    case 'MATCHING':
-      return MatchingForm
-    case 'SENTENCE_BUILDING':
-      return SentenceBuildingForm
-    case 'SENTENCE_TRANSFORMATION':
-      return SentenceTransformationForm
-    case 'ERROR_CORRECTION':
-      return ErrorCorrectionForm
-    case 'PRONUNCIATION':
-      return PronunciationForm
-    case 'OPEN_ENDED':
-      return OpenEndedForm
-    default:
-      return null
+  const map = {
+    MULTIPLE_CHOICE: MultipleChoiceForm,
+    TRUE_FALSE: MultipleChoiceForm,
+    COMPLETE_CONVERSATION: MultipleChoiceForm,
+    FILL_BLANK: FillBlankForm,
+    MATCHING: MatchingForm,
+    TEXT_ANSWER: TextAnswerForm,
+    SENTENCE_BUILDING: SentenceBuildingForm,
+    SENTENCE_TRANSFORMATION: SentenceTransformationForm,
+    ERROR_CORRECTION: ErrorCorrectionForm,
+    PRONUNCIATION: PronunciationForm,
+    OPEN_ENDED: OpenEndedForm,
   }
+  return map[form.value.questionType] || null
 })
 
-defineExpose({ openCreate, openEdit })
-</script>
-
-<style scoped>
-.el-fade-in-linear-enter-active,
-.el-fade-in-linear-leave-active {
-  transition: all 0.3s;
+// ✅ FIX: Handle metadata updates from form components
+const handleMetadataUpdate = (newMetadata) => {
+  console.log('📝 Metadata updated:', newMetadata)
+  formMetadata.value = { ...newMetadata }
 }
-</style>
+
+const openCreate = async (lessonId) => {
+  currentLessonId.value = lessonId
+  await questionStore.fetchTaskGroups(props.config.moduleType, lessonId)
+
+  const nextOrder = await questionStore.fetchNextOrder(props.config.moduleType, lessonId)
+
+  form.value = {
+    id: null,
+    questionType: 'MULTIPLE_CHOICE',
+    questionText: '',
+    points: 1,
+    explanation: '',
+    taskGroupId: null,
+    orderIndex: nextOrder,
+  }
+
+  // ✅ Reset metadata
+  formMetadata.value = {}
+
+  visible.value = true
+  loading.value = false
+  nextTick(() => formRef.value?.clearValidate())
+}
+
+const openEdit = async (row) => {
+  currentLessonId.value = row.parentId
+  await questionStore.fetchTaskGroups(props.config.moduleType, row.parentId)
+
+  form.value = {
+    id: row.id,
+    questionType: row.questionType,
+    questionText: row.questionText,
+    points: row.points,
+    taskGroupId: row.taskGroupId || null,
+    orderIndex: row.orderIndex,
+    explanation: row.data?.explanation || '',
+  }
+
+  // ✅ Set metadata from row.data
+  if (row.data) {
+    formMetadata.value = { ...row.data }
+  } else {
+    formMetadata.value = {}
+  }
+
+  visible.value = true
+  loading.value = false
+  nextTick(() => formRef.value?.clearValidate())
+}
+
+const handleClose = () => {
+  visible.value = false
+  form.value = { ...defaultForm }
+  formMetadata.value = {}
+  nextTick(() => formRef.value?.clearValidate())
+}
+
+const handleTypeChange = (newType) => {
+  const { id, questionText, points, explanation, taskGroupId, orderIndex } = form.value
+
+  form.value = {
+    id,
+    questionType: newType,
+    questionText,
+    points,
+    explanation,
+    taskGroupId,
+    orderIndex,
+  }
+
+  // ✅ Reset metadata when type changes
+  formMetadata.value = {}
+}
+
+const handleCreateTaskGroup = async (taskGroupData) => {
+  try {
+    const created = await questionStore.createTaskGroup(
+      props.config.moduleType,
+      currentLessonId.value,
+      taskGroupData
+    )
+    form.value.taskGroupId = created.id
+    ElMessage.success('Tạo Task Group thành công!')
+  } catch (error) {
+    console.error('Failed to create task group:', error)
+  }
+}
+
+const handleSubmit = async () => {
+  if (!formRef.value) return
+
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        submitting.value = true
+
+        // ✅ FIX: Merge form + metadata correctly
+        const payload = {
+          ...form.value,
+          ...formMetadata.value, // Spread all metadata fields
+        }
+
+        console.log('📤 Submitting payload:', payload)
+
+        if (payload.id) {
+          await questionStore.updateQuestion(
+            props.config.moduleType,
+            currentLessonId.value,
+            payload.id,
+            payload,
+          )
+        } else {
+          await questionStore.createQuestion(
+            props.config.moduleType,
+            currentLessonId.value,
+            payload,
+          )
+        }
+
+        emit('submit')
+        handleClose()
+      } catch (error) {
+        console.error('Submit error', error)
+      } finally {
+        submitting.value = false
+      }
+    } else {
+      ElMessage.warning('Vui lòng kiểm tra lại các trường bắt buộc')
+      return false
+    }
+  })
+}
+
+defineExpose({
+  openCreate,
+  openEdit,
+})
+</script>

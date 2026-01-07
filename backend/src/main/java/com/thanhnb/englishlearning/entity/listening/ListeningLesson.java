@@ -1,108 +1,128 @@
 package com.thanhnb.englishlearning.entity.listening;
 
+import com.thanhnb.englishlearning.entity.listener.QuestionCascadeDeleteListener;
+import com.thanhnb.englishlearning.entity.topic.Topic;
+import com.thanhnb.englishlearning.entity.user.User;
+
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "listening_lessons")
-@Data
+@EntityListeners(QuestionCascadeDeleteListener.class)
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@ToString(exclude = { "topic", "userProgresses" })
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class ListeningLesson {
 
+    @EqualsAndHashCode.Include
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Relation to Topic
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "topic_id", nullable = false)
+    private Topic topic;
+
     @Column(nullable = false, length = 200)
     private String title;
 
-    // Audio file path (e.g., /media/listening/lesson_1/audio.mp3)
-    @Column(nullable = true, length = 500)
+    @Column(length = 500)
     private String audioUrl;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String transcript;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String transcriptTranslation;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private Difficulty difficulty = Difficulty.BEGINNER;
 
     @Column(nullable = false)
     private Integer orderIndex;
 
     @Column(nullable = false)
-    private Integer timeLimitSeconds = 600; // 10 minutes
+    @Builder.Default
+    private Integer timeLimitSeconds = 600;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer pointsReward = 25;
 
-    // Replay settings
     @Column(nullable = false)
+    @Builder.Default
     private Boolean allowUnlimitedReplay = true;
 
     @Column(nullable = false)
-    private Integer maxReplayCount = 3; // Only apply if allowUnlimitedReplay = false
+    @Builder.Default
+    private Integer maxReplayCount = 3;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(updatable = false)
+    @CreationTimestamp
+    private LocalDateTime createdAt;
 
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (difficulty == null) {
-            difficulty = Difficulty.BEGINNER;
-        }
-        if (timeLimitSeconds == null) {
-            timeLimitSeconds = 600;
-        }
-        if (pointsReward == null) {
-            pointsReward = 25;
-        }
-        if (allowUnlimitedReplay == null) {
-            allowUnlimitedReplay = true;
-        }
-        if (maxReplayCount == null) {
-            maxReplayCount = 3;
-        }
-        if (isActive == null) {
-            isActive = true;
-        }
-    }
+    @Column(name = "modified_at")
+    @UpdateTimestamp
+    private LocalDateTime modifiedAt;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "modified_by")
+    private User modifiedBy;
 
-    public enum Difficulty {
-        BEGINNER,
-        INTERMEDIATE,
-        ADVANCED
+    // ==================== RELATIONSHIPS ====================
+
+    /**
+     * Relation to UserProgress
+     */
+    @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<UserListeningProgress> userProgresses;
+
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * Activate this lesson
+     */
+    public void activate() {
+        this.isActive = true;
     }
 
     /**
-     * Check if user can replay based on settings
+     * Deactivate this lesson
      */
-    public boolean canReplay(int currentReplayCount) {
+    public void deactivate() {
+        this.isActive = false;
+    }
+
+    /**
+     * Check if user can replay audio
+     */
+    public boolean canReplay(Integer currentPlayCount) {
         if (allowUnlimitedReplay) {
             return true;
         }
-        return currentReplayCount < maxReplayCount;
+        return currentPlayCount < maxReplayCount;
     }
 
     /**
-     * Get remaining replays
+     * Calculate remaining replays
      */
-    public Integer getRemainingReplays(int currentReplayCount) {
+    public Integer getRemainingReplays(Integer currentPlayCount) {
         if (allowUnlimitedReplay) {
             return null; // Unlimited
         }
-        return Math.max(0, maxReplayCount - currentReplayCount);
+        int remaining = maxReplayCount - currentPlayCount;
+        return Math.max(0, remaining);
     }
 }
