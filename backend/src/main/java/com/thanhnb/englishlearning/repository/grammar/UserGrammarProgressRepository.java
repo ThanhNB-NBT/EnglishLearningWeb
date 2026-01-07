@@ -13,6 +13,8 @@ import java.util.List;
 @Repository
 public interface UserGrammarProgressRepository extends JpaRepository<UserGrammarProgress, Long> {
 
+       List<UserGrammarProgress> findByUserId(Long userId);
+
        // Tìm tiến độ cụ thể của người dùng
        Optional<UserGrammarProgress> findByUserIdAndLessonId(Long userId, Long lessonId);
 
@@ -54,7 +56,24 @@ public interface UserGrammarProgressRepository extends JpaRepository<UserGrammar
                      "ORDER BY gt.orderIndex ASC, gl.orderIndex ASC")
        List<UserGrammarProgress> findUserProgressWithLessonDetails(@Param("userId") Long userId);
 
+       @Query("SELECT COUNT(p) FROM UserGrammarProgress p " +
+                     "WHERE p.user.id = :userId " +
+                     "AND p.lesson.topic.id = :topicId " +
+                     "AND p.isCompleted = true")
+       long countCompletedLessonsByUserAndTopic(
+                     @Param("userId") Long userId,
+                     @Param("topicId") Long topicId);
+
        // ===== NEW QUERIES FOR READING PROGRESS TRACKING =====
+
+       @Query("""
+                         SELECT p FROM UserGrammarProgress p
+                         JOIN FETCH p.lesson l
+                         WHERE p.user.id = :userId
+                         AND p.isCompleted = true
+                         ORDER BY p.completedAt DESC
+                     """)
+       List<UserGrammarProgress> findCompletedWithLessonByUserId(@Param("userId") Long userId);
 
        // Tìm lessons mà user đã đọc nhưng chưa hoàn thành
        @Query("SELECT ugp FROM UserGrammarProgress ugp " +

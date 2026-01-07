@@ -1,3 +1,5 @@
+// src/composables/user/useUsersManagement.js - FIXED VERSION
+
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userAPI, authAPI } from '@/api'
@@ -54,9 +56,7 @@ export function useUsersManagement() {
       { required: true, message: 'Vui lòng nhập mật khẩu', trigger: 'blur' },
       { min: 8, message: 'Mật khẩu phải ít nhất 8 ký tự', trigger: 'blur' },
     ],
-    fullName: [
-      { required: true, message: 'Vui lòng nhập họ và tên', trigger: 'blur' },
-    ],
+    fullName: [{ required: true, message: 'Vui lòng nhập họ và tên', trigger: 'blur' }],
   }
 
   // Computed
@@ -70,7 +70,7 @@ export function useUsersManagement() {
         (user) =>
           user.username?.toLowerCase().includes(query) ||
           user.email?.toLowerCase().includes(query) ||
-          user.fullName?.toLowerCase().includes(query)
+          user.fullName?.toLowerCase().includes(query),
       )
     }
 
@@ -91,16 +91,71 @@ export function useUsersManagement() {
     return result
   })
 
+  // ✅ FIX: Add pagination computed
+  const paginatedUsers = computed(() => {
+    const start = (currentPage.value - 1) * pageSize.value
+    const end = start + pageSize.value
+    return filteredUsers.value.slice(start, end)
+  })
+
   // Methods
   const fetchUsers = async () => {
     loading.value = true
     try {
+      console.log('🔄 Fetching users...')
       const response = await userAPI.getAllUsers()
-      users.value = response.data.data || []
+
+      console.log('📦 Raw response:', response)
+
+      // ✅ FIX: Handle different response structures
+      let usersData = []
+
+      if (response.data?.data) {
+        usersData = response.data.data
+      } else if (Array.isArray(response.data)) {
+        usersData = response.data
+      } else {
+        console.error('❌ Unexpected response structure:', response)
+        throw new Error('Invalid response structure')
+      }
+
+      console.log('📊 Users data:', usersData)
+
+      // ✅ Map to ensure proper structure
+      // Show USER and ADMIN roles (TEACHER has separate tab)
+      users.value = usersData
+        .filter(user => user.role !== 'TEACHER') // ✅ Exclude TEACHER role only
+        .map((user) => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          englishLevel: user.englishLevel,
+          isActive: user.isActive,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+
+          // Extract stats
+          stats: user.stats || {},
+          totalPoints: user.stats?.totalPoints || 0,
+          streakDays: user.stats?.currentStreak || 0,
+          totalLessonsCompleted: user.stats?.totalLessonsCompleted || 0,
+
+          // Extract activity
+          activity: user.activity || {},
+          lastLoginDate: user.activity?.lastLoginDate,
+          loginCount: user.activity?.loginCount || 0,
+        }))
+
+      console.log('✅ Processed users:', users.value.length)
+
       calculateStats()
     } catch (error) {
+      console.error('❌ Error fetching users:', error)
       ElMessage.error('Không thể tải danh sách người dùng')
-      console.error('Error fetching users:', error)
+      users.value = []
     } finally {
       loading.value = false
     }
@@ -111,6 +166,8 @@ export function useUsersManagement() {
     stats.active = users.value.filter((u) => u.isActive).length
     stats.unverified = users.value.filter((u) => !u.isVerified).length
     stats.admins = users.value.filter((u) => u.role === 'ADMIN').length
+
+    console.log('📊 Stats calculated:', stats)
   }
 
   const handleSearch = () => {
@@ -158,7 +215,7 @@ export function useUsersManagement() {
           confirmButtonText: 'Khóa',
           cancelButtonText: 'Hủy',
           type: 'warning',
-        }
+        },
       )
 
       await userAPI.blockUser(user.id)
@@ -192,7 +249,7 @@ export function useUsersManagement() {
           confirmButtonText: 'Xóa',
           cancelButtonText: 'Hủy',
           type: 'error',
-        }
+        },
       )
 
       await userAPI.deleteUser(user.id)
@@ -256,6 +313,12 @@ export function useUsersManagement() {
       BEGINNER: 'info',
       INTERMEDIATE: 'warning',
       ADVANCED: 'success',
+      A1: 'info',
+      A2: 'info',
+      B1: 'warning',
+      B2: 'warning',
+      C1: 'success',
+      C2: 'success',
     }
     return types[level] || 'info'
   }
@@ -278,6 +341,7 @@ export function useUsersManagement() {
 
     // Computed
     filteredUsers,
+    paginatedUsers, // ✅ ADD: Export paginated users
 
     // Methods
     fetchUsers,

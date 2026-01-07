@@ -19,12 +19,14 @@ public interface ListeningLessonRepository extends JpaRepository<ListeningLesson
         /**
          * Tìm tất cả lessons active với pagination
          */
-        Page<ListeningLesson> findAllByIsActiveTrueOrderByOrderIndexAsc(Pageable pageable);
+        Page<ListeningLesson> findByTopicId(Long topicId, Pageable pageable);
 
         /**
          * Tìm tất cả lessons active, sắp xếp theo orderIndex
          */
         List<ListeningLesson> findAllByIsActiveTrueOrderByOrderIndexAsc();
+
+        List<ListeningLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId);
 
         /**
          * Tìm lesson active theo ID
@@ -35,6 +37,8 @@ public interface ListeningLessonRepository extends JpaRepository<ListeningLesson
          * Đếm số lessons active
          */
         long countByIsActiveTrue();
+
+        long countByTopicIdAndIsActiveTrue(Long topicId);
 
         /**
          * Đếm tổng số lessons
@@ -65,8 +69,8 @@ public interface ListeningLessonRepository extends JpaRepository<ListeningLesson
         /**
          * Lấy orderIndex lớn nhất hiện có
          */
-        @Query("SELECT MAX(l.orderIndex) FROM ListeningLesson l")
-        Integer findMaxOrderIndex();
+        @Query("SELECT MAX(l.orderIndex) FROM ListeningLesson l WHERE l.topic.id = :topicId")
+        Integer findMaxOrderIndexByTopicId(@Param("topicId") Long topicId);
 
         /**
          * Lấy lesson đầu tiên (orderIndex nhỏ nhất)

@@ -1,8 +1,9 @@
 package com.thanhnb.englishlearning.service.question;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateFillBlankDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateMatchingDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateMultipleChoiceDTO;
 import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.entity.question.Question;
@@ -12,40 +13,34 @@ import com.thanhnb.englishlearning.repository.question.QuestionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Service xử lý questions chung cho tất cả module
- * Refactored để tích hợp với:
- * - QuestionConverter: Convert entity <-> DTO (Thay thế Mapper cũ)
- * - QuestionAnswerProcessor: Validate và check answers
- * - Metadata-based architecture (JSONB)
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class QuestionService {
 
     private final QuestionRepository questionRepository;
-    private final QuestionConverter questionConverter;
-    private final QuestionAnswerProcessor validationService;
-    private final ObjectMapper objectMapper; // Dùng cho shuffle options (clone metadata)
+    private final AnswerValidationService answerValidationService;
 
-    // ═══════════════════════════════════════════════════════════════
-    // LOAD & COUNT OPERATIONS
-    // ═══════════════════════════════════════════════════════════════
+    // =========================================================================
+    // LOAD OPERATIONS
+    // =========================================================================
 
     /**
-     * Load questions by parentType and parentId
+     * Load questions by parent
      */
     public List<Question> loadQuestionsByParent(ParentType parentType, Long parentId) {
         return questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(parentType, parentId);
     }
 
     /**
-     * Count questions by parentType and parentId
+     * Count questions by parent
      */
     public long countQuestionsByParent(ParentType parentType, Long parentId) {
         return questionRepository.countByParentTypeAndParentId(parentType, parentId);
@@ -59,122 +54,273 @@ public class QuestionService {
                 .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + questionId));
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CONVERSION OPERATIONS (Delegate to Converter)
-    // ═══════════════════════════════════════════════════════════════
-
     /**
-     * Convert Question entity -> QuestionResponseDTO
-     * Tự động shuffle options cho MULTIPLE_CHOICE để tránh gian lận
-     * * @param question          Question entity
-     * @param shuffleOptions    Có shuffle options không (cho MULTIPLE_CHOICE)
+     * Get questions by IDs
      */
-    public QuestionResponseDTO convertToDTO(Question question, boolean shuffleOptions) {
-        QuestionResponseDTO dto = questionConverter.toResponseDTO(question);
-        
-        // Shuffle options cho MULTIPLE_CHOICE
-        if (shuffleOptions && question.getQuestionType() == QuestionType.MULTIPLE_CHOICE) {
-            dto.setMetadata(shuffleMultipleChoiceOptions(dto.getMetadata()));
-            log.debug("Shuffled options for question {}", question.getId());
+    public List<Question> getQuestionsByIds(List<Long> questionIds) {
+        if (questionIds == null || questionIds.isEmpty()) {
+            return Collections.emptyList();
         }
-        
-        return dto;
+        return questionRepository.findAllById(questionIds);
     }
 
+    // =========================================================================
+    // CONVERSION OPERATIONS (Simple - No Converter needed)
+    // =========================================================================
+
     /**
-     * Convert Question entity -> QuestionResponseDTO (no shuffle)
+     * Convert Question entity to QuestionResponseDTO
+     * Direct mapping, no complex conversion
      */
     public QuestionResponseDTO convertToDTO(Question question) {
-        return questionConverter.toResponseDTO(question);
+        return QuestionResponseDTO.builder()
+                .id(question.getId())
+                .parentType(question.getParentType())
+                .parentId(question.getParentId())
+                .questionText(question.getQuestionText())
+                .questionType(question.getQuestionType())
+                .points(question.getPoints())
+                .orderIndex(question.getOrderIndex())
+                .createdAt(question.getCreatedAt())
+                .data(question.getData())
+                .build();
     }
 
     /**
      * Convert list of questions to DTOs
      */
-    public List<QuestionResponseDTO> convertToDTOs(List<Question> questions, boolean shuffleOptions) {
-        if (questions == null) return List.of();
-        return questions.stream()
-                .map(q -> convertToDTO(q, shuffleOptions))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Convert list of questions to DTOs (no shuffle)
-     */
     public List<QuestionResponseDTO> convertToDTOs(List<Question> questions) {
-        return questionConverter.toResponseDTOs(questions);
+        if (questions == null)
+            return List.of();
+        return questions.stream()
+                .map(this::convertToDTO)
+                .toList();
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ANSWER PROCESSING & VALIDATION
-    // ═══════════════════════════════════════════════════════════════
-
     /**
-     * Process answers và trả về kết quả chi tiết
-     * * @param answers            Danh sách câu trả lời của user
-     * @param expectedParentType ParentType expected (GRAMMAR/READING/LISTENING)
-     * @return Danh sách kết quả chi tiết từng câu
+     * Convert with optional shuffle (for compatibility)
+     * Note: Shuffle logic removed - frontend should handle randomization
      */
-    public List<QuestionResultDTO> processAnswers(
-            List<SubmitAnswerRequest> answers,
-            ParentType expectedParentType) {
+    @Deprecated
+    public List<QuestionResponseDTO> convertToDTOs(List<Question> questions, boolean shuffleOptions) {
+        // Shuffle removed - frontend handles randomization for better UX
+        return convertToDTOs(questions);
+    }
 
-        return answers.stream().map(answerRequest -> {
-            // Load question
-            Question question = getQuestionById(answerRequest.getQuestionId());
+    // =========================================================================
+    // ANSWER PROCESSING
+    // =========================================================================
 
-            // Validate parentType
-            if (question.getParentType() != expectedParentType) {
-                throw new RuntimeException(
-                        String.format("Question %d không thuộc %s module",
-                                question.getId(), expectedParentType));
+    @Transactional(readOnly = true)
+    public List<QuestionResultDTO> processAnswers(List<SubmitAnswerRequest> answers, ParentType parentType) {
+        if (answers == null || answers.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<QuestionResultDTO> results = new ArrayList<>();
+
+        for (SubmitAnswerRequest request : answers) {
+            try {
+                // 1. Tìm câu hỏi trong DB
+                Question question = questionRepository.findById(request.getQuestionId())
+                        .orElse(null);
+
+                if (question == null) {
+                    log.warn("Question ID {} not found during submission processing", request.getQuestionId());
+                    continue;
+                }
+
+                // 2. Validate (Gọi hàm mới đã update ở AnswerValidationService)
+                QuestionResultDTO result = answerValidationService.validateAnswer(
+                        question,
+                        request.getSelectedOptions(),
+                        request.getTextAnswer());
+
+                // 3. Đảm bảo result có đủ thông tin (nếu AnswerValidationService chưa điền đủ)
+                // (Thường validateAnswer đã trả về đủ, nhưng gán lại userAnswer để hiển thị lại
+                // cho user)
+
+                // Nếu result builder ở service kia chưa set UserAnswer thì set thủ công ở đây
+                // để hiển thị
+                if (result.getUserAnswer() == null) {
+                    String displayAnswer = "";
+                    if (request.getTextAnswer() != null) {
+                        displayAnswer = request.getTextAnswer();
+                    } else if (request.getSelectedOptions() != null) {
+                        displayAnswer = request.getSelectedOptions().toString();
+                    }
+                    result.setUserAnswer(displayAnswer);
+                }
+
+                results.add(result);
+
+            } catch (Exception e) {
+                log.error("Error processing answer for question ID {}", request.getQuestionId(), e);
+                // Add error result để không làm gián đoạn toàn bộ bài thi
+                results.add(QuestionResultDTO.builder()
+                        .questionId(request.getQuestionId())
+                        .isCorrect(false)
+                        .points(0)
+                        .feedback("Error processing this answer")
+                        .build());
             }
+        }
 
-            // Validate answer using QuestionValidationService
-            QuestionResultDTO result = validationService.validateAnswer(question, answerRequest.getAnswer());
-            
-            log.debug("Question {}: {} -> {} points",
-                    question.getId(), 
-                    Boolean.TRUE.equals(result.getIsCorrect()) ? "✅ Correct" : "❌ Wrong", 
-                    result.getPoints());
-
-            return result;
-            
-        }).collect(Collectors.toList());
+        return results;
     }
 
     /**
      * Validate answer count
-     * * @throws RuntimeException if answer count mismatch
      */
-    public void validateAnswerCount(List<SubmitAnswerRequest> answers,
+    public void validateAnswerCount(
+            List<SubmitAnswerRequest> answers,
             ParentType parentType,
             Long parentId) {
+
         long expectedCount = countQuestionsByParent(parentType, parentId);
 
         if (answers == null || answers.isEmpty()) {
             throw new RuntimeException("Bài này cần có câu trả lời");
         }
 
-        log.debug("Validated {} answers (expected: {})", answers.size(), expectedCount);
+        if (answers.size() != expectedCount) {
+            log.warn("Answer count mismatch: expected {}, got {}", expectedCount, answers.size());
+        }
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    /**
+     * Validate all questions belong to specific parent
+     */
+    public void validateQuestionsParent(
+            List<Long> questionIds,
+            ParentType parentType,
+            Long parentId) {
+
+        List<Question> questions = getQuestionsByIds(questionIds);
+
+        boolean allMatch = questions.stream()
+                .allMatch(q -> q.getParentType() == parentType && q.getParentId().equals(parentId));
+
+        if (!allMatch) {
+            throw new RuntimeException(
+                    String.format("Một số câu hỏi không thuộc %s với id %d",
+                            parentType, parentId));
+        }
+    }
+
+    // =========================================================================
+    // SHUFFLE METHODS FOR USER ENDPOINTS
+    // =========================================================================
+
+    /**
+     * Convert questions for user learning (with shuffle)
+     * SECURITY: Shuffle options to prevent pattern recognition
+     */
+    public List<QuestionResponseDTO> convertToDTOsForLearning(List<Question> questions) {
+        if (questions == null || questions.isEmpty()) {
+            return List.of();
+        }
+
+        return questions.stream()
+                .map(this::convertToDTOWithShuffle)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert single question with shuffle applied
+     */
+    private QuestionResponseDTO convertToDTOWithShuffle(Question question) {
+        QuestionResponseDTO dto = convertToDTO(question);
+
+        // Apply shuffle based on question type
+        if (question.getQuestionType() == QuestionType.MULTIPLE_CHOICE ||
+                question.getQuestionType() == QuestionType.TRUE_FALSE) {
+            shuffleMultipleChoiceOptions(dto);
+        } else if (question.getQuestionType() == QuestionType.MATCHING) {
+            shuffleMatchingItems(dto);
+        } else if (question.getQuestionType() == QuestionType.FILL_BLANK ||
+                question.getQuestionType() == QuestionType.VERB_FORM) {
+            shuffleFillBlankWordBank(dto);
+        }
+
+        return dto;
+    }
+
+    /**
+     * Shuffle Multiple Choice options (keeps order field for identification)
+     */
+    private void shuffleMultipleChoiceOptions(QuestionResponseDTO dto) {
+        if (dto.getData() instanceof CreateMultipleChoiceDTO mcDto) {
+            List<CreateMultipleChoiceDTO.OptionDTO> options = mcDto.getOptions();
+            if (options != null && options.size() > 1) {
+                // Shuffle the list
+                Collections.shuffle(options);
+                log.debug("Shuffled {} options for question {}", options.size(), dto.getId());
+            }
+        }
+    }
+
+    /**
+     * Shuffle Matching right items (left stays in order)
+     */
+    private void shuffleMatchingItems(QuestionResponseDTO dto) {
+        if (dto.getData() instanceof CreateMatchingDTO matchDto) {
+            // 1. Nếu left/right chưa có dữ liệu (do DB chỉ lưu pairs), hãy trích xuất từ
+            // pairs
+            if ((matchDto.getLeftItems() == null || matchDto.getLeftItems().isEmpty())
+                    && matchDto.getPairs() != null) {
+
+                List<String> left = matchDto.getPairs().stream()
+                        .map(CreateMatchingDTO.PairDTO::getLeft)
+                        .collect(Collectors.toList());
+
+                List<String> right = matchDto.getPairs().stream()
+                        .map(CreateMatchingDTO.PairDTO::getRight)
+                        .collect(Collectors.toList());
+
+                matchDto.setLeftItems(left);
+                matchDto.setRightItems(right);
+            }
+
+            // 2. Xáo trộn cột phải
+            List<String> rightItems = matchDto.getRightItems();
+            if (rightItems != null && !rightItems.isEmpty()) {
+                Collections.shuffle(rightItems);
+            }
+        }
+    }
+
+    /**
+     * Shuffle Fill Blank word bank
+     */
+    private void shuffleFillBlankWordBank(QuestionResponseDTO dto) {
+        if (dto.getData() instanceof CreateFillBlankDTO fbDto) {
+            List<String> wordBank = fbDto.getWordBank();
+            if (wordBank != null && wordBank.size() > 1) {
+                Collections.shuffle(wordBank);
+                fbDto.setWordBank(wordBank);
+                log.debug("Shuffled {} words in word bank for question {}", wordBank.size(), dto.getId());
+            }
+        }
+    }
+
+    // =========================================================================
     // SCORING UTILITIES
-    // ═══════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /**
      * Calculate total score from results
      */
     public int calculateTotalScore(List<QuestionResultDTO> results) {
         return results.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsCorrect()))
                 .filter(r -> r.getPoints() != null)
                 .mapToInt(QuestionResultDTO::getPoints)
                 .sum();
     }
 
     /**
-     * Calculate correct count from results
+     * Calculate correct count
      */
     public int calculateCorrectCount(List<QuestionResultDTO> results) {
         return (int) results.stream()
@@ -201,70 +347,5 @@ public class QuestionService {
         }
         int correctCount = calculateCorrectCount(results);
         return calculateScorePercentage(correctCount, results.size());
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PRIVATE HELPER METHODS
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Shuffle options trong metadata cho MULTIPLE_CHOICE
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> shuffleMultipleChoiceOptions(Map<String, Object> metadata) {
-        if (metadata == null || !metadata.containsKey("options")) {
-            return metadata;
-        }
-
-        try {
-            // Clone metadata để không modify original (Dùng ObjectMapper để deep clone an toàn)
-            // Hoặc clone thủ công nếu map đơn giản
-            String json = objectMapper.writeValueAsString(metadata);
-            Map<String, Object> shuffledMetadata = objectMapper.readValue(json, Map.class);
-            
-            List<Map<String, Object>> options = (List<Map<String, Object>>) shuffledMetadata.get("options");
-            if (options != null && options.size() > 1) {
-                // Shuffle copy
-                List<Map<String, Object>> shuffledOptions = new ArrayList<>(options);
-                Collections.shuffle(shuffledOptions);
-                
-                // Re-index after shuffle (để FE hiển thị A, B, C, D theo thứ tự mới)
-                for (int i = 0; i < shuffledOptions.size(); i++) {
-                    shuffledOptions.get(i).put("order", i + 1);
-                }
-                
-                shuffledMetadata.put("options", shuffledOptions);
-            }
-            
-            return shuffledMetadata;
-        } catch (JsonProcessingException e) {
-            log.warn("Cannot shuffle options: {}", e.getMessage());
-            return metadata;
-        }
-    }
-
-    /**
-     * Get questions by IDs (for bulk operations)
-     */
-    public List<Question> getQuestionsByIds(List<Long> questionIds) {
-        if (questionIds == null || questionIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return questionRepository.findAllById(questionIds);
-    }
-
-    /**
-     * Validate if all questions belong to specific parent
-     */
-    public void validateQuestionsParent(List<Long> questionIds, ParentType parentType, Long parentId) {
-        List<Question> questions = getQuestionsByIds(questionIds);
-        
-        boolean allMatch = questions.stream()
-                .allMatch(q -> q.getParentType() == parentType && q.getParentId().equals(parentId));
-        
-        if (!allMatch) {
-            throw new RuntimeException(
-                    String.format("Một số câu hỏi không thuộc %s với id %d", parentType, parentId));
-        }
     }
 }

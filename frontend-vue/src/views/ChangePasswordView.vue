@@ -1,57 +1,83 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-dark-bg p-4 flex items-center justify-center">
-    <div class="w-full max-w-lg bg-white dark:bg-[#1d1d1d] rounded-2xl shadow-lg border border-gray-200 dark:border-[#303030] p-8">
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Đổi mật khẩu</h2>
+  <div class="max-w-md mx-auto px-4 py-12">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+      <h2 class="text-2xl font-bold text-center mb-8 text-gray-900 dark:text-white">
+        Đổi mật khẩu
+      </h2>
 
-      <el-alert
-        title="Lưu ý: Sau khi đổi mật khẩu, bạn sẽ cần đăng nhập lại."
-        type="warning"
-        :closable="false"
-        show-icon
-        class="!mb-6"
-      />
-
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="rules"
-        label-position="top"
-        size="large"
-        @submit.prevent="handleChangePassword"
-      >
-        <el-form-item label="Mật khẩu hiện tại" prop="oldPassword">
-          <el-input v-model="formData.oldPassword" type="password" show-password />
-        </el-form-item>
-
-        <el-form-item label="Mật khẩu mới" prop="newPassword">
-          <el-input v-model="formData.newPassword" type="password" placeholder="Tối thiểu 8 ký tự" show-password />
-        </el-form-item>
-
-        <el-form-item label="Xác nhận mật khẩu mới" prop="confirmPassword">
-          <el-input v-model="formData.confirmPassword" type="password" show-password @keyup.enter="handleChangePassword" />
-        </el-form-item>
-
-        <div class="flex flex-col gap-3 mt-8">
-          <el-button
-            type="primary"
-            native-type="submit"
-            :loading="loading"
-            class="!w-full !font-bold"
-          >
-            Đổi mật khẩu
-          </el-button>
-          <el-button @click="$router.back()" class="!w-full !ml-0">
-            Hủy bỏ
-          </el-button>
+      <form @submit.prevent="changePassword" class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Mật khẩu hiện tại
+          </label>
+          <input
+            v-model="form.currentPassword"
+            type="password"
+            class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+            :class="{ 'border-red-500': errors.currentPassword }"
+            placeholder="Nhập mật khẩu cũ"
+          />
+          <p v-if="errors.currentPassword" class="mt-1 text-sm text-red-500">
+            {{ errors.currentPassword }}
+          </p>
         </div>
-      </el-form>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Mật khẩu mới
+          </label>
+          <input
+            v-model="form.newPassword"
+            type="password"
+            class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+            :class="{ 'border-red-500': errors.newPassword }"
+            placeholder="Tối thiểu 8 ký tự"
+          />
+          <p v-if="errors.newPassword" class="mt-1 text-sm text-red-500">
+            {{ errors.newPassword }}
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Xác nhận mật khẩu mới
+          </label>
+          <input
+            v-model="form.confirmPassword"
+            type="password"
+            class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+            :class="{ 'border-red-500': errors.confirmPassword }"
+            placeholder="Nhập lại mật khẩu mới"
+          />
+          <p v-if="errors.confirmPassword" class="mt-1 text-sm text-red-500">
+            {{ errors.confirmPassword }}
+          </p>
+        </div>
+
+        <div class="flex gap-4 pt-4">
+          <button
+            type="submit"
+            :disabled="loading"
+            class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center"
+          >
+            <span v-if="loading" class="animate-spin mr-2">⌛</span>
+            Lưu mật khẩu mới
+          </button>
+
+          <router-link
+            to="/profile"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            Hủy
+          </router-link>
+        </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script setup>
-// Script giữ nguyên
 import { useChangePassword } from '@/composables/auth/useChangePassword'
-const { loading, formRef, formData, rules, changePassword } = useChangePassword()
-const handleChangePassword = async () => await changePassword()
+
+const { form, errors, loading, changePassword } = useChangePassword()
 </script>

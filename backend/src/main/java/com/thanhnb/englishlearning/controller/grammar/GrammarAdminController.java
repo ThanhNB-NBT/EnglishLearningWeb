@@ -1,24 +1,24 @@
 package com.thanhnb.englishlearning.controller.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.*;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
 import com.thanhnb.englishlearning.dto.PaginatedResponse;
-import com.thanhnb.englishlearning.dto.ParseResult;
-import com.thanhnb.englishlearning.dto.grammar.request.ReorderLessonRequest;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
-import com.thanhnb.englishlearning.service.grammar.GrammarAdminService;
-import com.thanhnb.englishlearning.service.ai.grammar.GrammarAIParsingService;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
+import com.thanhnb.englishlearning.service.grammar.GrammarLessonService;
+import com.thanhnb.englishlearning.service.grammar.GrammarQuestionService;
 import com.thanhnb.englishlearning.util.PaginationHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import jakarta.validation.Valid;
 import java.util.*;
 
@@ -30,713 +30,321 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 @RestController
 @RequestMapping("/api/admin/grammar")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
-@Tag(name = "Grammar Admin", description = "API quản lý ngữ pháp (dành cho ADMIN)")
+@PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+@Tag(name = "Grammar Management", description = "API quản lý ngữ pháp (ADMIN và TEACHER)")
 @SecurityRequirement(name = "bearerAuth")
 @Slf4j
 public class GrammarAdminController {
 
-        private final GrammarAdminService grammarAdminService;
-        private final GrammarAIParsingService grammarAIParsingService;
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // GEMINI AI PARSING (PDF/DOCX/Image) - ENHANCED WITH PARSING CONTEXT
-        // ═══════════════════════════════════════════════════════════════════════════
-
-        @PostMapping("/topics/{topicId}/parse-file")
-        @Operation(summary = "Parse file (PDF/DOCX/Image) thành Grammar lessons", description = "Sử dụng AI (Gemini) để phân tích file và tạo lessons với questions. "
-                        +
-                        "Hỗ trợ PDF (có thể chọn pages), DOCX, và Image (JPG/PNG/WEBP). " +
-                        "Có thể thêm Parsing Context để hướng dẫn AI phân tích chính xác hơn.")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> parseFile(
-                        @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
-
-                        @Parameter(description = "File PDF/DOCX/Image (max 20MB)", required = true) @RequestParam("file") MultipartFile file,
-
-                        @Parameter(description = "Danh sách số trang cần parse (chỉ cho PDF). VD: [1,2,3,5,7]. Nếu không có thì parse toàn bộ.") @RequestParam(required = false) List<Integer> pages,
-
-                        @Parameter(description = "✅ Parsing Context: Hướng dẫn cho AI về cách phân tích file. " +
-                                        "VD: 'Parse sections I, II and exercises. Skip section III.'") @RequestParam(required = false) String parsingContext) {
-
-                try {
-                        log.info("📄 Parse file request: file={}, topicId={}, pages={}, hasContext={}",
-                                        file.getOriginalFilename(),
-                                        topicId,
-                                        pages != null ? pages.size() + " selected" : "all",
-                                        parsingContext != null && !parsingContext.trim().isEmpty());
-
-                        if (parsingContext != null && !parsingContext.trim().isEmpty()) {
-                                log.info("📋 Parsing Context provided: {}", parsingContext);
-                        }
-
-                        // ✅ Call service with parsing context
-                        ParseResult result = grammarAIParsingService.parseFileWithContext(
-                                        file,
-                                        topicId,
-                                        pages,
-                                        parsingContext);
-
-                        if (result == null || result.lessons == null || result.lessons.isEmpty()) {
-                                log.warn("⚠️ AI returned empty result");
-                                return ResponseEntity.badRequest()
-                                                .body(CustomApiResponse.badRequest(
-                                                                "AI không trả về lessons nào. Vui lòng kiểm tra nội dung file."));
-                        }
-
-                        // Calculate statistics
-                        long theoryCount = result.lessons.stream()
-                                        .filter(l -> l.getLessonType() != null
-                                                        && "THEORY".equals(l.getLessonType().name()))
-                                        .count();
-
-                        long practiceCount = result.lessons.stream()
-                                        .filter(l -> l.getLessonType() != null
-                                                        && "PRACTICE".equals(l.getLessonType().name()))
-                                        .count();
-
-                        int totalQuestions = result.lessons.stream()
-                                        .filter(l -> l.getCreateQuestions() != null)
-                                        .mapToInt(l -> l.getCreateQuestions().size())
-                                        .sum();
-
-                        // ✅ Count question types
-                        Map<String, Integer> questionTypeStats = new HashMap<>();
-                        result.lessons.forEach(lesson -> {
-                                if (lesson.getCreateQuestions() != null) {
-                                        lesson.getCreateQuestions().forEach(q -> {
-                                                String type = q.getQuestionType().toString();
-                                                questionTypeStats.merge(type, 1, Integer::sum);
-                                        });
-                                }
-                        });
-
-                        Map<String, Object> summary = new HashMap<>();
-                        summary.put("fileName", file.getOriginalFilename());
-                        summary.put("fileSize", String.format("%.2f MB", file.getSize() / (1024.0 * 1024.0)));
-                        summary.put("fileType", file.getContentType());
-                        summary.put("pagesProcessed", pages != null ? pages.size() : "all");
-                        summary.put("topicId", topicId);
-                        summary.put("totalLessons", result.lessons.size());
-                        summary.put("theoryLessons", theoryCount);
-                        summary.put("practiceLessons", practiceCount);
-                        summary.put("totalQuestions", totalQuestions);
-                        summary.put("questionTypeStats", questionTypeStats); // ✅ NEW
-                        summary.put("parsingContextUsed", parsingContext != null && !parsingContext.trim().isEmpty()); // ✅
-                                                                                                                       // NEW
-
-                        Map<String, Object> response = new HashMap<>();
-                        response.put("parsedData", result);
-                        response.put("summary", summary);
-
-                        log.info("Parse success: {} lessons ({} theory, {} practice), {} questions. Types: {}",
-                                        result.lessons.size(), theoryCount, practiceCount, totalQuestions,
-                                        questionTypeStats);
-
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(response,
-                                                        String.format("Phân tích thành công! Tạo được %d bài học với %d câu hỏi.",
-                                                                        result.lessons.size(), totalQuestions)));
-
-                } catch (IllegalArgumentException e) {
-                        log.warn("Invalid request: {}", e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest(e.getMessage()));
-
-                } catch (Exception e) {
-                        log.error("Parse file error: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest(
-                                                        String.format("Lỗi khi parse file: %s",
-                                                                        e.getMessage() != null ? e.getMessage()
-                                                                                        : "Unknown error")));
-                }
-        }
-
-        @PostMapping("/topics/{topicId}/save-parsed-lessons")
-        @Operation(summary = "Lưu parsed lessons vào database", description = "Lưu các bài học đã được parse từ file vào database. "
-                        +
-                        "Tự động tạo lessons và questions với orderIndex đã được adjust.")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> saveParsedLessons(
-                        @Parameter(description = "ID của grammar topic", required = true) @PathVariable Long topicId,
-
-                        @Parameter(description = "ParseResult từ endpoint parse-file", required = true) @RequestBody ParseResult parsedResult) {
-
-                try {
-                        log.info("Saving {} parsed lessons for topicId={}",
-                                        parsedResult.lessons != null ? parsedResult.lessons.size() : 0, topicId);
-
-                        if (parsedResult == null || parsedResult.lessons == null || parsedResult.lessons.isEmpty()) {
-                                log.warn("Empty parsed result");
-                                return ResponseEntity.badRequest()
-                                                .body(CustomApiResponse.badRequest("Không có lesson nào để import"));
-                        }
-
-                        List<String> errors = new ArrayList<>();
-                        for (int i = 0; i < parsedResult.lessons.size(); i++) {
-                                GrammarLessonDTO lesson = parsedResult.lessons.get(i);
-                                if (lesson.getTitle() == null || lesson.getTitle().trim().isEmpty()) {
-                                        errors.add(String.format("Lesson #%d: Missing title", i + 1));
-                                }
-                                if (lesson.getLessonType() == null) {
-                                        errors.add(String.format("Lesson #%d: Missing type", i + 1));
-                                }
-                        }
-
-                        if (!errors.isEmpty()) {
-                                return ResponseEntity.badRequest()
-                                                .body(CustomApiResponse.badRequest(
-                                                                "Invalid lessons: " + String.join(", ", errors)));
-                        }
-
-                        List<GrammarLessonDTO> savedLessons = grammarAdminService.importLessonsFromFile(
-                                        topicId, parsedResult.lessons);
-
-                        if (savedLessons.isEmpty()) {
-                                log.warn("No lessons were saved");
-                                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                                .body(CustomApiResponse
-                                                                .badRequest("Không thể lưu lessons vào database"));
-                        }
-
-                        // Calculate statistics
-                        long theoryCount = savedLessons.stream()
-                                        .filter(l -> l.getLessonType() != null
-                                                        && "THEORY".equals(l.getLessonType().name()))
-                                        .count();
-
-                        long practiceCount = savedLessons.stream()
-                                        .filter(l -> l.getLessonType() != null
-                                                        && "PRACTICE".equals(l.getLessonType().name()))
-                                        .count();
-
-                        int totalQuestionsCreated = savedLessons.stream()
-                                        .mapToInt(GrammarLessonDTO::getQuestionCount)
-                                        .sum();
-
-                        Map<String, Object> summary = new HashMap<>();
-                        summary.put("topicId", topicId);
-                        summary.put("lessonsCreated", savedLessons.size());
-                        summary.put("theoryLessons", theoryCount);
-                        summary.put("practiceLessons", practiceCount);
-                        summary.put("questionsCreated", totalQuestionsCreated);
-
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("summary", summary);
-                        result.put("lessons", savedLessons);
-
-                        log.info("Save success: {} lessons ({} theory, {} practice), {} questions created",
-                                        savedLessons.size(), theoryCount, practiceCount, totalQuestionsCreated);
-
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(result,
-                                                        String.format("Import thành công %d bài học và %d câu hỏi!",
-                                                                        savedLessons.size(), totalQuestionsCreated)));
-
-                } catch (RuntimeException e) {
-                        log.error("Business logic error: {}", e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest(String.format("Lỗi: %s", e.getMessage())));
-
-                } catch (Exception e) {
-                        log.error("Unexpected error: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest(
-                                                        String.format("Lỗi khi lưu bài học: %s",
-                                                                        e.getMessage() != null ? e.getMessage()
-                                                                                        : "Unknown error")));
-                }
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // TOPIC MANAGEMENT
-        // ═══════════════════════════════════════════════════════════════════════════
-
-        @GetMapping("/topics")
-        @Operation(summary = "Lấy tất cả topics với phân trang")
-        public ResponseEntity<CustomApiResponse<PaginatedResponse<GrammarTopicDTO>>> getAllTopics(
-                        @RequestParam(required = false) Integer page,
-                        @RequestParam(required = false) Integer size,
-                        @RequestParam(required = false) String sort) {
-                try {
-                        Pageable pageable = PaginationHelper.createPageable(page, size, sort);
-                        Page<GrammarTopicDTO> topicPage = grammarAdminService.getAllTopicsPaginated(pageable);
-                        PaginatedResponse<GrammarTopicDTO> response = PaginatedResponse.of(topicPage);
-
-                        return ResponseEntity
-                                        .ok(CustomApiResponse.success(response, "Lấy danh sách topics thành công"));
-                } catch (Exception e) {
-                        log.error("Error getting topics: ", e);
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @GetMapping("/topics/{id}")
-        @Operation(summary = "Lấy chi tiết topic")
-        public ResponseEntity<CustomApiResponse<GrammarTopicDTO>> getTopicById(@PathVariable Long id) {
-                try {
-                        GrammarTopicDTO topic = grammarAdminService.getTopicById(id);
-                        return ResponseEntity.ok(CustomApiResponse.success(topic, "Lấy chi tiết thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PostMapping("/topics")
-        @Operation(summary = "Tạo topic mới")
-        public ResponseEntity<CustomApiResponse<GrammarTopicDTO>> createTopic(@Valid @RequestBody GrammarTopicDTO dto) {
-                try {
-                        GrammarTopicDTO created = grammarAdminService.createTopic(dto);
-                        return ResponseEntity.status(HttpStatus.CREATED)
-                                        .body(CustomApiResponse.created(created, "Tạo topic thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PutMapping("/topics/{id}")
-        @Operation(summary = "Cập nhật topic")
-        public ResponseEntity<CustomApiResponse<GrammarTopicDTO>> updateTopic(
-                        @PathVariable Long id, @Valid @RequestBody GrammarTopicDTO dto) {
-                try {
-                        GrammarTopicDTO updated = grammarAdminService.updateTopic(id, dto);
-                        return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @DeleteMapping("/topics/{id}")
-        @Operation(summary = "Xóa topic")
-        public ResponseEntity<CustomApiResponse<String>> deleteTopic(@PathVariable Long id) {
-                try {
-                        grammarAdminService.deleteTopic(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Xóa thành công", "Xóa thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PatchMapping("/topics/{id}/activate")
-        @Operation(summary = "Kích hoạt topic (set isActive = true)")
-        public ResponseEntity<CustomApiResponse<String>> activateTopic(@PathVariable Long id) {
-                try {
-                        grammarAdminService.activateTopic(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Đã kích hoạt topic", "Đã kích hoạt topic"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PatchMapping("/topics/{id}/deactivate")
-        @Operation(summary = "Tắt topic (set isActive = false)")
-        public ResponseEntity<CustomApiResponse<String>> deactivateTopic(@PathVariable Long id) {
-                try {
-                        grammarAdminService.deactivateTopic(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Đã tắt topic", "Đã tắt topic"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @GetMapping("/topics/next-order")
-        @Operation(summary = "Lấy orderIndex tiếp theo cho topic mới")
-        public ResponseEntity<CustomApiResponse<Map<String, Integer>>> getNextTopicOrderIndex() {
-                try {
-                        Integer nextOrder = grammarAdminService.getNextTopicOrderIndex();
-                        Map<String, Integer> result = new HashMap<>();
-                        result.put("nextOrderIndex", nextOrder);
-                        return ResponseEntity.ok(CustomApiResponse.success(result, "Lấy orderIndex thành công"));
-                } catch (Exception e) {
-                        log.error("Error getting next topic orderIndex: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
+        private final GrammarLessonService grammarLessonService;
+        private final GrammarQuestionService grammarQuestionService;
 
         // ═══════════════════════════════════════════════════════════════════════════
         // LESSON MANAGEMENT
         // ═══════════════════════════════════════════════════════════════════════════
 
         @GetMapping("/topics/{topicId}/lessons")
-        @Operation(summary = "Lấy lessons theo topic với phân trang")
+        @Operation(summary = "Lấy danh sách lessons theo topic (có phân trang)")
+        @PreAuthorize("permitAll()")
         public ResponseEntity<CustomApiResponse<PaginatedResponse<GrammarLessonDTO>>> getLessonsByTopic(
                         @PathVariable Long topicId,
-                        @RequestParam(required = false) Integer page,
-                        @RequestParam(required = false) Integer size,
-                        @RequestParam(required = false) String sort) {
+                        @RequestParam(defaultValue = "1") int page,
+                        @RequestParam(defaultValue = "20") int size,
+                        @RequestParam(defaultValue = "orderIndex: asc") String sort) {
+
                 try {
+                        // Tạo Pageable từ PaginationHelper
                         Pageable pageable = PaginationHelper.createPageable(page, size, sort);
-                        Page<GrammarLessonDTO> lessonPage = grammarAdminService.getLessonsByTopicPaginated(topicId,
-                                        pageable);
+
+                        // Lấy Page từ service
+                        Page<GrammarLessonDTO> lessonPage = grammarLessonService.getLessonsByTopic(topicId, pageable);
+
+                        // Convert sang PaginatedResponse bằng factory method
                         PaginatedResponse<GrammarLessonDTO> response = PaginatedResponse.of(lessonPage);
 
-                        return ResponseEntity
-                                        .ok(CustomApiResponse.success(response, "Lấy danh sách lessons thành công"));
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        response,
+                                        "Lấy danh sách lessons thành công"));
+
                 } catch (Exception e) {
                         log.error("Error getting lessons: ", e);
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(CustomApiResponse.error(500, "Lỗi:  " + e.getMessage()));
                 }
         }
 
+        /**
+         * Get lesson by ID
+         * PUBLIC READ ACCESS
+         */
         @GetMapping("/lessons/{lessonId}")
-        @Operation(summary = "Lấy chi tiết lesson")
-        public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> getLessonDetail(@PathVariable Long lessonId) {
+        @Operation(summary = "Lấy chi tiết lesson theo ID")
+        @JsonView(Views.Admin.class)
+        @PreAuthorize("permitAll()")
+        public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> getLessonById(
+                        @Parameter(description = "ID của lesson") @PathVariable Long lessonId) {
+
                 try {
-                        GrammarLessonDTO lesson = grammarAdminService.getLessonDetail(lessonId);
-                        return ResponseEntity.ok(CustomApiResponse.success(lesson, "Lấy chi tiết thành công"));
+                        GrammarLessonDTO lesson = grammarLessonService.getLessonById(lessonId);
+
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        lesson,
+                                        "Lấy lesson thành công"));
+
                 } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                        log.error("Error getting lesson: ", e);
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(CustomApiResponse.error(404,
+                                                        "Không tìm thấy lesson:  " + e.getMessage()));
                 }
         }
 
+        /**
+         * Create new lesson
+         * ADMIN: Can create for any topic
+         * TEACHER: Can only create for assigned topics
+         */
         @PostMapping("/lessons")
-        @Operation(summary = "Tạo lesson mới")
+        @Operation(summary = "Tạo lesson mới", description = "ADMIN có quyền tạo lesson cho mọi topic, TEACHER chỉ tạo cho topic được phân công.")
         public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> createLesson(
-                        @Valid @RequestBody GrammarLessonDTO dto) {
+                        @Parameter(description = "Thông tin lesson cần tạo", required = true) @Valid @RequestBody GrammarLessonDTO lessonDTO) {
+
                 try {
-                        GrammarLessonDTO created = grammarAdminService.createLesson(dto);
+                        // Access validation is done in service layer
+                        GrammarLessonDTO createdLesson = grammarLessonService.createLesson(lessonDTO);
+
+                        log.info("Lesson created: id={}, title={}",
+                                        createdLesson.getId(), createdLesson.getTitle());
+
                         return ResponseEntity.status(HttpStatus.CREATED)
-                                        .body(CustomApiResponse.created(created, "Tạo lesson thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
+                                        .body(CustomApiResponse.created(
+                                                        createdLesson,
+                                                        "Tạo lesson thành công"));
 
-        @PutMapping("/lessons/{id}")
-        @Operation(summary = "Cập nhật lesson")
-        public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> updateLesson(
-                        @PathVariable Long id, @Valid @RequestBody GrammarLessonDTO dto) {
-                try {
-                        GrammarLessonDTO updated = grammarAdminService.updateLesson(id, dto);
-                        return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @DeleteMapping("/lessons/{id}")
-        @Operation(summary = "Xóa lesson")
-        public ResponseEntity<CustomApiResponse<String>> deleteLesson(
-                        @PathVariable Long id,
-                        @RequestParam(required = false, defaultValue = "false") boolean cascade) {
-                try {
-                        grammarAdminService.deleteLesson(id, cascade);
-                        return ResponseEntity.ok(CustomApiResponse.success("Xóa thành công", "Xóa thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PatchMapping("/lessons/{id}/activate")
-        @Operation(summary = "Kích hoạt lesson (set isActive = true)")
-        public ResponseEntity<CustomApiResponse<String>> activateLesson(@PathVariable Long id) {
-                try {
-                        grammarAdminService.activateLesson(id);
-                        return ResponseEntity
-                                        .ok(CustomApiResponse.success("Đã kích hoạt lesson", "Đã kích hoạt lesson"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PatchMapping("/lessons/{id}/deactivate")
-        @Operation(summary = "Tắt lesson (set isActive = false)")
-        public ResponseEntity<CustomApiResponse<String>> deactivateLesson(@PathVariable Long id) {
-                try {
-                        grammarAdminService.deactivateLesson(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Đã tắt lesson", "Đã tắt lesson"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @GetMapping("/topics/{topicId}/lessons/next-order")
-        @Operation(summary = "Lấy orderIndex tiếp theo cho lesson mới")
-        public ResponseEntity<CustomApiResponse<Map<String, Integer>>> getNextLessonOrderIndex(
-                        @PathVariable Long topicId) {
-                try {
-                        Integer nextOrder = grammarAdminService.getNextLessonOrderIndex(topicId);
-                        Map<String, Integer> result = new HashMap<>();
-                        result.put("nextOrderIndex", nextOrder);
-                        return ResponseEntity.ok(CustomApiResponse.success(result, "Lấy orderIndex thành công"));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error getting next lesson orderIndex: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PostMapping("/topics/{topicId}/lessons/reorder")
-        @Operation(summary = "Sắp xếp lại thứ tự lessons")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> reorderLessons(
-                        @PathVariable Long topicId,
-                        @Valid @RequestBody ReorderLessonRequest request) {
-                try {
-                        int affectedCount = grammarAdminService.reorderLessons(
-                                        topicId, request.getInsertPosition(), request.getExcludeLessonId());
-
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("topicId", topicId);
-                        result.put("insertPosition", request.getInsertPosition());
-                        result.put("affectedLessons", affectedCount);
-
-                        return ResponseEntity.ok(CustomApiResponse.success(result,
-                                        "Đã sắp xếp lại " + affectedCount + " bài học"));
                 } catch (IllegalArgumentException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
+                        log.error("Validation error: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(e.getMessage()));
                 } catch (Exception e) {
-                        log.error("Error reordering lessons: ", e);
+                        log.error("Error creating lesson: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi khi sắp xếp lại: " + e.getMessage()));
+                                        .body(CustomApiResponse.error(500, "Lỗi tạo lesson: " + e.getMessage()));
+                }
+        }
+
+        /**
+         * Update lesson
+         * ADMIN: Can update any lesson
+         * TEACHER: Can only update lessons in assigned topics
+         */
+        @PutMapping("/lessons/{lessonId}")
+        @Operation(summary = "Cập nhật lesson", description = "ADMIN có quyền cập nhật mọi lesson, TEACHER chỉ cập nhật lesson trong topic được phân công.")
+        public ResponseEntity<CustomApiResponse<GrammarLessonDTO>> updateLesson(
+                        @Parameter(description = "ID của lesson cần cập nhật") @PathVariable Long lessonId,
+
+                        @Parameter(description = "Thông tin cập nhật", required = true) @Valid @RequestBody GrammarLessonDTO lessonDTO) {
+
+                try {
+                        // Access validation is done in service layer
+                        GrammarLessonDTO updatedLesson = grammarLessonService.updateLesson(lessonId, lessonDTO);
+
+                        log.info("Lesson updated: id={}, title={}",
+                                        updatedLesson.getId(), updatedLesson.getTitle());
+
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        updatedLesson,
+                                        "Cập nhật lesson thành công"));
+
+                } catch (IllegalArgumentException e) {
+                        log.error("Validation error:  {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(e.getMessage()));
+                } catch (Exception e) {
+                        log.error("Error updating lesson: ", e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(CustomApiResponse.error(500, "Lỗi cập nhật lesson: " + e.getMessage()));
+                }
+        }
+
+        /**
+         * Delete lesson
+         * ADMIN: Can delete any lesson
+         * TEACHER: Can only delete lessons in assigned topics
+         */
+        @DeleteMapping("/lessons/{lessonId}")
+        @Operation(summary = "Xóa lesson", description = "ADMIN có quyền xóa mọi lesson, TEACHER chỉ xóa lesson trong topic được phân công.")
+        public ResponseEntity<CustomApiResponse<String>> deleteLesson(
+                        @Parameter(description = "ID của lesson cần xóa") @PathVariable Long lessonId) {
+
+                try {
+                        // Access validation is done in service layer
+                        grammarLessonService.deleteLesson(lessonId);
+
+                        log.info("Lesson deleted: id={}", lessonId);
+
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        "Đã xóa lesson",
+                                        "Xóa lesson thành công"));
+
+                } catch (IllegalArgumentException e) {
+                        log.error("Validation error: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(e.getMessage()));
+                } catch (Exception e) {
+                        log.error("Error deleting lesson: ", e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(CustomApiResponse.error(500, "Lỗi xóa lesson: " + e.getMessage()));
+                }
+        }
+
+        @PostMapping("/lessons/{lessonId}/toggle-status")
+        @Operation(summary = "Toggle trạng thái lesson")
+        public ResponseEntity<CustomApiResponse<String>> toggleLessonStatus(@PathVariable Long lessonId) {
+                try {
+                        grammarLessonService.toggleStatus(lessonId);
+                        return ResponseEntity.ok(CustomApiResponse.success("Đã thay đổi trạng thái", "Thành công"));
+                } catch (Exception e) {
+                        log.error("Error toggling lesson status: ", e);
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest("Lỗi:  " + e.getMessage()));
                 }
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // QUESTION MANAGEMENT (Metadata-based)
+        // QUESTION MANAGEMENT
         // ═══════════════════════════════════════════════════════════════════════════
 
         @GetMapping("/lessons/{lessonId}/questions")
-        @Operation(summary = "Lấy questions theo lesson với phân trang")
-        public ResponseEntity<CustomApiResponse<PaginatedResponse<QuestionResponseDTO>>> getQuestionsByLesson(
-                        @PathVariable Long lessonId,
-                        @RequestParam(required = false) Integer page,
-                        @RequestParam(required = false) Integer size,
-                        @RequestParam(required = false) String sort) {
-                try {
-                        Pageable pageable = PaginationHelper.createPageable(page, size, sort);
-                        Page<QuestionResponseDTO> questionPage = grammarAdminService
-                                        .getQuestionsByLessonPaginated(lessonId, pageable);
-                        PaginatedResponse<QuestionResponseDTO> response = PaginatedResponse.of(questionPage);
-
-                        return ResponseEntity
-                                        .ok(CustomApiResponse.success(response, "Lấy danh sách questions thành công"));
-                } catch (Exception e) {
-                        log.error("Error getting questions: ", e);
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @GetMapping("/questions/{id}")
-        @Operation(summary = "Lấy chi tiết question")
-        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> getQuestionById(@PathVariable Long id) {
-                try {
-                        QuestionResponseDTO question = grammarAdminService.getQuestionById(id);
-                        return ResponseEntity.ok(CustomApiResponse.success(question, "Lấy chi tiết thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PostMapping("/questions")
-        @Operation(summary = "Tạo question mới")
-        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(
-                        @Valid @RequestBody CreateQuestionDTO dto) {
-                try {
-                        QuestionResponseDTO created = grammarAdminService.createQuestion(dto);
-                        return ResponseEntity.status(HttpStatus.CREATED)
-                                        .body(CustomApiResponse.created(created, "Tạo question thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PutMapping("/questions/{id}")
-        @Operation(summary = "Cập nhật question")
-        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> updateQuestion(
-                        @PathVariable Long id, @Valid @RequestBody CreateQuestionDTO dto) {
-                try {
-                        QuestionResponseDTO updated = grammarAdminService.updateQuestion(id, dto);
-                        return ResponseEntity.ok(CustomApiResponse.success(updated, "Cập nhật thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @DeleteMapping("/questions/{id}")
-        @Operation(summary = "Xóa question")
-        public ResponseEntity<CustomApiResponse<String>> deleteQuestion(@PathVariable Long id) {
-                try {
-                        grammarAdminService.deleteQuestion(id);
-                        return ResponseEntity.ok(CustomApiResponse.success("Xóa thành công", "Xóa thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
-
-        @PostMapping("/questions/bulk-delete")
-        @Operation(summary = "Xóa nhiều questions")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> bulkDeleteQuestions(
-                        @RequestBody Map<String, List<Long>> payload) {
-                try {
-                        List<Long> ids = payload.getOrDefault("questionIds", Collections.emptyList());
-                        int deleted = grammarAdminService.bulkDeleteQuestions(ids);
-                        Map<String, Object> result = Map.of("requested", ids.size(), "deleted", deleted);
-                        return ResponseEntity.ok(CustomApiResponse.success(result, "Đã xóa " + deleted + " câu hỏi"));
-                } catch (Exception e) {
-                        log.error("Bulk delete questions error", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi khi xóa hàng loạt: " + e.getMessage()));
-                }
-        }
-
-        @GetMapping("/lessons/{lessonId}/questions/next-order")
-        @Operation(summary = "Lấy orderIndex tiếp theo cho question mới")
-        public ResponseEntity<CustomApiResponse<Map<String, Integer>>> getNextQuestionOrderIndex(
+        @JsonView(Views.Admin.class)
+        @Operation(summary = "Lấy danh sách câu hỏi (Tự động phát hiện cấu trúc nhóm)")
+        public ResponseEntity<CustomApiResponse<TaskGroupedQuestionsDTO>> getQuestionsByLesson(
                         @PathVariable Long lessonId) {
-                try {
-                        Integer nextOrder = grammarAdminService.getNextQuestionOrderIndex(lessonId);
-                        Map<String, Integer> result = new HashMap<>();
-                        result.put("nextOrderIndex", nextOrder);
-                        return ResponseEntity.ok(CustomApiResponse.success(result, "Lấy orderIndex thành công"));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error getting next question orderIndex: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                // Hàm này trong Service sẽ tự check:
+                // - Nếu không có nhóm: trả về standaloneQuestions (List phẳng)
+                // - Nếu có nhóm: trả về tasks
+                TaskGroupedQuestionsDTO questions = grammarQuestionService.getGroupedQuestions(lessonId);
+                return ResponseEntity.ok(CustomApiResponse.success(questions));
+        }
+
+        @GetMapping("/lessons/{lessonId}/task-stats")
+        @Operation(summary = "Lấy thống kê về các nhóm Task")
+        public ResponseEntity<CustomApiResponse<Map<String, Object>>> getTaskStats(
+                        @PathVariable Long lessonId) {
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                grammarQuestionService.getTaskStats(lessonId)));
+        }
+
+        // ==================== CRUD OPERATIONS (Giữ nguyên) ====================
+
+        @PostMapping("/lessons/{lessonId}/questions")
+        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> createQuestion(
+                        @PathVariable Long lessonId,
+                        @Valid @RequestBody CreateQuestionDTO dto) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(CustomApiResponse.success(
+                                                grammarQuestionService.createQuestion(lessonId, dto),
+                                                "Tạo thành công"));
         }
 
         @PostMapping("/lessons/{lessonId}/questions/bulk")
-        @Operation(summary = "Tạo nhiều questions cùng lúc")
-        public ResponseEntity<CustomApiResponse<List<QuestionResponseDTO>>> createQuestionsInBulk(
+        public ResponseEntity<CustomApiResponse<List<QuestionResponseDTO>>> createQuestionsBulk(
                         @PathVariable Long lessonId,
-                        @RequestBody List<CreateQuestionDTO> questions) {
-                try {
-                        List<QuestionResponseDTO> created = grammarAdminService.createQuestionsInBulk(lessonId,
-                                        questions);
-                        return ResponseEntity.status(HttpStatus.CREATED)
-                                        .body(CustomApiResponse.created(created,
-                                                        "Tạo thành công " + created.size() + " questions"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                        @Valid @RequestBody List<CreateQuestionDTO> dtos) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(CustomApiResponse.success(
+                                                grammarQuestionService.createQuestionsInBulk(lessonId, dtos),
+                                                "Tạo hàng loạt thành công"));
         }
 
-        @PostMapping("/lessons/{sourceLessonId}/copy-to/{targetLessonId}")
-        @Operation(summary = "Copy questions giữa lessons")
-        public ResponseEntity<CustomApiResponse<String>> copyQuestions(
-                        @PathVariable Long sourceLessonId,
-                        @PathVariable Long targetLessonId) {
-                try {
-                        grammarAdminService.copyQuestionsToLesson(sourceLessonId, targetLessonId);
-                        return ResponseEntity.ok(CustomApiResponse.success("Copy questions thành công",
-                                        "Copy questions thành công"));
-                } catch (Exception e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+        @PutMapping("/questions/{id}")
+        public ResponseEntity<CustomApiResponse<QuestionResponseDTO>> updateQuestion(
+                        @PathVariable Long id,
+                        @Valid @RequestBody CreateQuestionDTO dto) {
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                grammarQuestionService.updateQuestion(id, dto),
+                                "Cập nhật thành công"));
         }
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // VALIDATION ENDPOINTS (Health check / Maintenance)
-        // ═══════════════════════════════════════════════════════════════════════════
-
-        @PostMapping("/topics/validate-all-order")
-        @Operation(summary = "Validate và fix orderIndex của tất cả topics")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateAllTopicsOrder() {
-                try {
-                        Map<String, Object> result = grammarAdminService.validateAllTopicsOrderIndex();
-                        String message = result.get("issuesFixed").equals(0)
-                                        ? "OrderIndex của topics đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("issuesFixed") + " vấn đề orderIndex trong topics";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (Exception e) {
-                        log.error("Error validating all topics order: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+        @DeleteMapping("/questions/{id}")
+        public ResponseEntity<CustomApiResponse<Void>> deleteQuestion(@PathVariable Long id) {
+                grammarQuestionService.deleteQuestion(id);
+                return ResponseEntity.ok(CustomApiResponse.success(null, "Xóa thành công"));
         }
 
-        @PostMapping("/topics/{topicId}/lessons/validate-order")
-        @Operation(summary = "Validate và fix orderIndex của lessons trong topic")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateLessonOrder(@PathVariable Long topicId) {
-                try {
-                        Map<String, Object> result = grammarAdminService.validateLessonsOrderIndex(topicId);
-                        String message = result.get("issuesFixed").equals(0)
-                                        ? "OrderIndex của lessons đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("issuesFixed") + " vấn đề orderIndex trong lessons";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error validating lesson order: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+        @DeleteMapping("/questions/bulk")
+        public ResponseEntity<CustomApiResponse<Void>> bulkDeleteQuestions(@RequestBody List<Long> ids) {
+                grammarQuestionService.bulkDeleteQuestions(ids);
+                return ResponseEntity.ok(CustomApiResponse.success(null, "Đã xóa các câu hỏi"));
         }
 
-        @PostMapping("/lessons/validate-all-order")
-        @Operation(summary = "Validate và fix orderIndex của tất cả lessons")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateAllLessonsOrder() {
-                try {
-                        Map<String, Object> result = grammarAdminService.validateAllLessonsOrderIndex();
-                        String message = result.get("totalIssuesFixed").equals(0)
-                                        ? "OrderIndex của tất cả lessons đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("totalIssuesFixed") + " vấn đề orderIndex trong "
-                                                        + result.get("totalLessons") + " lessons";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (Exception e) {
-                        log.error("Error validating all lessons order: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
-        }
+        // ==================== UTILS ====================
 
-        @PostMapping("/lessons/{lessonId}/questions/validate-order")
-        @Operation(summary = "Validate và fix orderIndex của questions trong lesson")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateQuestionOrder(
+        @GetMapping("/lessons/{lessonId}/questions/next-order")
+        public ResponseEntity<CustomApiResponse<Map<String, Integer>>> getNextQuestionOrder(
                         @PathVariable Long lessonId) {
-                try {
-                        Map<String, Object> result = grammarAdminService.validateQuestionsOrderIndex(lessonId);
-                        String message = result.get("issuesFixed").equals(0)
-                                        ? "OrderIndex của questions đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("issuesFixed") + " vấn đề orderIndex trong questions";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error validating question order: ", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                Integer next = grammarQuestionService.getNextOrderIndex(lessonId);
+                return ResponseEntity.ok(CustomApiResponse.success(Map.of("nextOrderIndex", next)));
         }
 
-        @PostMapping("/topics/{topicId}/questions/validate-all-order")
-        @Operation(summary = "Validate và fix orderIndex của tất cả questions trong topic")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateAllQuestionsInTopic(
+        @PostMapping("/lessons/{lessonId}/questions/fix-order")
+        public ResponseEntity<CustomApiResponse<Void>> fixQuestionOrder(@PathVariable Long lessonId) {
+                grammarQuestionService.fixOrderIndexes(lessonId);
+                return ResponseEntity.ok(CustomApiResponse.success(null, "Đã sắp xếp lại thứ tự"));
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ORDER MANAGEMENT (DELEGATE TO LESSON SERVICE)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        @PostMapping("/topics/{topicId}/lessons/fix-order")
+        @Operation(summary = "Chuẩn hóa orderIndex của lessons trong topic")
+        public ResponseEntity<CustomApiResponse<String>> fixLessonOrder(
                         @PathVariable Long topicId) {
+
                 try {
-                        Map<String, Object> result = grammarAdminService.validateAllQuestionsInTopic(topicId);
-                        String message = result.get("totalIssuesFixed").equals(0)
-                                        ? "OrderIndex của tất cả questions đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("totalIssuesFixed") + " vấn đề orderIndex trong "
-                                                        + result.get("totalQuestions") + " questions";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
-                } catch (RuntimeException e) {
-                        return ResponseEntity.badRequest().body(CustomApiResponse.badRequest(e.getMessage()));
+                        // Delegate to GrammarLessonService
+                        grammarLessonService.fixOrderIndexes(topicId);
+
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        "Đã chuẩn hóa orderIndex",
+                                        "Chuẩn hóa thành công"));
+
+                } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(e.getMessage()));
                 } catch (Exception e) {
-                        log.error("Error validating all questions in topic: ", e);
+                        log.error("Error fixing lesson order: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                                        .body(CustomApiResponse.error(500,
+                                                        "Lỗi chuẩn hóa orderIndex: " + e.getMessage()));
                 }
         }
 
-        @PostMapping("/questions/validate-all-order")
-        @Operation(summary = "Validate và fix orderIndex của TẤT CẢ questions")
-        public ResponseEntity<CustomApiResponse<Map<String, Object>>> validateAllQuestionsOrder() {
+        // ═══════════════════════════════════════════════════════════════════════════
+        // UTILITY ENDPOINTS
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        @GetMapping("/topics/{topicId}/lessons/next-order")
+        @Operation(summary = "Lấy orderIndex tiếp theo cho lesson mới")
+        public ResponseEntity<CustomApiResponse<Integer>> getNextOrderIndex(
+                        @PathVariable Long topicId) {
+
                 try {
-                        Map<String, Object> result = grammarAdminService.validateAllQuestionsOrderIndex();
-                        String message = result.get("totalIssuesFixed").equals(0)
-                                        ? "OrderIndex của tất cả questions đã đúng, không cần fix"
-                                        : "Đã fix " + result.get("totalIssuesFixed") + " vấn đề orderIndex trong "
-                                                        + result.get("totalQuestions") + " questions";
-                        return ResponseEntity.ok(CustomApiResponse.success(result, message));
+
+                        // Delegate to GrammarLessonService
+                        Integer nextOrder = grammarLessonService.getNextOrderIndex(topicId);
+
+                        return ResponseEntity.ok(CustomApiResponse.success(
+                                        nextOrder,
+                                        "Lấy orderIndex tiếp theo thành công"));
+
+                } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest()
+                                        .body(CustomApiResponse.badRequest(e.getMessage()));
                 } catch (Exception e) {
-                        log.error("Error validating all questions order: ", e);
+                        log.error("Error getting next order: ", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
+                                        .body(CustomApiResponse.error(500, "Lỗi:  " + e.getMessage()));
                 }
         }
 }

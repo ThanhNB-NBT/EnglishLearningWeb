@@ -1,92 +1,83 @@
 <template>
-  <div class="w-full flex flex-col h-full">
-    <div class="mb-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-      <div class="flex gap-3 items-center flex-wrap">
+  <div class="w-full">
+    <div
+      class="mb-5 flex flex-wrap gap-3 items-center bg-white dark:bg-[#1d1d1d] p-4 rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm"
+    >
+      <div class="flex-1 flex flex-wrap gap-3 min-w-[300px]">
+        <el-select
+          v-model="selectedTopicId"
+          placeholder="Chọn Topic..."
+          filterable
+          class="!w-64"
+          @change="handleTopicChange"
+        >
+          <el-option
+            v-for="topic in topicsList"
+            :key="topic.id"
+            :label="topic.name"
+            :value="topic.id"
+          >
+            <span class="float-left">{{ topic.name }}</span>
+            <el-tag size="small" type="info" class="float-right ml-2">{{
+              topic.levelRequired
+            }}</el-tag>
+          </el-option>
+        </el-select>
+
         <el-input
           v-model="searchQuery"
-          placeholder="Tìm kiếm bài nghe..."
+          placeholder="Tìm bài học..."
           :prefix-icon="Search"
           clearable
-          class="w-full sm:w-64"
+          class="!w-60"
         />
-
-        <el-select v-model="filterDifficulty" placeholder="Độ khó" clearable class="!w-40">
-          <el-option label="Tất cả" value="" />
-          <el-option label="Dễ" value="BEGINNER" />
-          <el-option label="Trung bình" value="INTERMEDIATE" />
-          <el-option label="Khó" value="ADVANCED" />
-        </el-select>
-
-        <el-select v-model="filterStatus" placeholder="Trạng thái" clearable class="!w-40">
-          <el-option label="Tất cả" value="" />
-          <el-option label="Kích hoạt" :value="true" />
-          <el-option label="Ẩn" :value="false" />
-        </el-select>
       </div>
 
       <div class="flex gap-2">
-        <el-button type="primary" :icon="Plus" @click="handleCreate" class="!rounded-lg font-bold">
-          Thêm bài nghe
+        <el-button
+          type="primary"
+          :icon="Plus"
+          @click="handleCreate"
+          :disabled="!selectedTopicId"
+          class="!rounded-lg font-bold"
+        >
+          Tạo Mới
         </el-button>
-        <el-button :icon="Refresh" @click="loadLessons" circle />
-        <el-dropdown trigger="click" @command="handleDropdownCommand">
-          <el-button :icon="MoreFilled" circle />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="validate" :icon="Setting">
-                Validate OrderIndex
-              </el-dropdown-item>
-              <el-dropdown-item command="healthCheck" :icon="CircleCheck">
-                Health Check
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <el-button :icon="Refresh" @click="handleRefresh" :disabled="!selectedTopicId" circle />
+        <el-button :icon="Tools" @click="handleValidateOrder" :disabled="!selectedTopicId" circle />
       </div>
     </div>
 
     <el-empty
-      v-if="!lessons || lessons.length === 0"
-      description="Chưa có bài nghe nào"
+      v-if="!selectedTopicId"
+      description="Vui lòng chọn Topic để xem danh sách"
       :image-size="120"
-    >
-      <el-button type="primary" @click="handleCreate">Tạo bài nghe đầu tiên</el-button>
-    </el-empty>
+    />
 
     <el-card
       v-else
       shadow="never"
-      class="!border-gray-300 dark:!border-gray-700 !rounded-xl !overflow-hidden flex flex-col"
-      :body-style="{ padding: '0px', flex: '1', display: 'flex', flexDirection: 'column' }"
+      class="!border-gray-300 dark:!border-gray-700 !rounded-xl overflow-hidden"
+      :body-style="{ padding: '0px' }"
     >
       <el-table
         :data="paginatedLessons"
-        v-loading="loading"
+        v-loading="lessonsLoading"
         style="width: 100%"
-        border
-        stripe
         row-key="id"
+        stripe
         :header-cell-style="{ background: '#f9fafb', color: '#6b7280', fontWeight: '600' }"
       >
-        <el-table-column label="STT" width="70" align="center" fixed="left">
+        <el-table-column label="STT" width="60" align="center">
           <template #default="{ row }">
-            <span class="text-gray-500 font-mono text-sm font-bold">{{ row.orderIndex }}</span>
+            <span class="text-gray-500 font-mono text-xs">{{ row.orderIndex }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="Bài nghe" min-width="350">
+        <el-table-column label="Thông tin bài học" min-width="300">
           <template #default="{ row }">
-            <div class="py-2 flex flex-col gap-2">
-              <div class="flex items-center gap-2">
-                <el-tag
-                  :type="getDifficultyType(row.difficulty)"
-                  effect="dark"
-                  size="small"
-                  class="!rounded uppercase !text-[10px] !h-5 !px-2 tracking-wider"
-                >
-                  {{ getDifficultyLabel(row.difficulty) }}
-                </el-tag>
-
+            <div class="py-2">
+              <div class="flex items-center gap-2 mb-1.5">
                 <span
                   class="font-bold text-gray-800 dark:text-gray-100 text-[15px] hover:text-blue-600 transition-colors cursor-pointer"
                   @click="handleViewDetail(row)"
@@ -97,26 +88,14 @@
 
               <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 <span class="flex items-center gap-1">
-                  <el-icon><Timer /></el-icon>
-                  {{ formatTime(row.timeLimitSeconds) }}
+                  <el-icon><Timer /></el-icon> {{ formatTime(row.timeLimitSeconds) }}
                 </span>
-
-                <span
-                  class="flex items-center gap-1"
-                  :class="row.audioUrl ? 'text-green-600' : 'text-gray-400'"
-                >
-                  <el-icon><Headset /></el-icon>
-                  {{ row.audioUrl ? 'Có Audio' : 'Chưa có Audio' }}
-                </span>
-
                 <span
                   v-if="row.questionCount > 0"
                   class="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-1.5 rounded"
                 >
-                  <el-icon><QuestionFilled /></el-icon>
-                  {{ row.questionCount }} câu hỏi
+                  <el-icon><QuestionFilled /></el-icon> {{ row.questionCount }} câu hỏi
                 </span>
-
                 <span
                   class="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium"
                 >
@@ -133,7 +112,6 @@
               v-model="row.isActive"
               size="small"
               @change="handleToggleActive(row)"
-              @click.stop
               style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
             />
           </template>
@@ -147,20 +125,13 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu class="min-w-[160px]">
-                  <el-dropdown-item command="questions" :icon="QuestionFilled">
-                    Quản lý câu hỏi
-                  </el-dropdown-item>
-                  <el-dropdown-item command="edit" :icon="Edit">
-                    Chỉnh sửa bài nghe
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="delete"
-                    :icon="Delete"
-                    divided
-                    class="!text-red-500 hover:!bg-red-50"
+                  <el-dropdown-item command="questions" :icon="QuestionFilled"
+                    >Quản lý câu hỏi</el-dropdown-item
                   >
-                    Xóa bài nghe
-                  </el-dropdown-item>
+                  <el-dropdown-item command="edit" :icon="Edit" divided>Chỉnh sửa</el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Delete" class="!text-red-500"
+                    >Xóa bài học</el-dropdown-item
+                  >
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -168,277 +139,181 @@
         </el-table-column>
       </el-table>
 
-      <div
-        class="py-3 px-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1d] flex justify-end"
-      >
+      <div v-if="filteredLessons.length > 0" class="flex justify-center p-4">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="filteredLessons.length"
-          layout="total, sizes, prev, pager, next, jumper"
+          layout="total, sizes, prev, pager, next"
+          background
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <LessonFormDialog ref="lessonFormRef" @success="handleFormSuccess" />
+    <LessonFormDialog ref="lessonFormRef" :topic-id="selectedTopicId" @success="loadLessons" />
 
-    <!-- DETAIL DIALOG - FIXED AUDIO & TEXT DISPLAY -->
     <el-dialog
-      v-model="detailVisible"
-      title="Chi tiết bài nghe"
-      width="900px"
-      align-center
+      v-model="previewVisible"
+      title="Chi tiết bài học Listening"
+      width="70%"
+      top="5vh"
       destroy-on-close
-      class="!rounded-xl"
     >
-      <div v-if="detailLesson" class="space-y-4">
-        <div class="flex items-center justify-between">
-          <h3 class="text-xl font-bold">{{ detailLesson.title }}</h3>
-          <el-tag :type="getDifficultyType(detailLesson.difficulty)" effect="dark">
-            {{ getDifficultyLabel(detailLesson.difficulty) }}
-          </el-tag>
-        </div>
-
-        <div class="flex gap-4 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
-          <span><strong>Thời gian:</strong> {{ formatTime(detailLesson.timeLimitSeconds) }}</span>
-          <span><strong>Điểm thưởng:</strong> +{{ detailLesson.pointsReward }}</span>
-          <span><strong>Câu hỏi:</strong> {{ detailLesson.questionCount || 0 }}</span>
-          <span>
-            <strong>Nghe lại:</strong>
-            {{
-              detailLesson.allowUnlimitedReplay
-                ? 'Không giới hạn'
-                : detailLesson.maxReplayCount + ' lần'
-            }}
-          </span>
-        </div>
-
-        <!-- AUDIO PLAYER - FIXED -->
-        <div v-if="detailLesson.audioUrl" class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-          <div
-            class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"
-          >
-            <el-icon><Headset /></el-icon>
-            Audio File
-          </div>
-          <audio
-            controls
-            class="w-full"
-            :key="detailLesson.id"
-            controlsList="nodownload"
-            preload="metadata"
-          >
-            <source :src="getAudioUrl(detailLesson.audioUrl)" type="audio/mpeg" />
-            <source :src="getAudioUrl(detailLesson.audioUrl)" type="audio/mp3" />
-            <source :src="getAudioUrl(detailLesson.audioUrl)" type="audio/wav" />
-            Trình duyệt của bạn không hỗ trợ phát âm thanh.
-          </audio>
-          <div class="mt-2 text-xs text-gray-500">📂 {{ detailLesson.audioUrl }}</div>
-        </div>
-        <el-alert
-          v-else
-          title="Bài học này chưa có file âm thanh"
-          type="warning"
-          :closable="false"
-          show-icon
-        />
-
-        <!-- TRANSCRIPT TABS - FIXED TEXT DISPLAY -->
-        <el-tabs type="border-card" class="!rounded-lg">
-          <el-tab-pane label="📜 Script (Tiếng Anh)">
-            <div
-              v-if="detailLesson.transcript"
-              class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
-            >
-              {{ formatTranscript(detailLesson.transcript) }}
-            </div>
-            <el-empty v-else description="Chưa có transcript" :image-size="60" />
-          </el-tab-pane>
-
-          <el-tab-pane label="🇻🇳 Bản dịch (Tiếng Việt)">
-            <div
-              v-if="detailLesson.transcriptTranslation"
-              class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
-            >
-              {{ formatTranscript(detailLesson.transcriptTranslation) }}
-            </div>
-            <el-empty v-else description="Chưa có bản dịch" :image-size="60" />
-          </el-tab-pane>
-        </el-tabs>
-
-        <!-- DEBUG INFO (có thể xóa sau khi test) -->
-        <el-collapse>
-          <el-collapse-item title="🔍 Debug Info" name="debug">
-            <div
-              class="text-xs font-mono bg-gray-900 text-green-400 p-3 rounded overflow-auto max-h-40"
-            >
-              <div><strong>Audio URL:</strong> {{ getAudioUrl(detailLesson.audioUrl) }}</div>
-              <div><strong>Raw audioUrl:</strong> {{ detailLesson.audioUrl }}</div>
-              <div><strong>Lesson ID:</strong> {{ detailLesson.id }}</div>
-            </div>
-          </el-collapse-item>
-        </el-collapse>
-      </div>
+      <LessonPreview v-if="previewLesson" :lesson="previewLesson" />
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useListeningAdminStore } from '@/stores/admin/listeningAdmin'
+import { useTopicStore } from '@/composables/useTopicStore'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import {
   Plus,
   Refresh,
-  Delete,
-  Search,
+  Tools,
   Edit,
-  MoreFilled,
-  QuestionFilled,
+  Delete,
   Timer,
-  Setting,
-  CircleCheck,
-  Headset,
+  QuestionFilled,
+  Search,
+  MoreFilled,
 } from '@element-plus/icons-vue'
-import { useListeningStore } from '@/stores/listening'
-import { useListeningLessonList } from '@/composables/listening/useListeningLessons'
 import LessonFormDialog from './LessonFormDialog.vue'
-import apiClient from '@/api/config'
-import { formatTranscript, formatTime } from '@/utils/textFormatter'
+import LessonPreview from './LessonPreview.vue'
 
-// Logic lấy URL Backend từ API client
-const SERVER_HOST =
-  apiClient.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8980'
-
+const props = defineProps({ initTopicId: Number })
 const emit = defineEmits(['view-questions'])
 
-const store = useListeningStore()
+const listeningStore = useListeningAdminStore()
+const topicOps = useTopicStore('LISTENING')
+
 const lessonFormRef = ref(null)
-
-// Use composable
-const {
-  loading,
-  lessons,
-  searchQuery,
-  filterDifficulty,
-  filterStatus,
-  filteredLessons,
-  loadLessons,
-  deleteLesson,
-  toggleStatus,
-  validateLessonsOrder,
-  healthCheck,
-  getDifficultyType,
-  getDifficultyLabel,
-} = useListeningLessonList()
-
-// State
+const selectedTopicId = ref(null)
 const currentPage = ref(1)
 const pageSize = ref(10)
-const detailVisible = ref(false)
-const detailLesson = ref(null)
+const searchQuery = ref('')
+const previewVisible = ref(false)
+const previewLesson = ref(null)
+
+const topicsList = computed(() => topicOps.topics.value?.filter((t) => t?.id && t?.name) || [])
+const lessonsLoading = computed(() => listeningStore.lessonsLoading)
+
+const filteredLessons = computed(() => {
+  let result = [...(listeningStore.lessons || [])]
+  if (searchQuery.value.trim()) {
+    result = result.filter((l) => l.title?.toLowerCase().includes(searchQuery.value.toLowerCase()))
+  }
+  return result
+})
 
 const paginatedLessons = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return filteredLessons.value.slice(start, start + pageSize.value)
 })
 
-// Handlers
-const handleFormSuccess = async () => await loadLessons({ size: 1000 })
+const handleCreate = () => lessonFormRef.value?.openCreate()
+const handleEdit = (lesson) => lessonFormRef.value?.openEdit(lesson)
+const handleViewDetail = async (row) => {
+  try {
+    const fullLesson = await listeningStore.fetchLessonDetail(row.id)
+    previewLesson.value = fullLesson
+    previewVisible.value = true
+  } catch (e) {
+    ElMessage.error('Không thể tải chi tiết bài học')
+    console.error(e)
+  }
+}
+const handleDelete = async (lesson) => {
+  try {
+    await ElMessageBox.confirm(`Bạn có chắc muốn xóa "${lesson.title}"?`, 'Xác nhận xóa', {
+      type: 'warning',
+      confirmButtonText: 'Xóa',
+    })
+    await listeningStore.deleteLesson(lesson.id)
+    await loadLessons()
+  } catch (e) {
+    console.error(e)
+  }
+}
+const handleToggleActive = async (row) => {
+  try {
+    await listeningStore.toggleLessonStatus(row.id)
+  } catch (e) {
+    ElMessage.error('Cập nhật trạng thái thất bại')
+    // Revert switch
+    row.isActive = !row.isActive
+    console.error(e)
+  }
+}
+const handleActionCommand = (cmd, row) => {
+  if (cmd === 'questions') emit('view-questions', row)
+  else if (cmd === 'edit') handleEdit(row)
+  else if (cmd === 'delete') handleDelete(row)
+}
+
+const loadLessons = async () => {
+  if (selectedTopicId.value)
+    await listeningStore.fetchLessons(selectedTopicId.value, { size: 1000 })
+}
+const handleTopicChange = (val) => {
+  selectedTopicId.value = val
+  if (val) loadLessons()
+  else listeningStore.lessons = []
+}
+const handleRefresh = () => loadLessons()
+const handleValidateOrder = async () => {
+  try {
+    await ElMessageBox.confirm('Sắp xếp lại thứ tự bài học?', 'Xác nhận', { type: 'info' })
+    await listeningStore.fixLessonOrder(selectedTopicId.value)
+    ElMessage.success('Đã chuẩn hóa thứ tự')
+    await loadLessons()
+  } catch (e) {
+    console.log(e)
+    /* ignore */
+  }
+}
+
+const formatTime = (seconds) => {
+  if (!seconds) return '0s'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m}p ${s}s` : `${s}s`
+}
 
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
 }
-
 const handlePageChange = (val) => (currentPage.value = val)
 
-const handleCreate = () => lessonFormRef.value?.openCreate()
+watch(
+  () => props.initTopicId,
+  (val) => {
+    if (val) {
+      selectedTopicId.value = val
+      loadLessons()
+    }
+  },
+  { immediate: true },
+)
 
-const handleViewDetail = async (row) => {
+onMounted(async () => {
   try {
-    const lesson = await store.fetchLessonById(row.id)
-    detailLesson.value = lesson
-    detailVisible.value = true
-  } catch (error) {
-    ElMessage.error('Không thể tải chi tiết bài nghe')
-    console.error(error)
+    await topicOps.fetchTopics({ size: 100 })
+  } catch (e) {
+    ElMessage.error('Lỗi tải danh sách chủ đề')
+    console.error(e)
   }
-}
-
-const handleToggleActive = async (lesson) => {
-  try {
-    await toggleStatus(lesson)
-  } catch (error) {
-    // Revert on error
-    lesson.isActive = !lesson.isActive
-    ElMessage.error('Không thể cập nhật trạng thái')
-    console.error('Toggle active failed:', error)
-  }
-}
-
-const handleActionCommand = (cmd, row) => {
-  if (cmd === 'questions') emit('view-questions', row)
-  if (cmd === 'edit') lessonFormRef.value?.openEdit(row)
-  if (cmd === 'delete') handleDeleteLesson(row)
-}
-
-const handleDeleteLesson = async (lesson) => {
-  await deleteLesson(lesson)
-  await loadLessons({ size: 1000 })
-}
-
-const handleDropdownCommand = async (cmd) => {
-  if (cmd === 'validate') {
-    await validateLessonsOrder()
-  }
-  if (cmd === 'healthCheck') {
-    await healthCheck()
-  }
-}
-
-// Helpers
-const getAudioUrl = (path) => {
-  if (!path) return ''
-
-  // Nếu path đã là full URL
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path
-  }
-
-  // Loại bỏ dấu / ở đầu nếu có
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path
-
-  // Nếu path không có prefix media/, thêm vào
-  if (!cleanPath.startsWith('media/')) {
-    return `${SERVER_HOST}/media/${cleanPath}`
-  }
-
-  return `${SERVER_HOST}/${cleanPath}`
-}
-
-// Lifecycle
-onMounted(() => loadLessons({ size: 1000 }))
+})
 </script>
 
 <style scoped>
-/* Audio player custom styling */
-audio {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-}
-
-audio::-webkit-media-controls-panel {
-  background-color: #f3f4f6;
-}
-
-/* Transcript text styling */
-.whitespace-pre-wrap {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 14px;
-  line-height: 1.8;
+.rotate-90 {
+  transform: rotate(90deg);
 }
 </style>

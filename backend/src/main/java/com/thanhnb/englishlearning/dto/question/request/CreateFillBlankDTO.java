@@ -9,6 +9,9 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
+
 import java.util.List;
 
 @Data
@@ -16,14 +19,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "DTO cho câu hỏi Điền từ (Hỗ trợ cả Word Bank)")
-public class CreateFillBlankDTO extends CreateQuestionDTO {
+public class CreateFillBlankDTO extends QuestionData {
 
     @NotEmpty(message = "Danh sách chỗ trống (blanks) không được để trống")
     @Valid
+    @JsonView(Views.Public.class)
     private List<BlankDTO> blanks;
 
     @Schema(description = "Danh sách từ cho trước (Word Bank). Nếu có, user sẽ kéo thả/chọn thay vì gõ.")
-    private List<String> wordBank; 
+    @JsonView(Views.Public.class)
+    private List<String> wordBank;
 
 
     @Data
@@ -31,12 +36,15 @@ public class CreateFillBlankDTO extends CreateQuestionDTO {
     @AllArgsConstructor
     public static class BlankDTO {
         @NotNull(message = "Vị trí không được null")
+        @JsonView(Views.Public.class)
         private Integer position;
 
         @NotEmpty(message = "Phải có ít nhất 1 đáp án đúng")
+        @JsonView(Views.Admin.class)
         private List<String> correctAnswers;
         
         // Thêm hint cho Verb Form nếu muốn gộp chung
-        private String hint; 
+        @JsonView(Views.Public.class)
+        private String hint;
     }
 }

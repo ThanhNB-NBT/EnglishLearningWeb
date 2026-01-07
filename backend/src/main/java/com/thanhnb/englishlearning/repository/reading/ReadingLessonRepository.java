@@ -15,10 +15,14 @@ public interface ReadingLessonRepository extends JpaRepository<ReadingLesson, Lo
 
         Page<ReadingLesson> findAllByIsActiveTrueOrderByOrderIndexAsc(Pageable pageable);
 
+        Page<ReadingLesson> findByTopicId(Long topicId, Pageable pageable);
+
         /**
          * Tìm tất cả lessons active, sắp xếp theo orderIndex
          */
         List<ReadingLesson> findAllByIsActiveTrueOrderByOrderIndexAsc();
+
+        List<ReadingLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId);
 
         // ==================== EXISTENCE CHECKS ====================
 
@@ -40,6 +44,8 @@ public interface ReadingLessonRepository extends JpaRepository<ReadingLesson, Lo
          */
         long countByIsActiveTrue();
 
+        long countByTopicIdAndIsActiveTrue(Long topicId);
+
         /**
          * Đếm tổng số lessons
          */
@@ -49,8 +55,8 @@ public interface ReadingLessonRepository extends JpaRepository<ReadingLesson, Lo
         /**
          * Lấy orderIndex lớn nhất hiện có
          */
-        @Query("SELECT MAX(l.orderIndex) FROM ReadingLesson l")
-        Integer findMaxOrderIndex();
+        @Query("SELECT MAX(l.orderIndex) FROM ReadingLesson l WHERE l.topic.id = :topicId")
+        Integer findMaxOrderIndexByTopicId(@Param("topicId") Long topicId);
 
         /**
          * Lấy lesson đầu tiên (orderIndex nhỏ nhất)

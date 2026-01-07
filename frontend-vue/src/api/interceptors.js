@@ -1,8 +1,29 @@
-// File: src/api/interceptors.js - DEBUG VERSION
+// File: src/api/interceptors.js - ENHANCED VERSION
 import apiClient from './config'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import router from '@/router'
+
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 200
+
+// Helper to check if error is optimistic lock related
+function isOptimisticLockError(error) {
+  if (error.response?.status === 409) return true
+
+  const message = error.response?.data?.message || ''
+  const lowerMessage = message.toLowerCase()
+
+  return (
+    lowerMessage.includes('optimistic') ||
+    lowerMessage.includes('updated or deleted by another transaction') ||
+    lowerMessage.includes('objectoptimisticlockingfailureexception') ||
+    lowerMessage.includes('row was updated or deleted')
+  )
+}
+
+// Delay function for retry
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function setupInterceptors() {
   // ==================== REQUEST INTERCEPTOR ====================
@@ -24,18 +45,19 @@ export function setupInterceptors() {
         return config
       }
 
+      // Initialize retry count
+      if (!config.retryCount) {
+        config.retryCount = 0
+      }
+
       // Determine which token to use
       const isAdminRoute = router.currentRoute.value.path.startsWith('/admin')
       const token = isAdminRoute ? authStore.adminToken : authStore.userToken
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
-        console.log('TOKEN ADDED')
-      } else {
-        console.error('NO TOKEN AVAILABLE!')
       }
 
-      console.groupEnd()
       return config
     },
     (error) => {
@@ -58,30 +80,57 @@ export function setupInterceptors() {
       const errorData = error.response?.data || {}
       const errorMessage = errorData?.message || ''
 
+      // Handle Optimistic Lock Errors (409 or specific messages)
+      if (isOptimisticLockError(error) && originalRequest.retryCount < MAX_RETRIES) {
+        originalRequest.retryCount += 1
+        const delayMs = RETRY_DELAY_MS * originalRequest.retryCount // exponential backoff
+
+        console.warn(
+          `⚠️ Optimistic lock detected, retrying request (${originalRequest.retryCount}/${MAX_RETRIES})...`,
+          originalRequest.url,
+        )
+
+        // Show subtle notification on first retry
+        if (originalRequest.retryCount === 1) {
+          toast.info('Đang xử lý yêu cầu, vui lòng đợi...', {
+            timeout: 1500,
+            hideProgressBar: true,
+          })
+        }
+
+        await delay(delayMs)
+        return apiClient(originalRequest)
+      }
+
+      // Show error if retries exhausted
+      if (isOptimisticLockError(error) && originalRequest.retryCount >= MAX_RETRIES) {
+        console.error('❌ Max retries reached for optimistic lock error')
+        toast.error('Yêu cầu thất bại sau nhiều lần thử. Vui lòng thử lại sau.')
+        return Promise.reject(error)
+      }
+
       // HANDLE 401: Unauthorized
       if (status === 401) {
         const requestUrl = (originalRequest.url || '').toLowerCase()
 
         // CASE 1: Login endpoint failed
         if (requestUrl.includes('/login')) {
-          console.log('Case: LOGIN FAILED - do not clear auth')
-          console.groupEnd()
+          console.log('❌ LOGIN FAILED - do not clear auth')
           return Promise.reject(error)
         }
 
         // CASE 2: Logout failed or retry
         if (requestUrl.includes('/logout') || originalRequest.__isRetry) {
-          console.log('Case: LOGOUT FAILED or RETRY')
+          console.log('⚠️ LOGOUT FAILED or RETRY')
           try {
             authStore.clearLocalAuth()
-            console.log('Auth cleared')
+            console.log('✅ Auth cleared')
           } catch (e) {
             console.error('Error clearing auth:', e)
           }
 
           toast.error(getErrorMessage(errorMessage))
           redirectToLogin()
-          console.groupEnd()
           return Promise.reject(error)
         }
 
@@ -90,7 +139,7 @@ export function setupInterceptors() {
 
         // CASE 3: During logout
         if (authStore.isLoggingOut) {
-          console.log('Case: DURING LOGOUT')
+          console.log('⚠️ DURING LOGOUT')
           try {
             authStore.clearLocalAuth()
           } catch (e) {
@@ -98,34 +147,39 @@ export function setupInterceptors() {
           }
           toast.error('Phiên đăng nhập đã hết hạn')
           redirectToLogin()
-          console.groupEnd()
           return Promise.reject(error)
         }
 
         // CASE 4: Normal 401
-        console.log('Case: NORMAL 401 - clearing auth')
+        console.log('⚠️ NORMAL 401 - clearing auth')
 
         try {
           authStore.clearLocalAuth()
-          console.log('Auth cleared successfully')
+          console.log('✅ Auth cleared successfully')
         } catch (e) {
           console.error('Error clearing auth:', e)
         }
 
         const message = getErrorMessage(errorMessage)
-        console.log('Toast message:', message)
         toast.error(message)
 
         redirectToLogin()
-        console.groupEnd()
         return Promise.reject(error)
       }
 
       // HANDLE 403
       if (status === 403) {
-        console.warn('403 Forbidden')
-        toast.error('Bạn không có quyền truy cập')
-        router.push('/')
+        toast.error(errorMessage || 'Bạn không có quyền thực hiện hành động này', {
+          timeout: 5000,
+        })
+        console.error('❌ 403 Permission denied:', errorMessage)
+        return Promise.reject(error)
+      }
+
+      // HANDLE 500+ (Server errors)
+      if (status >= 500) {
+        console.error('❌ Server error:', status, errorMessage)
+        toast.error('Lỗi server. Vui lòng thử lại sau.')
         return Promise.reject(error)
       }
 

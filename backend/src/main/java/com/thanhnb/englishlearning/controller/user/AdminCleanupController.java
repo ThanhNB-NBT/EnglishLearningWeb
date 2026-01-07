@@ -1,8 +1,8 @@
 package com.thanhnb.englishlearning.controller.user;
 
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
-import com.thanhnb.englishlearning.entity.User;
-import com.thanhnb.englishlearning.repository.UserRepository;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
 import com.thanhnb.englishlearning.service.user.UnverifiedUserCleanupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -5,13 +5,17 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Schema(description = "DTO để TẠO MỚI câu hỏi trắc nghiệm (MULTIPLE_CHOICE)")
-public class CreateMultipleChoiceDTO extends CreateQuestionDTO {
+public class CreateMultipleChoiceDTO extends QuestionData {
 
     @NotNull(message = "Options không được null")
     @Size(min = 2, message = "Cần ít nhất 2 options")
+    @JsonView(Views.Public.class)
     private List<OptionDTO> options;
 
     @Data
@@ -21,13 +25,17 @@ public class CreateMultipleChoiceDTO extends CreateQuestionDTO {
     public static class OptionDTO {
         @NotBlank(message = "Text không được trống")
         @Schema(description = "Nội dung đáp án", example = "Đáp án A")
+        @JsonView(Views.Public.class)
         private String text;
 
         @Schema(description = "Đáp án đúng hay không", example = "true")
+        @JsonView(Views.Admin.class)
         private Boolean isCorrect = false;
         
         @NotNull
         @Min(value = 1, message = "Order => 1")
+        @Schema(description = "Thứ tự hiển thị đáp án", example = "1")
+        @JsonView(Views.Public.class)
         private Integer order;
 
         public Boolean getIsCorrect() {

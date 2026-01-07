@@ -1,138 +1,214 @@
 package com.thanhnb.englishlearning.dto.reading;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.thanhnb.englishlearning.dto.question. request.CreateQuestionDTO;
-import com.thanhnb.englishlearning.dto.question. response.QuestionResponseDTO;
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
+import com.thanhnb.englishlearning.enums.EnglishLevel;
+import com.thanhnb.englishlearning.config.Views;
+
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
-import java. util.List;
+import java.util.List;
 
+/**
+ * ✅ SINGLE DTO for ALL operations: Create, Update, Response
+ */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Schema(description = "Reading lesson information")
 public class ReadingLessonDTO {
 
-    // BASIC INFO (for both Summary and Full)
-    @Schema(description = "Lesson ID", example = "1")
+    // ═════════════════════════════════════════════════════════════════
+    // CORE FIELDS
+    // ═════════════════════════════════════════════════════════════════
+
+    @JsonView(Views.Public.class)
     private Long id;
 
-    @NotBlank(message = "Title cannot be empty")
-    @Size(max = 200, message = "Title max 200 characters")
-    @Schema(description = "Lesson title", example = "The Digital Paradox")
+    @NotNull(message = "Topic ID is required")
+    @JsonView(Views.Public.class)
+    private Long topicId;
+
+    @NotBlank(message = "Title is required")
+    @Size(max = 200)
+    @JsonView(Views.Public.class)
     private String title;
 
-    @NotNull(message = "Order index cannot be null")
-    @Min(value = 1, message = "Order index must be >= 1")
-    @Schema(description = "Display order", example = "1")
+    @NotBlank(message = "Content is required")
+    @JsonView(Views.Public.class)
+    private String content; // Main reading passage
+
+    @NotNull(message = "Order index is required")
+    @Min(1)
+    @JsonView(Views.Public.class)
     private Integer orderIndex;
 
-    // 🆕 Thêm difficulty
-    @Schema(description = "Difficulty level", example = "INTERMEDIATE", allowableValues = {"BEGINNER", "INTERMEDIATE", "ADVANCED"})
-    private String difficulty;
+    // ═════════════════════════════════════════════════════════════════
+    // OPTIONAL FIELDS
+    // ═════════════════════════════════════════════════════════════════
 
-    // 🆕 Thêm timeLimitSeconds
-    @Min(value = 0, message = "Time limit must be >= 0")
-    @Schema(description = "Time limit in seconds", example = "600")
+    @JsonView(Views.Public.class)
+    private String contentTranslation; // Vietnamese translation
+
+    @Min(60)
+    @JsonView(Views.Public.class)
     private Integer timeLimitSeconds;
 
-    @Min(value = 1, message = "Points reward must be >= 1")
-    @Schema(description = "Points when completed", example = "25")
-    private Integer pointsReward = 25;
+    @Min(1)
+    @JsonView(Views.Public.class)
+    private Integer pointsReward;
 
-    @Schema(description = "Active status", example = "true")
-    private Boolean isActive = true;
+    @JsonView(Views.Public.class)
+    private Boolean isActive;
 
-    @Schema(description = "Created timestamp")
+    // ═════════════════════════════════════════════════════════════════
+    // READ-ONLY FIELDS
+    // ═════════════════════════════════════════════════════════════════
+
+    @JsonView(Views.Public.class)
     private LocalDateTime createdAt;
+    
+    @JsonView(Views.Public.class)
+    private LocalDateTime modifiedAt;
 
-    @Schema(description = "Number of questions", example = "10")
+    @JsonView(Views.Public.class)
+    private Long modifiedBy;
+
+    @JsonView(Views.Public.class)
+    private String topicName;
+
+    @JsonView(Views.Public.class)
     private Integer questionCount;
 
-    // FULL DETAILS (only when loading full lesson)
-    @Schema(description = "English content (plain text)")
-    private String content;
+    @JsonView(Views.Public.class)
+    private EnglishLevel requiredLevel;
 
-    @Schema(description = "Vietnamese translation (plain text)")
-    private String contentTranslation;
+    // ═════════════════════════════════════════════════════════════════
+    // USER PROGRESS
+    // ═════════════════════════════════════════════════════════════════
 
-    // Dùng khi load full lesson kèm câu hỏi, cho get endpoint
-    @Schema(description = "List of questions")
-    private List<QuestionResponseDTO> questions;
-
-    // Dùng khi import/create câu hỏi
-    @Schema(description = "Danh sách câu hỏi (createDTO - dùng khi tạo mới)")
-    private List<CreateQuestionDTO> createQuestions;
-
-    // USER PROGRESS (only when user logged in)
-    @Schema(description = "Is unlocked", example = "false")
-    private Boolean isUnlocked;
-
-    @Schema(description = "Is accessible", example = "false")
-    private Boolean isAccessible;
-
-    @Schema(description = "Is completed", example = "false")
+    @JsonView(Views.Public.class)
     private Boolean isCompleted;
 
-    @Schema(description = "User score percentage", example = "85.5")
+    @JsonView(Views.Public.class)
+    private Boolean isUnlocked;
+
+    @JsonView(Views.Public.class)
+    private Boolean isAccessible;
+
+    @JsonView(Views.Public.class)
     private Double scorePercentage;
 
-    @Schema(description = "Number of attempts", example = "2")
+    @JsonView(Views.Public.class)
     private Integer attempts;
 
-    @Schema(description = "Completion timestamp")
+    @JsonView(Views.Public.class)
     private LocalDateTime completedAt;
 
+    // ═════════════════════════════════════════════════════════════════
+    // QUESTIONS (For detail view)
+    // ═════════════════════════════════════════════════════════════════
+
+    @Deprecated
+    @JsonView(Views.Public.class)
+    private List<QuestionResponseDTO> questions;
+
+    @JsonView(Views.Public.class)
+    private TaskGroupedQuestionsDTO groupedQuestions;
+
+    // ═════════════════════════════════════════════════════════════════
     // STATIC FACTORY METHODS
+    // ═════════════════════════════════════════════════════════════════
 
     /**
-     * Create Summary DTO (for list view)
-     * 🆕 Cập nhật với difficulty và timeLimitSeconds
+     * Create summary DTO for list view
      */
-    public static ReadingLessonDTO summary(Long id, String title, String difficulty, 
-            Integer timeLimitSeconds, Integer orderIndex, Boolean isActive, Integer questionCount) {
-        ReadingLessonDTO dto = new ReadingLessonDTO();
-        dto.setId(id);
-        dto.setTitle(title);
-        dto.setDifficulty(difficulty);
-        dto.setTimeLimitSeconds(timeLimitSeconds);
-        dto.setOrderIndex(orderIndex);
-        dto.setIsActive(isActive);
-        dto.setQuestionCount(questionCount);
-        return dto;
+    public static ReadingLessonDTO summary(
+            Long id, String title, Integer timeLimitSeconds,
+            Integer orderIndex, Boolean isActive, Integer questionCount) {
+        return ReadingLessonDTO.builder()
+                .id(id)
+                .title(title)
+                .timeLimitSeconds(timeLimitSeconds)
+                .orderIndex(orderIndex)
+                .isActive(isActive)
+                .questionCount(questionCount)
+                .build();
     }
 
     /**
-     * Create Full DTO (for detail view)
-     * 🆕 Cập nhật với difficulty và timeLimitSeconds
+     * Create full DTO for detail view
      */
-    public static ReadingLessonDTO full(Long id, String title, String content, 
-            String contentTranslation, String difficulty, Integer timeLimitSeconds,
-            Integer orderIndex, Integer pointsReward, Boolean isActive, LocalDateTime createdAt) {
-        ReadingLessonDTO dto = new ReadingLessonDTO();
-        dto.setId(id);
-        dto.setTitle(title);
-        dto.setContent(content);
-        dto.setContentTranslation(contentTranslation);
-        dto.setDifficulty(difficulty);
-        dto.setTimeLimitSeconds(timeLimitSeconds);
-        dto.setOrderIndex(orderIndex);
-        dto.setPointsReward(pointsReward);
-        dto.setIsActive(isActive);
-        dto.setCreatedAt(createdAt);
-        return dto;
+    public static ReadingLessonDTO full(
+            Long id, String title, String content, String contentTranslation,
+            Integer timeLimitSeconds, Integer orderIndex, Integer pointsReward,
+            Boolean isActive, LocalDateTime createdAt) {
+        return ReadingLessonDTO.builder()
+                .id(id)
+                .title(title)
+                .content(content)
+                .contentTranslation(contentTranslation)
+                .timeLimitSeconds(timeLimitSeconds)
+                .orderIndex(orderIndex)
+                .pointsReward(pointsReward)
+                .isActive(isActive)
+                .createdAt(createdAt)
+                .build();
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // FLUENT BUILDER METHODS (For service layer)
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * Add questions to DTO
+     */
+    @Deprecated
+    public ReadingLessonDTO withQuestions(List<QuestionResponseDTO> questions) {
+        this.questions = questions;
+        this.questionCount = questions != null ? questions.size() : 0;
+        return this;
     }
 
     /**
-     * Add user progress to DTO
+     * ✅ NEW: Add grouped questions structure
      */
-    public ReadingLessonDTO withProgress(Boolean isCompleted, Double scorePercentage, 
+    public ReadingLessonDTO withGroupedQuestions(TaskGroupedQuestionsDTO groupedQuestions) {
+        this.groupedQuestions = groupedQuestions;
+
+        // Calculate total question count
+        if (groupedQuestions != null) {
+            int count = 0;
+
+            if (groupedQuestions.getStandaloneQuestions() != null) {
+                count += groupedQuestions.getStandaloneQuestions().size();
+            }
+
+            if (groupedQuestions.getTasks() != null) {
+                count += groupedQuestions.getTasks().stream()
+                        .mapToInt(task -> task.getQuestions() != null ? task.getQuestions().size() : 0)
+                        .sum();
+            }
+
+            this.questionCount = count;
+        }
+
+        return this;
+    }
+
+    /**
+     * Add progress information
+     */
+    public ReadingLessonDTO withProgress(
+            Boolean isCompleted, Double scorePercentage,
             Integer attempts, LocalDateTime completedAt) {
         this.isCompleted = isCompleted;
         this.scorePercentage = scorePercentage;
@@ -142,47 +218,11 @@ public class ReadingLessonDTO {
     }
 
     /**
-     * Set questions list và update question count
+     * Add unlock status
      */
-    public ReadingLessonDTO withQuestions(List<QuestionResponseDTO> questions) {
-        this.questions = questions;
-        this.questionCount = questions != null ? questions.size() : 0;
-        return this;
-    }
-
-    /**
-     * Set unlock status
-     */
-    public ReadingLessonDTO withUnlockStatus(boolean isUnlocked, boolean isAccessible) {
+    public ReadingLessonDTO withUnlockStatus(Boolean isUnlocked, Boolean isAccessible) {
         this.isUnlocked = isUnlocked;
         this.isAccessible = isAccessible;
         return this;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // HELPER METHODS
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Convenience method:  Get questions count
-     */
-    public int getQuestionCount() {
-        if (questionCount != null) {
-            return questionCount;
-        }
-        if (createQuestions != null) {
-            return createQuestions.size();
-        }
-        if (questions != null) {
-            return questions.size();
-        }
-        return 0;
-    }
-
-    /**
-     * Check if lesson has questions
-     */
-    public boolean hasQuestions() {
-        return getQuestionCount() > 0;
     }
 }

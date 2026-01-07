@@ -1,17 +1,20 @@
 package com.thanhnb.englishlearning.controller.listening;
 
 import com.thanhnb.englishlearning.dto.CustomApiResponse;
-import com.thanhnb.englishlearning.dto.listening.request.SubmitListeningRequest;
-import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonDetailResponse;
-import com.thanhnb.englishlearning.dto.listening.response.ListeningLessonListResponse;
-import com.thanhnb.englishlearning.dto.listening.response.ListeningSubmitResponse;
+import com.thanhnb.englishlearning.dto.listening.ListeningLessonDTO;
+import com.thanhnb.englishlearning.dto.listening.ListeningSubmitRequest;
+import com.thanhnb.englishlearning.dto.listening.ListeningSubmitResponse;
+import com.thanhnb.englishlearning.dto.topic.TopicUserDto;
 import com.thanhnb.englishlearning.entity.listening.UserListeningProgress;
 import com.thanhnb.englishlearning.security.UserPrincipal;
-import com.thanhnb.englishlearning.service.listening.ListeningService;
+import com.thanhnb.englishlearning.service.listening.ListeningLearningService;
+import com.thanhnb.englishlearning.service.topic.UserTopicService;
+import com.thanhnb.englishlearning.enums.ModuleType;
+
+import com.thanhnb.englishlearning.service.listening.ListeningLearningService.ListeningProgressSummary;
+import com.thanhnb.englishlearning.service.listening.ListeningLearningService.PlayCountResponse;
+
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,15 +24,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.config.Views;
 
 import java.util.List;
 
 /**
- * USER Controller cho Listening module
- * Refactored: Đổi từ UserListeningController -> ListeningController
- * - Sử dụng @AuthenticationPrincipal UserPrincipal thay vì Authentication
- * - Response format nhất quán với Reading/Grammar modules
- * - Proper error handling và logging
+ * ✅ FIXED: Thin Listening Controller
+ * - Removed inner classes (use Service classes instead)
+ * - Simplified methods (delegate to service)
+ * - No business logic in controller
  */
 @RestController
 @RequestMapping("/api/listening")
@@ -40,240 +44,166 @@ import java.util.List;
 @Slf4j
 public class ListeningController {
 
-        private final ListeningService listeningService;
+        private final ListeningLearningService listeningService;
+        private final UserTopicService userTopicService;
 
-        // ═════════════════════════════════════════════════════════════════
-        // LESSON LIST & DETAIL
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // TOPIC APIs
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Lấy tất cả bài nghe với progress và unlock status
-         */
-        @GetMapping("/lessons")
-        @Operation(summary = "Lấy danh sách bài nghe", description = "Trả về tất cả bài nghe active với progress của user")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
-                        @ApiResponse(responseCode = "400", description = "Lỗi khi lấy danh sách")
-        })
-        public ResponseEntity<CustomApiResponse<List<ListeningLessonListResponse>>> getAllLessons(
+        @GetMapping("/topics")
+        @Operation(summary = "Lấy danh sách Listening topics")
+        public ResponseEntity<CustomApiResponse<List<TopicUserDto>>> getListeningTopics(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
-                try {
-                        log.info("User {} loading listening lessons", currentUser.getId());
 
-                        List<ListeningLessonListResponse> lessons = listeningService
-                                        .getAllLessonsForUser(currentUser.getId());
+                log.info("User {} fetching listening topics", currentUser.getId());
 
-                        log.info("User {} loaded {} listening lessons", currentUser.getId(), lessons.size());
+                List<TopicUserDto> topics = userTopicService.getTopicsForUser(
+                                ModuleType.LISTENING,
+                                currentUser.getId());
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(lessons, "Lấy danh sách bài nghe thành công"));
+                log.debug("Found {} listening topics for user {}", topics.size(), currentUser.getId());
 
-                } catch (Exception e) {
-                        log.error("Error loading listening lessons for user {}:  ", currentUser.getId(), e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi:  " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                topics,
+                                "Lấy danh sách chủ đề bài nghe thành công"));
         }
 
-        /**
-         * [USER] Lấy chi tiết bài nghe với questions
-         */
-        @GetMapping("/lessons/{lessonId}")
-        @Operation(summary = "Lấy chi tiết bài nghe", description = "Trả về nội dung, audio, transcript (nếu đã unlock) và câu hỏi")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy chi tiết thành công"),
-                        @ApiResponse(responseCode = "400", description = "Bài nghe không tồn tại hoặc chưa unlock")
-        })
-        public ResponseEntity<CustomApiResponse<ListeningLessonDetailResponse>> getLessonDetail(
+        // ═══════════════════════════════════════════════════════════
+        // LESSON APIs
+        // ═══════════════════════════════════════════════════════════
+
+        @GetMapping("/topics/{topicId}/lessons")
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy bài nghe theo topic")
+        public ResponseEntity<CustomApiResponse<List<ListeningLessonDTO>>> getLessonsByTopic(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài nghe") @PathVariable Long lessonId) {
-                try {
-                        log.info("User {} loading listening lesson detail:  lessonId={}", currentUser.getId(),
-                                        lessonId);
+                        @PathVariable Long topicId) {
 
-                        ListeningLessonDetailResponse lesson = listeningService.getLessonDetail(lessonId,
-                                        currentUser.getId());
+                log.info("User {} fetching lessons for listening topic {}",
+                                currentUser.getId(), topicId);
 
-                        log.info("User {} loaded listening lesson {} with {} questions",
-                                        currentUser.getId(), lessonId, lesson.getQuestions().size());
+                List<ListeningLessonDTO> lessons = listeningService
+                                .getAllLessonsForUser(currentUser.getId(), topicId);
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(lesson, "Lấy chi tiết bài nghe thành công"));
+                log.debug("Found {} lessons in listening topic {} for user {}",
+                                lessons.size(), topicId, currentUser.getId());
 
-                } catch (RuntimeException e) {
-                        log.warn("User {} failed to load listening lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error loading listening lesson detail:  ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                lessons,
+                                "Lấy danh sách bài nghe thành công"));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // SUBMIT LESSON
-        // ═════════════════════════════════════════════════════════════════
+        @GetMapping("/lessons/{lessonId}")
+        @JsonView(Views.Public.class)
+        @Operation(summary = "Lấy chi tiết bài nghe")
+        public ResponseEntity<CustomApiResponse<ListeningLessonDTO>> getLessonDetail(
+                        @AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long lessonId) {
 
-        /**
-         * [USER] Nộp bài nghe và nhận kết quả
-         */
+                log.info("User {} fetching listening lesson {}", currentUser.getId(), lessonId);
+
+                ListeningLessonDTO lesson = listeningService.getLessonDetail(
+                                lessonId,
+                                currentUser.getId());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                lesson,
+                                "Lấy chi tiết bài nghe thành công"));
+        }
+
         @PostMapping("/lessons/{lessonId}/submit")
-        @Operation(summary = "Nộp bài nghe", description = "Nộp câu trả lời và nhận kết quả chi tiết")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Nộp bài thành công"),
-                        @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
-        })
+        @Operation(summary = "Nộp bài nghe")
         public ResponseEntity<CustomApiResponse<ListeningSubmitResponse>> submitLesson(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài nghe") @PathVariable Long lessonId,
-                        @Valid @RequestBody SubmitListeningRequest request) {
-                try {
-                        log.info("User {} submitting listening lesson {} with {} answers",
-                                        currentUser.getId(),
-                                        lessonId,
-                                        request.getAnswers() != null ? request.getAnswers().size() : 0);
+                        @PathVariable Long lessonId,
+                        @Valid @RequestBody ListeningSubmitRequest request) {
 
-                        ListeningSubmitResponse response = listeningService.submitLesson(
-                                        currentUser.getId(), lessonId, request);
+                log.info("User {} submitting listening lesson {}", currentUser.getId(), lessonId);
 
-                        // Build message based on result
-                        String message;
-                        if (response.getIsPassed()) {
-                                message = String.format(
-                                                "Chúc mừng! Bạn đã hoàn thành bài nghe với điểm %.2f%% (%d/%d câu đúng)",
-                                                response.getScorePercentage(),
-                                                response.getCorrectCount(),
-                                                response.getTotalQuestions());
-                        } else {
-                                message = String.format(
-                                                "Bạn đã đạt %.2f%% (%d/%d câu đúng). Cần đạt tối thiểu 80%% để hoàn thành bài",
-                                                response.getScorePercentage(),
-                                                response.getCorrectCount(),
-                                                response.getTotalQuestions());
-                        }
+                ListeningSubmitResponse response = listeningService.submitLesson(
+                                currentUser.getId(), lessonId, request);
 
-                        log.info("User {} completed listening lesson {} - Score: {:.2f}%, Passed: {}",
-                                        currentUser.getId(),
-                                        lessonId,
-                                        response.getScorePercentage(),
-                                        response.getIsPassed());
+                String message = response.getIsPassed()
+                                ? String.format("Chúc mừng! Bạn đã hoàn thành bài nghe với điểm %.2f%%",
+                                                response.getScorePercentage())
+                                : String.format("Bạn đạt %.2f%%. Cần đạt tối thiểu 80%% để qua bài",
+                                                response.getScorePercentage());
 
-                        return ResponseEntity.ok(CustomApiResponse.success(response, message));
+                log.info("User {} submitted listening lesson {}: passed={}, score={}",
+                                currentUser.getId(), lessonId,
+                                response.getIsPassed(), response.getScorePercentage());
 
-                } catch (RuntimeException e) {
-                        log.warn("User {} submit failed for listening lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error submitting listening lesson:  ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(response, message));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // AUDIO PLAYBACK & TRANSCRIPT
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // LISTENING SPECIFIC FEATURES
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Track play count (user click play audio)
-         */
         @PostMapping("/lessons/{lessonId}/play")
-        @Operation(summary = "Track play count", description = "Tăng số lần nghe khi user click play audio")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Track play count thành công"),
-                        @ApiResponse(responseCode = "400", description = "Đã hết lượt nghe")
-        })
-        public ResponseEntity<CustomApiResponse<Void>> trackPlay(
+        @Operation(summary = "Track play count")
+        public ResponseEntity<CustomApiResponse<PlayCountResponse>> trackPlay(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài nghe") @PathVariable Long lessonId) {
-                try {
-                        log.info("User {} playing audio for lesson {}", currentUser.getId(), lessonId);
+                        @PathVariable Long lessonId) {
 
-                        listeningService.incrementPlayCount(currentUser.getId(), lessonId);
+                log.debug("User {} playing listening lesson {}", currentUser.getId(), lessonId);
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(null, "Đã ghi nhận lượt nghe"));
+                // ✅ FIXED: Now returns ListeningLearningService.PlayCountResponse
+                PlayCountResponse response = listeningService.trackPlayCount(
+                                currentUser.getId(), lessonId);
 
-                } catch (RuntimeException e) {
-                        log.warn("User {} play failed for lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error tracking play count:  ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                response,
+                                response.getMessage()));
         }
 
-        /**
-         * [USER] Unlock transcript (after completion)
-         */
         @PostMapping("/lessons/{lessonId}/transcript")
-        @Operation(summary = "Unlock transcript", description = "Mở khóa và đánh dấu đã xem transcript (chỉ sau khi hoàn thành)")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Unlock transcript thành công"),
-                        @ApiResponse(responseCode = "400", description = "Chưa hoàn thành bài nghe")
-        })
+        @Operation(summary = "Unlock transcript")
         public ResponseEntity<CustomApiResponse<Void>> unlockTranscript(
                         @AuthenticationPrincipal UserPrincipal currentUser,
-                        @Parameter(description = "ID của bài nghe") @PathVariable Long lessonId) {
-                try {
-                        log.info("User {} unlocking transcript for lesson {}", currentUser.getId(), lessonId);
+                        @PathVariable Long lessonId) {
 
-                        listeningService.unlockTranscript(currentUser.getId(), lessonId);
+                log.info("User {} requesting transcript unlock for lesson {}",
+                                currentUser.getId(), lessonId);
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(null, "Đã mở khóa transcript"));
+                // ✅ FIXED: Service returns message directly
+                String message = listeningService.unlockTranscriptForUser(
+                                currentUser.getId(), lessonId);
 
-                } catch (RuntimeException e) {
-                        log.warn("User {} unlock transcript failed for lesson {}: {}",
-                                        currentUser.getId(), lessonId, e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                } catch (Exception e) {
-                        log.error("Error unlocking transcript: ", e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+                return ResponseEntity.ok(CustomApiResponse.success(null, message));
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // PROGRESS & HISTORY
-        // ═════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
+        // PROGRESS APIs
+        // ═══════════════════════════════════════════════════════════
 
-        /**
-         * [USER] Lấy danh sách bài đã hoàn thành
-         */
         @GetMapping("/progress/completed")
-        @Operation(summary = "Lấy danh sách bài đã hoàn thành", description = "Xem lịch sử các bài nghe đã hoàn thành")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
-                        @ApiResponse(responseCode = "400", description = "Lỗi khi lấy danh sách")
-        })
+        @Operation(summary = "Lấy danh sách bài đã hoàn thành")
         public ResponseEntity<CustomApiResponse<List<UserListeningProgress>>> getCompletedLessons(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
-                try {
-                        log.info("User {} loading completed listening lessons", currentUser.getId());
 
-                        List<UserListeningProgress> completedLessons = listeningService
-                                        .getCompletedLessons(currentUser.getId());
+                log.debug("User {} fetching completed listening lessons", currentUser.getId());
 
-                        log.info("User {} has {} completed listening lessons", currentUser.getId(),
-                                        completedLessons.size());
+                List<UserListeningProgress> completed = listeningService
+                                .getCompletedLessons(currentUser.getId());
 
-                        return ResponseEntity.ok(
-                                        CustomApiResponse.success(completedLessons,
-                                                        "Lấy danh sách bài đã hoàn thành thành công"));
+                return ResponseEntity.ok(CustomApiResponse.success(completed, "Thành công"));
+        }
 
-                } catch (Exception e) {
-                        log.error("Error loading completed lessons for user {}: ", currentUser.getId(), e);
-                        return ResponseEntity.badRequest()
-                                        .body(CustomApiResponse.badRequest("Lỗi: " + e.getMessage()));
-                }
+        @GetMapping("/progress/summary")
+        @Operation(summary = "Lấy tổng quan tiến độ học tập")
+        public ResponseEntity<CustomApiResponse<ListeningProgressSummary>> getProgressSummary(
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+
+                log.info("User {} fetching listening progress summary", currentUser.getId());
+
+                // ✅ FIXED: Now returns ListeningLearningService.ListeningProgressSummary
+                ListeningProgressSummary summary = listeningService
+                                .getProgressSummary(currentUser.getId());
+
+                return ResponseEntity.ok(CustomApiResponse.success(
+                                summary,
+                                "Lấy tổng quan tiến độ thành công"));
         }
 }

@@ -1,25 +1,15 @@
 package com.thanhnb.englishlearning.service.common;
 
-import com.thanhnb.englishlearning.entity.User;
-import com.thanhnb.englishlearning.repository.UserRepository;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-/**
- * Service xử lý progress và unlock logic chung cho tất cả module học tập
- * Chứa logic:
- * - Update score (keep highest)
- * - Increment attempts
- * - Mark completed
- * - Award points (only first completion)
- * - Check lesson unlock status
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -27,250 +17,182 @@ public class LessonProgressService {
 
     private final UserRepository userRepository;
 
-    /**
-     * Progress update result wrapper
-     */
-    public static class ProgressUpdateResult {
-        private final boolean isFirstCompletion;
-        private final boolean isPassed;
-        private final int pointsEarned;
-        private final BigDecimal scorePercentage;
+    // =========================================================================
+    // INTERFACES & DTOs
+    // =========================================================================
 
-        public ProgressUpdateResult(boolean isFirstCompletion, boolean isPassed,
-                int pointsEarned, BigDecimal scorePercentage) {
-            this.isFirstCompletion = isFirstCompletion;
-            this.isPassed = isPassed;
-            this.pointsEarned = pointsEarned;
-            this.scorePercentage = scorePercentage;
-        }
-
-        public boolean isFirstCompletion() {
-            return isFirstCompletion;
-        }
-
-        public boolean isPassed() {
-            return isPassed;
-        }
-
-        public int getPointsEarned() {
-            return pointsEarned;
-        }
-
-        public BigDecimal getScorePercentage() {
-            return scorePercentage;
-        }
-    }
-
-    /**
-     * Generic progress interface
-     */
     public interface LessonProgress {
         Boolean getIsCompleted();
         void setIsCompleted(Boolean completed);
-        BigDecimal getScorePercentage();
-        void setScorePercentage(BigDecimal score);
+        
+        Double getScorePercentage();
+        void setScorePercentage(Double score);
+        
         Integer getAttempts();
         void setAttempts(Integer attempts);
+        
         LocalDateTime getCompletedAt();
         void setCompletedAt(LocalDateTime completedAt);
+        
         LocalDateTime getUpdatedAt();
         void setUpdatedAt(LocalDateTime updatedAt);
     }
 
-    /**
-     * Functional interfaces for unlock logic
-     */
-    @FunctionalInterface
-    public interface LessonOrderIndexGetter<L> {
-        Integer getOrderIndex(L lesson);
+    @lombok.Getter
+    @lombok.RequiredArgsConstructor
+    public static class ProgressUpdateResult {
+        private final boolean isFirstCompletion;
+        private final boolean isPassed;
+        private final int pointsEarned;
+        private final Double scorePercentage;
     }
 
-    @FunctionalInterface
-    public interface LessonIdGetter<L> {
-        Long getLessonId(L lesson);
-    }
-
-    @FunctionalInterface
-    public interface ProgressCompletedChecker {
-        boolean isCompleted(Long userId, Long lessonId);
-    }
+    // =========================================================================
+    // ✅ FIXED: CORE LOGIC
+    // =========================================================================
 
     /**
-     * Update progress và tính điểm
+     * Update progress với proper transaction và error handling
      * 
-     * @param progress Progress entity (Grammar/Reading/Listening)
-     * @param user User entity
-     * @param currentScore Điểm hiện tại (0-100)
-     * @param isPassed Pass hay không
-     * @param pointsReward Điểm thưởng của bài học
-     * @return ProgressUpdateResult với thông tin chi tiết
+     * FIXES:
+     * - Đảm bảo atomic operation (cộng điểm + update progress cùng transaction)
+     * - Better logging
+     * - Proper null checks
      */
     @Transactional
     public <T extends LessonProgress> ProgressUpdateResult updateProgress(
-            T progress,
-            User user,
-            double currentScore,
-            boolean isPassed,
-            int pointsReward) {
+            T progress, 
+            User user, 
+            double currentScore, 
+            boolean isPassed, 
+            int pointsReward,
+            ParentType lessonType) {
 
-        boolean wasAlreadyCompleted = progress.getIsCompleted() != null && progress.getIsCompleted();
-        boolean isFirstCompletion = !wasAlreadyCompleted;
-        BigDecimal oldScore = progress.getScorePercentage();
-        BigDecimal newScore = BigDecimal.valueOf(currentScore);
-
-        // Update score (keep highest)
-        if (newScore.compareTo(progress.getScorePercentage()) > 0) {
-            progress.setScorePercentage(newScore);
-            log.info("Score improved: {} -> {}", oldScore, newScore);
-        } else {
-            log.info("Score maintained: current={}, new={}", progress.getScorePercentage(), newScore);
+        if (progress == null) {
+            throw new IllegalArgumentException("Progress cannot be null");
         }
 
-        // Increment attempts
-        Integer currentAttempts = progress.getAttempts() != null ? progress.getAttempts() : 0;
+        boolean wasAlreadyCompleted = Boolean.TRUE.equals(progress.getIsCompleted());
+        boolean isFirstCompletion = !wasAlreadyCompleted;
+
+        Double oldScore = progress.getScorePercentage() != null ? 
+            progress.getScorePercentage() : 0.0;
+
+        log.debug("Updating progress: oldScore={}, newScore={}, isPassed={}, isFirst={}", 
+            oldScore, currentScore, isPassed, isFirstCompletion);
+
+        // 1. Cập nhật điểm cao nhất
+        if (currentScore > oldScore) {
+            progress.setScorePercentage(currentScore);
+            log.debug("Score improved from {} to {}", oldScore, currentScore);
+        }
+
+        // 2. Tăng số lần thử
+        int currentAttempts = progress.getAttempts() != null ? progress.getAttempts() : 0;
         progress.setAttempts(currentAttempts + 1);
 
         int pointsEarned = 0;
 
-        // Mark completed if passed
+        // 3. ✅ FIX: Xử lý khi qua bài - TRONG CÙNG TRANSACTION
         if (isPassed) {
             progress.setIsCompleted(true);
-
+            
+            // Nếu là lần đầu hoàn thành -> Cộng điểm & Tăng số bài học
             if (isFirstCompletion) {
                 progress.setCompletedAt(LocalDateTime.now());
-            }
-
-            // Award points only first completion
-            if (isFirstCompletion) {
                 pointsEarned = pointsReward;
-                user.setTotalPoints(user.getTotalPoints() + pointsReward);
-                userRepository.save(user);
-                log.info("User {} first completed - earned {} points", user.getId(), pointsReward);
+                
+                if (user != null) {
+                    if (user.getStats() == null) {
+                        log.error("User {} has no stats object!", user.getId());
+                        throw new IllegalStateException("User stats not initialized");
+                    }
+                    
+                    // ✅ Cộng điểm
+                    user.getStats().addPoints(pointsReward);
+                    
+                    // ✅ Tăng số bài học theo loại
+                    user.getStats().incrementLessons(lessonType);
+                    
+                    // ✅ Save trong cùng transaction
+                    userRepository.save(user);
+                    
+                    log.info("User {} completed {} lesson #{}: +{} points, Total lessons: {}", 
+                        user.getUsername(), 
+                        lessonType, 
+                        progress.getAttempts(),
+                        pointsReward, 
+                        user.getStats().getTotalLessonsCompleted());
+                } else {
+                    log.warn("User object is null when updating progress - points not awarded");
+                }
             } else {
-                log.info("User {} re-completed - no additional points (attempts: {})",
-                        user.getId(), progress.getAttempts());
+                log.debug("User already completed this lesson, no points awarded");
             }
+        } else {
+            log.debug("User did not pass (score: {}%), lesson not completed", currentScore);
         }
 
         progress.setUpdatedAt(LocalDateTime.now());
-
-        log.info("Progress updated: attempts={}, score={}, completed={}",
-                progress.getAttempts(), progress.getScorePercentage(), progress.getIsCompleted());
-
-        return new ProgressUpdateResult(isFirstCompletion, isPassed, pointsEarned, newScore);
+        
+        return new ProgressUpdateResult(isFirstCompletion, isPassed, pointsEarned, currentScore);
     }
 
     /**
-     * Initialize new progress
+     * Initialize new progress object
      */
     public <T extends LessonProgress> void initializeProgress(T progress) {
+        if (progress == null) {
+            throw new IllegalArgumentException("Progress cannot be null");
+        }
+        
         progress.setIsCompleted(false);
-        progress.setScorePercentage(BigDecimal.ZERO);
+        progress.setScorePercentage(0.0);
         progress.setAttempts(0);
         progress.setUpdatedAt(LocalDateTime.now());
-
-        log.debug("Initialized new progress");
+        
+        log.debug("Initialized new progress object");
     }
-
+    
     /**
-     * Check if user can submit (anti-spam)
+     * ✅ Check cooldown - SỬ DỤNG TRONG SUBMIT FLOW
      * 
-     * @param lastUpdated Last submit time
-     * @param cooldownSeconds Minimum seconds between submissions
-     * @return Remaining cooldown seconds (0 if can submit)
+     * @return seconds remaining in cooldown, 0 if no cooldown
      */
     public long checkSubmitCooldown(LocalDateTime lastUpdated, int cooldownSeconds) {
         if (lastUpdated == null) {
             return 0;
         }
-
-        long secondsSinceLastSubmit = java.time.Duration.between(
-                lastUpdated, LocalDateTime.now()).getSeconds();
-
-        if (secondsSinceLastSubmit < cooldownSeconds) {
-            return cooldownSeconds - secondsSinceLastSubmit;
+        
+        long secondsSinceLastSubmit = java.time.Duration
+            .between(lastUpdated, LocalDateTime.now())
+            .getSeconds();
+        
+        long remaining = secondsSinceLastSubmit < cooldownSeconds ? 
+            (cooldownSeconds - secondsSinceLastSubmit) : 0;
+        
+        if (remaining > 0) {
+            log.debug("Cooldown active: {} seconds remaining", remaining);
         }
-
-        return 0;
+        
+        return remaining;
     }
 
     /**
-     * Check lesson unlock status (sequential unlock)
-     * 
-     * Rules:
-     * 1. First lesson (orderIndex = 1) always unlocked
-     * 2. Next lesson unlocked only when previous lesson completed
-     * 
-     * @param lesson Current lesson to check
-     * @param allLessons All lessons sorted by orderIndex
-     * @param userId User ID
-     * @param orderIndexGetter Lambda to get orderIndex from lesson
-     * @param lessonIdGetter Lambda to get lessonId from lesson
-     * @param progressChecker Lambda to check if progress completed
+     * ✅ NEW: Validate progress state before update
      */
-    public <L> boolean isLessonUnlocked(
-            L lesson,
-            List<L> allLessons,
-            Long userId,
-            LessonOrderIndexGetter<L> orderIndexGetter,
-            LessonIdGetter<L> lessonIdGetter,
-            ProgressCompletedChecker progressChecker) {
-
-        Integer orderIndex = orderIndexGetter.getOrderIndex(lesson);
-
-        // Rule 1: First lesson always unlocked
-        if (orderIndex == 1) {
-            log.debug("Lesson orderIndex={} is first, unlocked", orderIndex);
-            return true;
+    public <T extends LessonProgress> void validateProgressState(T progress) {
+        if (progress == null) {
+            throw new IllegalArgumentException("Progress cannot be null");
         }
-
-        // Rule 2: Find previous lesson
-        L previousLesson = allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(orderIndex - 1))
-                .findFirst()
-                .orElse(null);
-
-        if (previousLesson == null) {
-            log.warn("No previous lesson found for orderIndex={}, unlocked by fallback", orderIndex);
-            return true;
+        
+        if (progress.getAttempts() != null && progress.getAttempts() < 0) {
+            throw new IllegalStateException("Attempts cannot be negative");
         }
-
-        // Check if previous lesson completed
-        Long previousLessonId = lessonIdGetter.getLessonId(previousLesson);
-        boolean isPreviousCompleted = progressChecker.isCompleted(userId, previousLessonId);
-
-        if (isPreviousCompleted) {
-            log.debug("Previous lesson id={} completed, unlocked", previousLessonId);
-        } else {
-            log.debug("Previous lesson id={} not completed, locked", previousLessonId);
+        
+        if (progress.getScorePercentage() != null && 
+            (progress.getScorePercentage() < 0 || progress.getScorePercentage() > 100)) {
+            throw new IllegalStateException("Score percentage must be between 0 and 100");
         }
-
-        return isPreviousCompleted;
-    }
-
-    /**
-     * Find next lesson in sequence
-     */
-    public <L> L findNextLesson(L currentLesson, List<L> allLessons,
-            LessonOrderIndexGetter<L> orderIndexGetter) {
-        Integer currentOrderIndex = orderIndexGetter.getOrderIndex(currentLesson);
-
-        return allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(currentOrderIndex + 1))
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * Find previous lesson in sequence
-     */
-    public <L> L findPreviousLesson(L currentLesson, List<L> allLessons,
-            LessonOrderIndexGetter<L> orderIndexGetter) {
-        Integer currentOrderIndex = orderIndexGetter.getOrderIndex(currentLesson);
-
-        return allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(currentOrderIndex - 1))
-                .findFirst()
-                .orElse(null);
     }
 }

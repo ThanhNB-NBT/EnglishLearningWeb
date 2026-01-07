@@ -12,6 +12,21 @@
 
       <div class="bg-white dark:bg-[#1d1d1d] rounded-2xl shadow-xl border border-gray-200 dark:border-[#333] overflow-hidden">
         <div class="p-8">
+          <!-- Retry indicator -->
+          <el-alert
+            v-if="retrying"
+            type="info"
+            :closable="false"
+            class="mb-4"
+          >
+            <template #title>
+              <div class="flex items-center gap-2">
+                <el-icon class="animate-spin"><Loading /></el-icon>
+                <span>Đang xử lý... Vui lòng đợi</span>
+              </div>
+            </template>
+          </el-alert>
+
           <el-form
             ref="formRef"
             :model="formData"
@@ -26,6 +41,7 @@
                 v-model="formData.usernameOrEmail"
                 placeholder="admin"
                 :prefix-icon="User"
+                :disabled="loading || retrying"
                 class="!h-11"
               />
             </el-form-item>
@@ -36,6 +52,7 @@
                 type="password"
                 placeholder="••••••••"
                 :prefix-icon="Lock"
+                :disabled="loading || retrying"
                 show-password
                 class="!h-11"
                 @keyup.enter="handleLogin"
@@ -46,15 +63,19 @@
               type="primary"
               native-type="submit"
               :loading="loading"
+              :disabled="loading || retrying"
               class="!w-full !h-11 !text-base !font-bold !rounded-lg !bg-gray-900 hover:!bg-gray-800 dark:!bg-blue-600 dark:hover:!bg-blue-700 !border-none transition-colors"
             >
-              Truy cập Dashboard
+              {{ loading ? 'Đang xử lý...' : 'Truy cập Dashboard' }}
             </el-button>
           </el-form>
         </div>
 
         <div class="px-8 py-4 bg-gray-50 dark:bg-[#262626] border-t border-gray-100 dark:border-[#333] text-center">
-          <router-link to="/" class="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors no-underline flex items-center justify-center gap-2">
+          <router-link
+            to="/"
+            class="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors no-underline flex items-center justify-center gap-2"
+          >
             <el-icon><ArrowLeft /></el-icon> Quay về trang chủ
           </router-link>
         </div>
@@ -71,14 +92,14 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { User, Lock, Monitor, ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { User, Lock, Monitor, ArrowLeft, Loading } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const formRef = ref(null)
 const loading = ref(false)
+const retrying = ref(false) // ✅ NEW
 
 const formData = reactive({
   usernameOrEmail: '',
@@ -92,15 +113,29 @@ const rules = {
 
 const handleLogin = async () => {
   if (!formRef.value) return
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
+      retrying.value = false
+
       try {
         await authStore.loginAdmin(formData)
         router.push('/admin/dashboard')
       } catch (error) {
-        // Lỗi đã được xử lý ở store hoặc interceptor, nhưng có thể hiện thêm thông báo ở đây nếu cần
-        console.error(error)
+        console.error('Admin login failed:', error)
+
+        // Check optimistic lock
+        const isOptimisticLock =
+          error.response?.status === 409 ||
+          error.response?.data?.message?.includes('optimistic')
+
+        if (isOptimisticLock) {
+          retrying.value = true
+          setTimeout(() => {
+            retrying.value = false
+          }, 2000)
+        }
       } finally {
         loading.value = false
       }
@@ -108,3 +143,14 @@ const handleLogin = async () => {
   })
 }
 </script>
+
+<style scoped>
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+</style>

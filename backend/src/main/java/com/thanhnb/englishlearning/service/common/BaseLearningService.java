@@ -1,238 +1,295 @@
 package com.thanhnb.englishlearning.service.common;
 
+import com.thanhnb.englishlearning.dto.common.SubmitResultDTO;
 import com.thanhnb.englishlearning.dto.question.helper.QuestionResultDTO;
 import com.thanhnb.englishlearning.dto.question.request.SubmitAnswerRequest;
-import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
 import com.thanhnb.englishlearning.entity.question.Question;
+import com.thanhnb.englishlearning.entity.question.TaskGroup;
+import com.thanhnb.englishlearning.entity.user.User;
+import com.thanhnb.englishlearning.enums.EnglishLevel;
+import com.thanhnb.englishlearning.enums.ModuleType;
 import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.event.LessonCompletedEvent;
+import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.question.TaskGroupRepository;
+import com.thanhnb.englishlearning.repository.user.UserRepository;
+import com.thanhnb.englishlearning.service.common.LessonProgressService.ProgressUpdateResult;
+import com.thanhnb.englishlearning.service.level.LevelUpgradeService;
+import com.thanhnb.englishlearning.service.question.AnswerValidationService;
 import com.thanhnb.englishlearning.service.question.QuestionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/**
- * Abstract base service cho các module học tập (Grammar, Reading, Listening, etc.)
- * Chứa logic chung: Question processing, Answer checking, Unlock logic
- */
 @Slf4j
-public abstract class BaseLearningService<TLesson, TProgress> {
+public abstract class BaseLearningService<TLesson, TProgress extends LessonProgressService.LessonProgress> {
 
-    @Autowired
-    protected QuestionService questionService;
+        @Autowired
+        protected QuestionService questionService;
+        @Autowired
+        protected LessonProgressService lessonProgressService;
+        @Autowired
+        protected UserRepository userRepository;
+        @Autowired
+        protected AnswerValidationService answerValidationService;
+        @Autowired
+        protected ApplicationEventPublisher eventPublisher;
+        @Autowired
+        protected LevelUpgradeService levelUpgradeService;
+        @Autowired
+        protected TaskGroupRepository taskGroupRepository;
+        @Autowired
+        protected QuestionRepository questionRepository;
 
-    /**
-     * TEMPLATE METHOD: Subclass override để chỉ định ParentType
-     */
-    protected abstract ParentType getParentType();
+        // --- Abstract Methods ---
+        protected abstract ParentType getParentType();
 
-    // ═══════════════════════════════════════════════════════════════
-    // QUESTION PROCESSING (Delegate to QuestionService)
-    // ═══════════════════════════════════════════════════════════════
+        protected abstract Integer getLessonOrder(TLesson lesson);
 
-    /**
-     * SHARED: Process answers và trả về kết quả chi tiết
-     * Dùng chung cho Grammar, Reading, Listening, etc.
-     * 
-     * @param answers Danh sách câu trả lời của user
-     * @return Danh sách kết quả chi tiết từng câu
-     */
-    protected List<QuestionResultDTO> processAnswers(List<SubmitAnswerRequest> answers) {
-        return questionService.processAnswers(answers, getParentType());
-    }
+        protected abstract Long getLessonId(TLesson lesson);
 
-    /**
-     * SHARED: Convert Question entity -> QuestionResponseDTO
-     * Tự động shuffle options cho MULTIPLE_CHOICE
-     * 
-     * @param question Question entity
-     * @param shuffleOptions Có shuffle options không
-     */
-    protected QuestionResponseDTO convertQuestionToDTO(Question question, boolean shuffleOptions) {
-        return questionService.convertToDTO(question, shuffleOptions);
-    }
+        protected abstract boolean isLessonActive(TLesson lesson);
 
-    /**
-     * SHARED: Convert Question entity -> QuestionResponseDTO (with shuffle)
-     */
-    protected QuestionResponseDTO convertQuestionToDTO(Question question) {
-        return questionService.convertToDTO(question, true);
-    }
+        protected abstract int getPointsReward(TLesson lesson);
 
-    /**
-     * SHARED: Convert list of questions to DTOs
-     */
-    protected List<QuestionResponseDTO> convertQuestionsToDTOs(List<Question> questions, boolean shuffleOptions) {
-        return questionService.convertToDTOs(questions, shuffleOptions);
-    }
+        protected abstract TProgress createNewProgressInstance(Long userId, TLesson lesson);
 
-    /**
-     * SHARED: Load questions by parent
-     */
-    protected List<Question> loadQuestionsByParent(Long parentId) {
-        return questionService.loadQuestionsByParent(getParentType(), parentId);
-    }
+        protected abstract Optional<TProgress> findProgress(Long userId, Long lessonId);
 
-    /**
-     * SHARED: Count questions by parent
-     */
-    protected long countQuestionsByParent(Long parentId) {
-        return questionService.countQuestionsByParent(getParentType(), parentId);
-    }
+        protected abstract void saveProgress(TProgress progress);
 
-    /**
-     * SHARED: Validate answer count
-     */
-    protected void validateAnswerCount(List<SubmitAnswerRequest> answers, Long parentId) {
-        questionService.validateAnswerCount(answers, getParentType(), parentId);
-    }
+        protected abstract Long getTopicId(TLesson lesson);
 
-    // ═══════════════════════════════════════════════════════════════
-    // SCORING UTILITIES
-    // ═══════════════════════════════════════════════════════════════
+        protected abstract String getTopicName(TLesson lesson);
 
-    /**
-     * SHARED: Calculate total score from results
-     */
-    protected int calculateTotalScore(List<QuestionResultDTO> results) {
-        return questionService.calculateTotalScore(results);
-    }
+        protected abstract EnglishLevel getLessonRequiredLevel(TLesson lesson);
 
-    /**
-     * SHARED: Calculate correct count from results
-     */
-    protected int calculateCorrectCount(List<QuestionResultDTO> results) {
-        return questionService.calculateCorrectCount(results);
-    }
+        /**
+         * 🔥 CORE LOGIC: Xử lý nộp bài chung cho mọi module
+         */
+        @Transactional
+        public SubmitResultDTO processSubmission(
+                        Long userId,
+                        TLesson lesson,
+                        List<TLesson> allLessons,
+                        List<SubmitAnswerRequest> answers,
+                        ModuleType moduleType) {
 
-    /**
-     * SHARED: Calculate score percentage
-     */
-    protected double calculateScorePercentage(int correctCount, int totalQuestions) {
-        return questionService.calculateScorePercentage(correctCount, totalQuestions);
-    }
+                Long lessonId = getLessonId(lesson);
+                log.info("Processing submission: userId={}, lessonId={}, module={}", userId, lessonId, moduleType);
 
-    /**
-     * SHARED: Calculate score percentage from results
-     */
-    protected double calculateScorePercentage(List<QuestionResultDTO> results) {
-        return questionService.calculateScorePercentage(results);
-    }
+                // 1. Lấy và chấm điểm câu hỏi
+                List<Question> questions = loadQuestionsForGrading(lessonId);
+                List<QuestionResultDTO> results = new ArrayList<>();
+                List<LessonCompletedEvent.QuestionTrackingInfo> trackingInfos = new ArrayList<>();
 
-    /**
-     * SHARED: Check if passed (default 80%)
-     */
-    protected boolean isPassed(double scorePercentage) {
-        return isPassed(scorePercentage, 80.0);
-    }
+                int correctCount = 0;
+                int totalScore = 0;
+                int totalQuestions = questions.size();
 
-    /**
-     * SHARED: Check if passed with custom threshold
-     */
-    protected boolean isPassed(double scorePercentage, double threshold) {
-        return scorePercentage >= threshold;
-    }
+                Map<Long, SubmitAnswerRequest> answerMap = answers.stream()
+                                .collect(Collectors.toMap(SubmitAnswerRequest::getQuestionId, a -> a, (a1, a2) -> a1));
 
-    // ═══════════════════════════════════════════════════════════════
-    // LESSON UNLOCK LOGIC (Sequential)
-    // ═══════════════════════════════════════════════════════════════
+                for (Question q : questions) {
+                        SubmitAnswerRequest ans = answerMap.get(q.getId());
+                        QuestionResultDTO result = answerValidationService.validateAnswer(
+                                        q,
+                                        ans != null ? ans.getSelectedOptions() : null,
+                                        ans != null ? ans.getTextAnswer() : null);
 
-    /**
-     * SHARED: Check lesson unlock status (sequential unlock)
-     * 
-     * Rules:
-     * 1. First lesson (orderIndex = 1) always unlocked
-     * 2. Next lesson unlocked only when previous lesson completed
-     * 
-     * @param lesson Current lesson to check
-     * @param allLessons All lessons sorted by orderIndex
-     * @param userId User ID
-     * @param orderIndexGetter Lambda to get orderIndex from lesson
-     * @param lessonIdGetter Lambda to get lessonId from lesson
-     * @param progressChecker Lambda to check if progress completed
-     */
-    protected <L> boolean isLessonUnlocked(
-            L lesson,
-            List<L> allLessons,
-            Long userId,
-            LessonOrderIndexGetter<L> orderIndexGetter,
-            LessonIdGetter<L> lessonIdGetter,
-            ProgressCompletedChecker progressChecker) {
+                        results.add(result);
+                        boolean isCorrect = Boolean.TRUE.equals(result.getIsCorrect());
 
-        Integer orderIndex = orderIndexGetter.getOrderIndex(lesson);
+                        if (isCorrect) {
+                                correctCount++;
+                                totalScore += result.getPoints(); // Dùng điểm thực tế của câu hỏi
+                        }
 
-        // Rule 1: First lesson always unlocked
-        if (orderIndex == 1) {
-            log.debug("Lesson orderIndex={} is first -> UNLOCKED", orderIndex);
-            return true;
+                        trackingInfos.add(
+                                        new LessonCompletedEvent.QuestionTrackingInfo(q.getQuestionType(), isCorrect));
+                }
+
+                // 2. Tính toán kết quả
+                int maxPossibleScore = questions.stream().mapToInt(Question::getPoints).sum();
+                double scorePercentage = maxPossibleScore > 0 ? ((double) totalScore / maxPossibleScore) * 100.0 : 0.0;
+                boolean isPassed = scorePercentage >= 80.0; // Config ngưỡng pass (ví dụ 80%)
+
+                // 3. Lưu tiến độ (Progress)
+                TProgress progress = findProgress(userId, lessonId)
+                                .orElseGet(() -> createNewProgressInstance(userId, lesson));
+
+                User user = userRepository.getReferenceById(userId);
+                ProgressUpdateResult updateResult = lessonProgressService.updateProgress(
+                                progress, user, scorePercentage, isPassed, getPointsReward(lesson), getParentType());
+
+                saveProgress(progress);
+
+                // 4. Tìm bài tiếp theo & Check mở khóa
+                Long nextLessonId = null;
+                boolean hasUnlockedNext = false;
+
+                TLesson nextLesson = findNextLesson(lesson, allLessons);
+                if (nextLesson != null) {
+                        nextLessonId = getLessonId(nextLesson);
+                        // Nếu đây là lần đầu hoàn thành và đậu -> Đánh dấu là mới mở khóa
+                        if (updateResult.isFirstCompletion() && isPassed) {
+                                hasUnlockedNext = true;
+                        }
+                }
+
+                // 5. Check nâng cấp trình độ (Chỉ khi hoàn thành lần đầu)
+                LevelUpgradeService.LevelUpgradeResult levelResult = null;
+                if (updateResult.isFirstCompletion() && isPassed) {
+                        try {
+                                levelResult = levelUpgradeService.checkAndUpgradeLevel(userId, moduleType,
+                                                getTopicId(lesson));
+                        } catch (Exception e) {
+                                log.error("Level upgrade check failed", e);
+                        }
+                }
+
+                // 6. Gửi sự kiện Tracking (Async)
+                publishTrackingEvent(userId, lesson, moduleType, trackingInfos);
+
+                return SubmitResultDTO.builder()
+                                .isPassed(isPassed)
+                                .scorePercentage(scorePercentage)
+                                .totalScore(totalScore)
+                                .correctCount(correctCount)
+                                .totalQuestions(totalQuestions)
+                                .pointsEarned(updateResult.getPointsEarned())
+                                .results(results)
+                                .hasUnlockedNext(hasUnlockedNext)
+                                .nextLessonId(nextLessonId) // ✅ Luôn trả về ID nếu có
+                                .levelUpgradeResult(levelResult)
+                                .build();
         }
 
-        // Rule 2: Find previous lesson
-        L previousLesson = allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(orderIndex - 1))
-                .findFirst()
-                .orElse(null);
+        // --- Helpers ---
 
-        if (previousLesson == null) {
-            log.warn("No previous lesson found for orderIndex={} -> UNLOCKED (fallback)", orderIndex);
-            return true;
+        private List<Question> loadQuestionsForGrading(Long lessonId) {
+                List<Question> allQuestions = new ArrayList<>();
+                // Lấy câu hỏi lẻ
+                allQuestions.addAll(questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(),
+                                lessonId));
+                // Lấy câu hỏi trong nhóm
+                List<TaskGroup> groups = taskGroupRepository
+                                .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId);
+                for (TaskGroup g : groups) {
+                        allQuestions.addAll(questionRepository.findByTaskGroupIdOrderByOrderIndexAsc(g.getId()));
+                }
+                return allQuestions;
         }
 
-        // Check if previous lesson completed
-        Long previousLessonId = lessonIdGetter.getLessonId(previousLesson);
-        boolean isPreviousCompleted = progressChecker.isCompleted(userId, previousLessonId);
+        protected TLesson findNextLesson(TLesson currentLesson, List<TLesson> allLessons) {
+                if (allLessons == null || allLessons.isEmpty())
+                        return null;
 
-        if (isPreviousCompleted) {
-            log.debug("Previous lesson id={} completed -> UNLOCKED", previousLessonId);
-        } else {
-            log.debug("Previous lesson id={} NOT completed -> LOCKED", previousLessonId);
+                // Sắp xếp lại cho chắc chắn
+                List<TLesson> sorted = allLessons.stream()
+                                .sorted(Comparator.comparing(this::getLessonOrder))
+                                .toList();
+
+                Long currentId = getLessonId(currentLesson);
+                for (int i = 0; i < sorted.size() - 1; i++) {
+                        if (getLessonId(sorted.get(i)).equals(currentId)) {
+                                TLesson next = sorted.get(i + 1);
+                                if (isLessonActive(next))
+                                        return next; // Chỉ trả về nếu bài tiếp theo Active
+                        }
+                }
+                return null;
         }
 
-        return isPreviousCompleted;
-    }
+        private void publishTrackingEvent(Long userId, TLesson lesson, ModuleType module,
+                        List<LessonCompletedEvent.QuestionTrackingInfo> infos) {
+                try {
+                        eventPublisher.publishEvent(new LessonCompletedEvent(
+                                        this, userId, module, getTopicId(lesson), getTopicName(lesson), infos));
+                } catch (Exception e) {
+                        log.error("Failed to publish tracking event", e);
+                }
+        }
 
-    /**
-     * SHARED: Find next lesson in sequence
-     */
-    protected <L> L findNextLesson(L currentLesson, List<L> allLessons, 
-            LessonOrderIndexGetter<L> orderIndexGetter) {
-        Integer currentOrderIndex = orderIndexGetter.getOrderIndex(currentLesson);
-        
-        return allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(currentOrderIndex + 1))
-                .findFirst()
-                .orElse(null);
-    }
+        // Logic Unlock & Access Check (Giữ nguyên hoặc tinh chỉnh nhẹ)
+        protected boolean isLessonUnlocked(TLesson lesson, List<TLesson> allLessons, Long userId,
+                        Function<TLesson, Integer> orderGetter, Function<TLesson, Long> idGetter,
+                        BiPredicate<Long, Long> progressChecker, EnglishLevel userLevel) {
+                if (!isLessonActive(lesson))
+                        return false;
 
-    /**
-     * SHARED: Find previous lesson in sequence
-     */
-    protected <L> L findPreviousLesson(L currentLesson, List<L> allLessons,
-            LessonOrderIndexGetter<L> orderIndexGetter) {
-        Integer currentOrderIndex = orderIndexGetter.getOrderIndex(currentLesson);
-        
-        return allLessons.stream()
-                .filter(l -> orderIndexGetter.getOrderIndex(l).equals(currentOrderIndex - 1))
-                .findFirst()
-                .orElse(null);
-    }
+                // Check Level
+                EnglishLevel required = getLessonRequiredLevel(lesson);
+                if (required != null && userLevel != null && userLevel.ordinal() < required.ordinal())
+                        return false;
 
-    // ═══════════════════════════════════════════════════════════════
-    // FUNCTIONAL INTERFACES (để tránh reflection)
-    // ═══════════════════════════════════════════════════════════════
+                Integer order = orderGetter.apply(lesson);
+                if (order == 1)
+                        return true;
 
-    @FunctionalInterface
-    protected interface LessonOrderIndexGetter<L> {
-        Integer getOrderIndex(L lesson);
-    }
+                // Tìm bài trước
+                return allLessons.stream()
+                                .filter(this::isLessonActive)
+                                .filter(l -> orderGetter.apply(l) == order - 1)
+                                .findFirst()
+                                .map(prev -> progressChecker.test(userId, idGetter.apply(prev)))
+                                .orElse(true); // Fallback: nếu không tìm thấy bài trước thì mở
+        }
 
-    @FunctionalInterface
-    protected interface LessonIdGetter<L> {
-        Long getLessonId(L lesson);
-    }
+        protected void validateLessonAccess(TLesson lesson, List<TLesson> allLessons, Long userId,
+                        BiPredicate<Long, Long> progressChecker, EnglishLevel userLevel) {
+                if (!isLessonActive(lesson))
+                        throw new IllegalStateException("Bài học không khả dụng");
+                if (!isLessonUnlocked(lesson, allLessons, userId, this::getLessonOrder, this::getLessonId,
+                                progressChecker, userLevel)) {
+                        throw new IllegalStateException("Bạn chưa đủ điều kiện mở bài học này");
+                }
+        }
 
-    @FunctionalInterface
-    protected interface ProgressCompletedChecker {
-        boolean isCompleted(Long userId, Long lessonId);
-    }
+        // Abstract method hỗ trợ lấy Grouped Questions cho Frontend
+        protected TaskGroupedQuestionsDTO getGroupedQuestionsForLesson(Long lessonId) {
+                List<Question> questions = questionService.loadQuestionsByParent(getParentType(), lessonId);
+                if (questions.isEmpty())
+                        return TaskGroupedQuestionsDTO.builder().hasTaskStructure(false).standaloneQuestions(List.of())
+                                        .build();
+
+                Map<Long, List<Question>> groupedMap = new LinkedHashMap<>();
+                List<Question> standalone = new ArrayList<>();
+
+                for (Question q : questions) {
+                        if (q.getTaskGroup() != null)
+                                groupedMap.computeIfAbsent(q.getTaskGroup().getId(), k -> new ArrayList<>()).add(q);
+                        else
+                                standalone.add(q);
+                }
+
+                List<TaskGroupedQuestionsDTO.TaskGroup> tasks = groupedMap.entrySet().stream()
+                                .map(entry -> {
+                                        TaskGroup tg = entry.getValue().get(0).getTaskGroup();
+                                        return TaskGroupedQuestionsDTO.TaskGroup.builder()
+                                                        .taskGroupId(tg.getId())
+                                                        .taskName(tg.getTaskName())
+                                                        .taskInstruction(tg.getInstruction())
+                                                        .taskOrder(tg.getOrderIndex())
+                                                        .questions(questionService
+                                                                        .convertToDTOsForLearning(entry.getValue())) // Shuffle
+                                                                                                                     // options
+                                                        .build();
+                                })
+                                .sorted(Comparator.comparing(TaskGroupedQuestionsDTO.TaskGroup::getTaskOrder))
+                                .toList();
+
+                return TaskGroupedQuestionsDTO.builder()
+                                .hasTaskStructure(!tasks.isEmpty())
+                                .tasks(tasks)
+                                .standaloneQuestions(questionService.convertToDTOsForLearning(standalone))
+                                .build();
+        }
 }

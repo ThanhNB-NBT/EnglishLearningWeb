@@ -1,150 +1,213 @@
 package com.thanhnb.englishlearning.dto.grammar;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
+import com.thanhnb.englishlearning.enums.EnglishLevel;
 import com.thanhnb.englishlearning.enums.LessonType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.thanhnb.englishlearning.config.Views;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * ✅ UNIFIED DTO for ALL Grammar operations
+ * - Create/Update (Admin/Teacher)
+ * - List view (User)
+ * - Detail view (User)
+ */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Schema(description = "Thông tin bài học ngữ pháp")
+@Schema(description = "Grammar Lesson DTO - Bài học ngữ pháp")
 public class GrammarLessonDTO {
 
-    // === BASIC INFO (Dùng cho cả Summary và Full) ===
-    @Schema(description = "ID của bài học", example = "1")
+    // ═══════════════════════════════════════════════════════════
+    // CORE FIELDS (Required for create/update)
+    // ═══════════════════════════════════════════════════════════
+    
+    @Schema(description = "ID bài học (null khi tạo mới)", example = "1")
+    @JsonView(Views.Public.class)
     private Long id;
-
+    
     @NotNull(message = "Topic ID không được để trống")
-    @Schema(description = "ID của chủ đề", example = "1")
+    @Schema(description = "ID chủ đề", example = "1")
+    @JsonView(Views.Public.class)
     private Long topicId;
-
+    
     @NotBlank(message = "Tiêu đề không được để trống")
-    @Size(max = 200, message = "Tiêu đề tối đa 200 ký tự")
-    @Schema(description = "Tiêu đề bài học", example = "How to use Present Simple")
+    @Size(max = 200, message = "Tiêu đề không quá 200 ký tự")
+    @Schema(description = "Tiêu đề bài học", example = "Present Simple Tense")
+    @JsonView(Views.Public.class)
     private String title;
-
+    
     @NotNull(message = "Loại bài học không được để trống")
-    @Schema(description = "Loại bài học", example = "THEORY")
+    @Schema(description = "Loại bài học", example = "THEORY", allowableValues = {"THEORY", "PRACTICE"})
+    @JsonView(Views.Public.class)
     private LessonType lessonType;
-
+    
     @NotNull(message = "Thứ tự không được để trống")
     @Min(value = 1, message = "Thứ tự phải >= 1")
     @Schema(description = "Thứ tự bài học", example = "1")
+    @JsonView(Views.Public.class)
     private Integer orderIndex;
 
-    @Min(value = 1, message = "Điểm thưởng phải >= 1")
-    @Schema(description = "Điểm thưởng khi hoàn thành", example = "10")
-    private Integer pointsReward = 10;
-
-    @Min(value = 10, message = "Thời gian ước tính phải >= 10 giây")
-    @Schema(description = "Thời gian ước tính (giây)", example = "30")
-    private Integer timeLimitSeconds = 30;
-
-    @Schema(description = "Trạng thái hoạt động", example = "true")
-    private Boolean isActive = true;
-
-    @Schema(description = "Thời gian tạo")
-    private LocalDateTime createdAt;
-
-    private Map<String, Object> metadata;
-
-    @Schema(description = "Tên chủ đề")
-    private String topicName;
-
-    @Schema(description = "Số lượng câu hỏi", example = "10")
-    private Integer questionCount;
-
-    // === FULL DETAILS (Chỉ dùng khi load full) ===
-    @Schema(description = "Nội dung bài học (HTML/Markdown)")
+    // ═══════════════════════════════════════════════════════════
+    // OPTIONAL FIELDS
+    // ═══════════════════════════════════════════════════════════
+    
+    @Schema(description = "Nội dung bài học (HTML/Markdown)", example = "<h1>Present Simple</h1><p>...</p>")
+    @JsonView(Views.Public.class)
     private String content;
+    
+    @Min(value = 0, message = "Thời gian phải >= 0")
+    @Schema(description = "Giới hạn thời gian (giây, 0 = không giới hạn)", example = "1800")
+    @JsonView(Views.Public.class)
+    private Integer timeLimitSeconds;
+    
+    @Min(value = 1, message = "Điểm thưởng phải >= 1")
+    @Schema(description = "Điểm thưởng khi hoàn thành", example = "50")
+    @JsonView(Views.Public.class)
+    private Integer pointsReward;
+    
+    @Schema(description = "Trạng thái kích hoạt", example = "true")
+    @JsonView(Views.Public.class)
+    private Boolean isActive;
 
-    @Schema(description = "Danh sách câu hỏi - dùng cho get endpoint")
-    private List<QuestionResponseDTO> questions;
+    // ═══════════════════════════════════════════════════════════
+    // READ-ONLY FIELDS (Populated by system)
+    // ═══════════════════════════════════════════════════════════
+    
+    @Schema(description = "Thời gian tạo", example = "2024-01-15T10:30:00")
+    @JsonView(Views.Public.class)
+    private LocalDateTime createdAt;
+    
+    @Schema(description = "Thời gian cập nhật", example = "2024-01-20T14:45:00")
+    @JsonView(Views.Public.class)
+    private LocalDateTime modifiedAt;
+    
+    @Schema(description = "ID người cập nhật cuối", example = "5")
+    @JsonView(Views.Public.class)
+    private Long modifiedBy;
+    
+    @Schema(description = "Tên chủ đề", example = "Basic Tenses")
+    @JsonView(Views.Public.class)
+    private String topicName;
+    
+    @Schema(description = "Số lượng câu hỏi", example = "10")
+    @JsonView(Views.Public.class)
+    private Integer questionCount;
+    
+    @Schema(description = "Trình độ yêu cầu", example = "A1")
+    @JsonView(Views.Public.class)
+    private EnglishLevel requiredLevel;
 
-    @Schema(description = "Danh sách câu hỏi để tạo mới - dùng cho import hoặc admin tạo mới")
-    private List<CreateQuestionDTO> createQuestions;
-
-    // === USER PROGRESS (Chỉ có khi user logged in) ===
-    @Schema(description = "Đã hoàn thành chưa", example = "false")
+    // ═══════════════════════════════════════════════════════════
+    // USER PROGRESS (For user-facing endpoints)
+    // ═══════════════════════════════════════════════════════════
+    
+    @Schema(description = "Đã hoàn thành chưa", example = "true")
+    @JsonView(Views.Public.class)
     private Boolean isCompleted;
-
-    @Schema(description = "Có thể truy cập không", example = "true")
-    private Boolean isAccessible;
-
+    
     @Schema(description = "Đã mở khóa chưa", example = "true")
+    @JsonView(Views.Public.class)
     private Boolean isUnlocked;
-
+    
+    @Schema(description = "Có thể truy cập không", example = "true")
+    @JsonView(Views.Public.class)
+    private Boolean isAccessible;
+    
     @Schema(description = "Điểm của user", example = "85")
+    @JsonView(Views.Public.class)
     private Integer userScore;
-
-    @Schema(description = "Số lần thử", example = "2")
+    
+    @Schema(description = "Số lần thử", example = "3")
+    @JsonView(Views.Public.class)
     private Integer userAttempts;
+    
+    @Schema(description = "Thời gian hoàn thành", example = "2024-01-18T16:20:00")
+    @JsonView(Views.Public.class)
+    private LocalDateTime completedAt;
 
-    // ===== STATIC FACTORY METHODS - TẠO DTO DỄ DÀNG =====
+    // ═══════════════════════════════════════════════════════════
+    // QUESTIONS (For detail view)
+    // ═══════════════════════════════════════════════════════════
+    
+    @Deprecated
+    @Schema(description = "⚠️ DEPRECATED: Dùng groupedQuestions thay thế")
+    @JsonView(Views.Public.class)
+    private List<QuestionResponseDTO> questions;
+    
+    @Schema(description = "✅ Câu hỏi theo cấu trúc Task (flat hoặc grouped)")
+    @JsonView(Views.Public.class)
+    private TaskGroupedQuestionsDTO groupedQuestions;
 
+    // ═══════════════════════════════════════════════════════════
+    // HELPER METHODS
+    // ═══════════════════════════════════════════════════════════
+    
     /**
-     * Tạo Summary DTO (cho danh sách)
+     * Add questions and auto-calculate count
      */
-    public static GrammarLessonDTO summary(Long id, Long topicId, String title, 
-            LessonType lessonType, Integer orderIndex, Integer pointsReward, 
-            Boolean isActive, Integer questionCount) {
-        GrammarLessonDTO dto = new GrammarLessonDTO();
-        dto.setId(id);
-        dto.setTopicId(topicId);
-        dto.setTitle(title);
-        dto.setLessonType(lessonType);
-        dto.setOrderIndex(orderIndex);
-        dto.setPointsReward(pointsReward);
-        dto.setIsActive(isActive);
-        dto.setQuestionCount(questionCount);
-        return dto;
+    @Deprecated
+    public GrammarLessonDTO withQuestions(List<QuestionResponseDTO> questions) {
+        this.questions = questions;
+        this.questionCount = questions != null ? questions.size() : 0;
+        return this;
     }
 
-    /**
-     * Tạo Full DTO (cho chi tiết)
-     */
-    public static GrammarLessonDTO full(Long id, Long topicId, String title, 
-            LessonType lessonType, String content, Integer orderIndex, 
-            Integer pointsReward, Integer timeLimitSeconds, Boolean isActive, 
-            LocalDateTime createdAt, Map<String, Object> metadata, String topicName) {
-        GrammarLessonDTO dto = new GrammarLessonDTO();
-        dto.setId(id);
-        dto.setTopicId(topicId);
-        dto.setTitle(title);
-        dto.setLessonType(lessonType);
-        dto.setContent(content);
-        dto.setOrderIndex(orderIndex);
-        dto.setPointsReward(pointsReward);
-        dto.setTimeLimitSeconds(timeLimitSeconds);
-        dto.setIsActive(isActive);
-        dto.setCreatedAt(createdAt);
-        dto.setMetadata(metadata);
-        dto.setTopicName(topicName);
-        return dto;
+    public GrammarLessonDTO withGroupedQuestions(TaskGroupedQuestionsDTO groupedQuestions) {
+        this.groupedQuestions = groupedQuestions;
+        
+        // Calculate total question count
+        if (groupedQuestions != null) {
+            int count = 0;
+            
+            if (groupedQuestions.getStandaloneQuestions() != null) {
+                count += groupedQuestions.getStandaloneQuestions().size();
+            }
+            
+            if (groupedQuestions.getTasks() != null) {
+                count += groupedQuestions.getTasks().stream()
+                    .mapToInt(task -> task.getQuestions() != null ? task.getQuestions().size() : 0)
+                    .sum();
+            }
+            
+            this.questionCount = count;
+        }
+        
+        return this;
     }
-
+    
     /**
-     * Check if lesson has questions
+     * Add progress information
      */
-    public boolean hasQuestions() {
-        return getQuestionCount() > 0;
+    public GrammarLessonDTO withProgress(
+            Boolean isCompleted, Integer userScore, 
+            Integer userAttempts, LocalDateTime completedAt) {
+        this.isCompleted = isCompleted;
+        this.userScore = userScore;
+        this.userAttempts = userAttempts;
+        this.completedAt = completedAt;
+        return this;
     }
-
+    
     /**
-     * Get appropriate questions list based on context
+     * Add unlock status
      */
-    public Object getQuestionsForContext(boolean isCreate) {
-        return isCreate ? createQuestions : questions;
+    public GrammarLessonDTO withUnlockStatus(Boolean isUnlocked, Boolean isAccessible) {
+        this.isUnlocked = isUnlocked;
+        this.isAccessible = isAccessible;
+        return this;
     }
 }

@@ -1,413 +1,357 @@
 package com.thanhnb.englishlearning.service.question;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.thanhnb.englishlearning.dto.question.request.CreateMultipleChoiceDTO;
 import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
 import com.thanhnb.englishlearning.entity.question.Question;
+import com.thanhnb.englishlearning.entity.question.TaskGroup;
 import com.thanhnb.englishlearning.enums.ParentType;
+import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.question.TaskGroupRepository;
+import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-/**
- * Abstract base service cho CRUD questions
- * - Chứa logic chung cho tất cả module (Grammar, Reading, Listening, etc.)
- * - Subclass chỉ cần implement getParentType() và validateLessonExists()
- */
 @Slf4j
-@Transactional
 public abstract class BaseQuestionService {
 
-    @Autowired
-    protected QuestionRepository questionRepository;
+    protected final QuestionRepository questionRepository;
+    protected final TeacherPermissionService teacherPermissionService;
+    protected final TaskGroupService taskGroupService;
+    protected final TaskGroupRepository taskGroupRepository;
 
-    @Autowired
-    protected QuestionConverter questionConverter;
+    protected BaseQuestionService(
+            QuestionRepository questionRepository,
+            TeacherPermissionService teacherPermissionService,
+            TaskGroupService taskGroupService,
+            TaskGroupRepository taskGroupRepository) {
+        this.questionRepository = questionRepository;
+        this.teacherPermissionService = teacherPermissionService;
+        this.taskGroupService = taskGroupService;
+        this.taskGroupRepository = taskGroupRepository;
+    }
 
-    @Autowired
-    protected QuestionMetadataValidator metadataValidator;
-
-    @Autowired
-    protected ObjectMapper objectMapper;
-
-    /**
-     * TEMPLATE METHOD: Subclass override để chỉ định ParentType
-     */
+    // Các class con phải implement
     protected abstract ParentType getParentType();
 
-    /**
-     * TEMPLATE METHOD: Subclass validate lesson exists
-     */
     protected abstract void validateLessonExists(Long lessonId);
 
-    /**
-     * TEMPLATE METHOD: Reorder after delete (optional)
-     */
-    protected void reorderAfterDelete(Long lessonId, Integer deletedOrderIndex) {
-        // Default: do nothing
-        // Subclass can override if needed
-    }
+    protected abstract Long getTopicIdFromLesson(Long lessonId);
 
-    // ═══════════════════════════════════════════════════════════
-    // READ OPERATIONS
-    // ═══════════════════════════════════════════════════════════
+    // =========================================================================
+    // CRUD OPERATIONS
+    // =========================================================================
 
-    /**
-     * Get questions with pagination
-     */
-    public Page<QuestionResponseDTO> getQuestionsByLessonPaginated(Long lessonId, Pageable pageable) {
+    @Transactional
+    public QuestionResponseDTO createQuestion(Long lessonId, @Valid CreateQuestionDTO dto) {
         validateLessonExists(lessonId);
+        Long topicId = getTopicIdFromLesson(lessonId);
+        teacherPermissionService.checkTopicPermission(topicId);
 
-        return questionRepository.findByParentTypeAndParentId(
-                getParentType(), lessonId, pageable)
-                .map(questionConverter::toResponseDTO);
+        if (dto.getOrderIndex() == null || dto.getOrderIndex() == 0) {
+            dto.setOrderIndex(getNextOrderIndex(lessonId));
+        }
+
+        // Update TaskGroup (nếu có)
+        TaskGroup taskGroup = null;
+        if (dto.getTaskGroupId() != null) {
+            taskGroup = taskGroupService.findTaskGroupById(dto.getTaskGroupId());
+
+            // Validate taskGroup thuộc đúng lesson
+            if (!taskGroup.getParentType().equals(getParentType())
+                    || !taskGroup.getParentId().equals(lessonId)) {
+                throw new IllegalArgumentException(
+                        "TaskGroup không thuộc lesson này");
+            }
+        }
+
+        Question question = Question.builder()
+                .parentType(getParentType())
+                .parentId(lessonId)
+                .questionType(dto.getQuestionType())
+                .questionText(dto.getQuestionText())
+                .points(dto.getPoints() != null ? dto.getPoints() : 1)
+                .orderIndex(dto.getOrderIndex())
+                .taskGroup(taskGroup)
+                .build();
+
+        question.setData(dto.getData());
+
+        Question saved = questionRepository.save(question);
+        log.info("Created {} question id={}", getParentType(), saved.getId());
+        return toResponseDTO(saved);
     }
 
-    /**
-     * Get all questions for a lesson
-     */
-    public List<QuestionResponseDTO> getQuestionsByLesson(Long lessonId) {
-        validateLessonExists(lessonId);
+    @Transactional
+    public QuestionResponseDTO updateQuestion(Long id, @Valid CreateQuestionDTO dto) {
+        Question question = findQuestionById(id);
+        Long topicId = getTopicIdFromLesson(question.getParentId());
+        teacherPermissionService.checkTopicPermission(topicId);
 
-        return questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(
-                getParentType(), lessonId)
-                .stream()
-                .map(questionConverter::toResponseDTO)
-                .collect(Collectors.toList());
+        // Update cột cứng
+        question.setQuestionText(dto.getQuestionText());
+        question.setQuestionType(dto.getQuestionType());
+        question.setPoints(dto.getPoints());
+
+        if (dto.getOrderIndex() != null) {
+            question.setOrderIndex(dto.getOrderIndex());
+        }
+
+        // Update TaskGroup
+        if (dto.getTaskGroupId() != null) {
+            TaskGroup taskGroup = taskGroupService.findTaskGroupById(dto.getTaskGroupId());
+
+            if (!taskGroup.getParentType().equals(getParentType())
+                    || !taskGroup.getParentId().equals(question.getParentId())) {
+                throw new IllegalArgumentException(
+                        "TaskGroup không thuộc lesson này");
+            }
+
+            question.setTaskGroup(taskGroup);
+        } else {
+            question.setTaskGroup(null); // Chuyển thành standalone
+        }
+
+        // Update JSON Data
+        question.setData(dto.getData());
+
+        Question saved = questionRepository.save(question);
+
+        if (saved.getTaskGroup() != null) {
+            saved.getTaskGroup().getTaskName();
+            saved.getTaskGroup().getInstruction();
+        }
+
+        return toResponseDTO(saved);
     }
 
-    /**
-     * Get single question by ID
-     */
+    public void deleteQuestion(Long id) {
+        Question question = findQuestionById(id);
+        Long topicId = getTopicIdFromLesson(question.getParentId());
+        teacherPermissionService.checkTopicPermission(topicId);
+        questionRepository.delete(question);
+    }
+
     public QuestionResponseDTO getQuestionById(Long id) {
-        Question question = questionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + id));
-
-        if (!question.getParentType().equals(getParentType())) {
-            throw new RuntimeException("Câu hỏi không thuộc module " + getParentType());
-        }
-
-        return questionConverter.toResponseDTO(question);
+        return toResponseDTO(findQuestionById(id));
     }
 
-    /**
-     * Get next order index
-     */
-    public Integer getNextOrderIndex(Long lessonId) {
+    public List<QuestionResponseDTO> getQuestionsByLessonId(Long lessonId) {
+        validateLessonExists(lessonId);
+        return questionRepository.findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId)
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
+    }
+
+    // TASK GROUPING
+
+    public TaskGroupedQuestionsDTO getGroupedQuestions(Long lessonId) {
         validateLessonExists(lessonId);
 
-        return questionRepository.findFirstByParentTypeAndParentIdOrderByOrderIndexDesc(
-                getParentType(), lessonId)
-                .map(q -> q.getOrderIndex() + 1)
-                .orElse(1);
+        // Lấy tất cả TaskGroups (có eager load questions qua @OneToMany)
+        List<TaskGroup> taskGroups = taskGroupRepository
+                .findByParentTypeAndParentIdWithQuestions(getParentType(), lessonId);
+
+        if (taskGroups.isEmpty()) {
+            // Không có task → trả về tất cả questions dạng standalone
+            List<QuestionResponseDTO> allQuestions = questionRepository
+                    .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId)
+                    .stream()
+                    .map(this::toResponseDTO)
+                    .toList();
+
+            return TaskGroupedQuestionsDTO.builder()
+                    .hasTaskStructure(false)
+                    .standaloneQuestions(allQuestions)
+                    .build();
+        }
+
+        List<TaskGroupedQuestionsDTO.TaskGroup> tasks = taskGroups.stream()
+                .map(tg -> TaskGroupedQuestionsDTO.TaskGroup.builder()
+                        .taskGroupId(tg.getId())
+                        .taskName(tg.getTaskName())
+                        .taskInstruction(tg.getInstruction())
+                        .taskOrder(tg.getOrderIndex())
+                        .questions(tg.getQuestions().stream()
+                                .map(this::toResponseDTO)
+                                .collect(Collectors.toList()))
+                        .build())
+                .collect(Collectors.toList());
+
+        List<QuestionResponseDTO> standalone = questionRepository
+                .findByParentTypeAndParentIdAndTaskGroupIsNullOrderByOrderIndexAsc(getParentType(), lessonId)
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
+
+        return TaskGroupedQuestionsDTO.builder()
+                .hasTaskStructure(true)
+                .tasks(tasks)
+                .standaloneQuestions(standalone.isEmpty() ? null : standalone)
+                .build();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // CREATE OPERATIONS
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Create single question
-     */
-    public QuestionResponseDTO createQuestion(CreateQuestionDTO createDTO) {
-        validateLessonExists(createDTO.getParentId());
-
-        if (!createDTO.getParentType().equals(getParentType())) {
-            throw new RuntimeException(String.format("Questien parentType phải là %s, không phải %s",
-                    getParentType(), createDTO.getParentType()));
-        }
-
-        if (createDTO.getOrderIndex() == null || createDTO.getOrderIndex() == 0) {
-            createDTO.setOrderIndex(getNextOrderIndex(createDTO.getParentId()));
-            log.debug("Set orderIndex={} for new question", createDTO.getOrderIndex());
-        }
-
-        // log debug
-        log.info("Creating question type: {}", createDTO.getQuestionType());
-        if (createDTO instanceof CreateMultipleChoiceDTO) {
-            CreateMultipleChoiceDTO mcDto = (CreateMultipleChoiceDTO) createDTO;
-            log.info("Options received: {}", mcDto.getOptions().size());
-            mcDto.getOptions().forEach(opt -> log.info("   - Option: text='{}', isCorrect={}, order={}",
-                    opt.getText(), opt.getIsCorrect(), opt.getOrder()));
-        }
-
-        Question question = questionConverter.toEntity(createDTO);
-        metadataValidator.sanitizeMetadata(createDTO.getQuestionType(), question.getMetadata());
-        metadataValidator.validate(createDTO.getQuestionType(), question.getMetadata());
-        log.info("Built metadata: {}", question.getMetadata());
-        question.setParentType(getParentType());
-        question.setParentId(createDTO.getParentId());
-        Question savedQuestion = questionRepository.save(question);
-
-        log.info("Created {} question: {} (id={})",
-                getParentType(), savedQuestion.getQuestionText(), savedQuestion.getId());
-
-        return questionConverter.toResponseDTO(savedQuestion);
-    }
-
-    /**
-     * Create multiple questions in bulk
-     * Optimized: Only queries DB once for nextOrderIndex
-     */
-    public List<QuestionResponseDTO> createQuestionsInBulk(Long lessonId, List<CreateQuestionDTO> createDTOs) {
+    public Map<String, Object> getTaskStats(Long lessonId) {
         validateLessonExists(lessonId);
 
-        if (createDTOs == null || createDTOs.isEmpty()) {
-            log.warn("Attempted to create bulk questions with empty list for lesson {}", lessonId);
-            return List.of();
-        }
+        List<TaskGroup> taskGroups = taskGroupRepository
+                .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId);
 
-        // Query DB once for next order index
-        Integer nextOrder = getNextOrderIndex(lessonId);
-        log.debug("Starting bulk creation with nextOrderIndex={} for {} questions",
-                nextOrder, createDTOs.size());
-
-        AtomicInteger currentOrder = new AtomicInteger(nextOrder);
-
-        List<Question> questions = createDTOs.stream()
-                .map(dto -> {
-                    // Force parentId and parentType
-                    dto.setParentId(lessonId);
-                    dto.setParentType(getParentType());
-
-                    // Auto-increment orderIndex if not set
-                    if (dto.getOrderIndex() == null || dto.getOrderIndex() == 0) {
-                        dto.setOrderIndex(currentOrder.getAndIncrement());
-                    }
-
-                    return questionConverter.toEntity(dto);
+        List<Map<String, Object>> taskStats = taskGroups.stream()
+                .map(tg -> {
+                    Map<String, Object> stat = new HashMap<>();
+                    stat.put("taskGroupId", tg.getId());
+                    stat.put("taskName", tg.getTaskName());
+                    stat.put("instruction", tg.getInstruction());
+                    stat.put("orderIndex", tg.getOrderIndex());
+                    stat.put("questionCount", tg.getQuestionCount());
+                    stat.put("totalPoints", tg.getTotalPoints());
+                    return stat;
                 })
                 .collect(Collectors.toList());
 
-        // Batch save all questions
-        List<Question> savedQuestions = questionRepository.saveAll(questions);
+        long standaloneCount = questionRepository
+                .countByParentTypeAndParentIdAndTaskGroupIsNull(getParentType(), lessonId);
 
-        log.info("Created {} questions in bulk for {} lesson {} (orderIndex: {} to {})",
-                savedQuestions.size(), getParentType(), lessonId,
-                nextOrder, nextOrder + savedQuestions.size() - 1);
-
-        return savedQuestions.stream()
-                .map(questionConverter::toResponseDTO)
-                .collect(Collectors.toList());
+        return Map.of(
+                "hasTaskStructure", !taskStats.isEmpty(),
+                "taskCount", taskStats.size(),
+                "taskStats", taskStats,
+                "standaloneQuestionCount", standaloneCount);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // UPDATE OPERATIONS
-    // ═══════════════════════════════════════════════════════════
+    // =========================================================================
+    // BULK & UTILS
+    // =========================================================================
 
-    /**
-     * Update question
-     */
-    public QuestionResponseDTO updateQuestion(Long id, Object dto) {
-        Question question = questionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + id));
+    @Transactional
+    public List<QuestionResponseDTO> createQuestionsInBulk(Long lessonId, @Valid List<CreateQuestionDTO> dtos) {
+        validateLessonExists(lessonId);
+        Long topicId = getTopicIdFromLesson(lessonId);
+        teacherPermissionService.checkTopicPermission(topicId);
 
-        if (!question.getParentType().equals(getParentType())) {
-            throw new RuntimeException("Câu hỏi không thuộc module " + getParentType());
-        }
+        Integer nextOrder = getNextOrderIndex(lessonId);
 
-        if (dto instanceof CreateQuestionDTO createDTO) {
-            updateQuestionFromCreateDTO(question, createDTO);
-        } else if (dto instanceof QuestionResponseDTO responseDTO) {
-            updateQuestionFromResponseDTO(question, responseDTO);
-        } else {
-            throw new IllegalArgumentException("DTO type not supported: " + dto.getClass().getName());
-        }
+        List<Question> questions = IntStream.range(0, dtos.size())
+                .mapToObj(i -> {
+                    CreateQuestionDTO dto = dtos.get(i);
+                    int order = (dto.getOrderIndex() != null && dto.getOrderIndex() > 0)
+                            ? dto.getOrderIndex()
+                            : nextOrder + i;
 
-        Question savedQuestion = questionRepository.save(question);
+                    TaskGroup taskGroup = null;
+                    if (dto.getTaskGroupId() != null) {
+                        taskGroup = taskGroupService.findTaskGroupById(dto.getTaskGroupId());
+                    }
 
-        log.info("Updated {} question id={}", getParentType(), id);
-        return questionConverter.toResponseDTO(savedQuestion);
+                    Question question = Question.builder()
+                            .parentType(getParentType())
+                            .parentId(lessonId)
+                            .questionType(dto.getQuestionType())
+                            .questionText(dto.getQuestionText())
+                            .points(dto.getPoints() != null ? dto.getPoints() : 1)
+                            .orderIndex(order)
+                            .taskGroup(taskGroup)
+                            .build();
+
+                    question.setData(dto.getData());
+                    return question;
+                })
+                .toList();
+
+        List<Question> saved = questionRepository.saveAll(questions);
+        return saved.stream().map(this::toResponseDTO).toList();
     }
 
-    /**
-     * Update từ CreateDTO
-     */
-    private void updateQuestionFromCreateDTO(Question question, CreateQuestionDTO dto) {
-        question.setQuestionText(dto.getQuestionText());
-        question.setQuestionType(dto.getQuestionType());
+    @Transactional
+    public void bulkDeleteQuestions(List<Long> ids) {
+        if (ids == null || ids.isEmpty())
+            return;
 
-        if (dto.getPoints() != null) {
-            question.setPoints(dto.getPoints());
-        }
+        List<Question> questions = questionRepository.findAllById(ids);
+        if (questions.isEmpty())
+            return;
 
-        if (dto.getOrderIndex() != null) {
-            question.setOrderIndex(dto.getOrderIndex());
-        }
+        Question first = questions.get(0);
+        Long topicId = getTopicIdFromLesson(first.getParentId());
+        teacherPermissionService.checkTopicPermission(topicId);
 
-        // Rebuild metadata using QuestionConverter
-        Map<String, Object> newMetadata = questionConverter.buildMetadata(dto);
-        question.setMetadata(newMetadata);
+        questionRepository.deleteAll(questions);
+        log.info("Bulk deleted {} questions", questions.size());
     }
 
-    /**
-     * Update từ ResponseDTO (backward compatibility)
-     */
-    private void updateQuestionFromResponseDTO(Question question, QuestionResponseDTO dto) {
-        question.setQuestionText(dto.getQuestionText());
-        question.setQuestionType(dto.getQuestionType());
+    @Transactional
+    public void fixOrderIndexes(Long lessonId) {
+        validateLessonExists(lessonId);
+        Long topicId = getTopicIdFromLesson(lessonId);
+        teacherPermissionService.checkTopicPermission(topicId);
 
-        if (dto.getPoints() != null) {
-            question.setPoints(dto.getPoints());
-        }
+        List<Question> questions = questionRepository
+                .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId);
 
-        if (dto.getOrderIndex() != null) {
-            question.setOrderIndex(dto.getOrderIndex());
-        }
+        questions.sort(Comparator.comparingInt(Question::getOrderIndex)
+                .thenComparingLong(Question::getId));
 
-        if (dto.getMetadata() != null) {
-            question.setMetadata(dto.getMetadata());
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // DELETE OPERATIONS
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Delete single question
-     */
-    public void deleteQuestion(Long id) {
-        Question question = questionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Câu hỏi không tồn tại với id: " + id));
-
-        if (!question.getParentType().equals(getParentType())) {
-            throw new RuntimeException("Câu hỏi không thuộc module " + getParentType());
-        }
-
-        Long lessonId = question.getParentId();
-        Integer deletedOrderIndex = question.getOrderIndex();
-
-        questionRepository.delete(question);
-
-        log.info("Deleted {} question id={} (orderIndex={})",
-                getParentType(), id, deletedOrderIndex);
-
-        reorderAfterDelete(lessonId, deletedOrderIndex);
-    }
-
-    /**
-     * Bulk delete questions
-     */
-    public int bulkDeleteQuestions(List<Long> questionIds) {
-        if (questionIds == null || questionIds.isEmpty()) {
-            return 0;
-        }
-
-        List<Question> toDelete = questionRepository.findAllById(questionIds).stream()
-                .filter(q -> q.getParentType() == getParentType())
-                .collect(Collectors.toList());
-
-        if (toDelete.isEmpty()) {
-            log.warn("No {} questions found in provided IDs", getParentType());
-            return 0;
-        }
-
-        // Group by lesson for reindexing
-        Map<Long, List<Question>> byLesson = toDelete.stream()
-                .collect(Collectors.groupingBy(Question::getParentId));
-
-        // Delete questions
-        questionRepository.deleteAll(toDelete);
-
-        // Reindex each lesson
-        int totalReindexed = 0;
-        for (Map.Entry<Long, List<Question>> entry : byLesson.entrySet()) {
-            Long lessonId = entry.getKey();
-            List<Question> remaining = questionRepository
-                    .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), lessonId);
-
-            for (int i = 0; i < remaining.size(); i++) {
-                remaining.get(i).setOrderIndex(i + 1);
-            }
-
-            if (!remaining.isEmpty()) {
-                questionRepository.saveAll(remaining);
-                totalReindexed += remaining.size();
+        int updatedCount = 0;
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
+            int expected = i + 1;
+            if (q.getOrderIndex() == null || q.getOrderIndex() != expected) {
+                questionRepository.updateOrderIndex(q.getId(), expected);
+                updatedCount++;
             }
         }
-
-        log.info("Bulk deleted {} {} questions; reindexed {} items across {} lessons",
-                toDelete.size(), getParentType(), totalReindexed, byLesson.size());
-
-        return toDelete.size();
+        if (updatedCount > 0) {
+            log.info("Fixed order for {} questions in lesson {}", updatedCount, lessonId);
+        }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // COPY OPERATIONS
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Copy questions from one lesson to another
-     */
-    public void copyQuestionsToLesson(Long sourceLessonId, Long targetLessonId) {
-        validateLessonExists(sourceLessonId);
-        validateLessonExists(targetLessonId);
-
-        List<Question> sourceQuestions = questionRepository
-                .findByParentTypeAndParentIdOrderByOrderIndexAsc(getParentType(), sourceLessonId);
-
-        Integer nextOrder = getNextOrderIndex(targetLessonId);
-
-        List<Question> copiedQuestions = sourceQuestions.stream()
-                .map(source -> copyQuestion(source, targetLessonId, nextOrder))
-                .collect(Collectors.toList());
-
-        questionRepository.saveAll(copiedQuestions);
-
-        log.info("Copied {} questions from {} lesson {} to lesson {}",
-                sourceQuestions.size(), getParentType(), sourceLessonId, targetLessonId);
+    public Integer getNextOrderIndex(Long lessonId) {
+        return questionRepository.findMaxOrderIndexByLessonId(getParentType(), lessonId)
+                .orElse(0) + 1;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // PRIVATE HELPER METHODS
-    // ═══════════════════════════════════════════════════════════
+    protected Question findQuestionById(Long id) {
+        return questionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found with id: " + id));
+    }
 
-    /**
-     * Copy question entity
-     */
-    private Question copyQuestion(Question source, Long newLessonId, int newOrderIndex) {
-        Question copy = new Question();
-        copy.setParentType(getParentType());
-        copy.setParentId(newLessonId);
-        copy.setQuestionText(source.getQuestionText());
-        copy.setQuestionType(source.getQuestionType());
-        copy.setPoints(source.getPoints());
-        copy.setOrderIndex(newOrderIndex);
-        Object sourceMetadata = source.getMetadata();
-        if (sourceMetadata instanceof Map) {
+    protected QuestionResponseDTO toResponseDTO(Question question) {
+        Long taskGroupId = null;
+        String taskGroupName = null;
+        String taskInstruction = null;
+
+        if (question.getTaskGroup() != null) {
+            TaskGroup tg = question.getTaskGroup();
+            taskGroupId = tg.getId();
+
             try {
-                String json = objectMapper.writeValueAsString(sourceMetadata);
-                Map<String, Object> clonedMetadata = objectMapper.readValue(json,
-                        new TypeReference<Map<String, Object>>() {
-                        });
-                copy.setMetadata(clonedMetadata);
+                taskGroupName = tg.getTaskName();
+                taskInstruction = tg.getInstruction();
             } catch (Exception e) {
-                log.error("Failed to clone metadata, using shallow copy", e);
-                @SuppressWarnings("unchecked")
-                Map<String, Object> metadataMap = (Map<String, Object>) sourceMetadata;
-                copy.setMetadata(metadataMap);
+                log.debug("Could not load TaskGroup details");
             }
-        } else {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metadataMap = sourceMetadata != null ? (Map<String, Object>) sourceMetadata : null;
-            copy.setMetadata(metadataMap);
         }
-        copy.setCreatedAt(LocalDateTime.now());
-
-        log.debug("Copied question id={} to lesson={} with orderIndex={}",
-                source.getId(), newLessonId, newOrderIndex);
-        return copy;
+        return QuestionResponseDTO.builder()
+                .id(question.getId())
+                .parentType(question.getParentType())
+                .parentId(question.getParentId())
+                .questionText(question.getQuestionText())
+                .questionType(question.getQuestionType())
+                .points(question.getPoints())
+                .orderIndex(question.getOrderIndex())
+                .taskGroupId(taskGroupId)
+                .taskGroupName(taskGroupName)
+                .taskInstruction(taskInstruction)
+                .createdAt(question.getCreatedAt())
+                .data(question.getData())
+                .build();
     }
 }

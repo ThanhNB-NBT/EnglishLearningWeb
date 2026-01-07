@@ -1,8 +1,10 @@
 // src/api/index.js
-// Export tất cả các module API từ một điểm duy nhất
-
 export { authAPI } from './modules/auth.api.js'
 export { userAPI } from './modules/user.api.js'
+export { teacherAPI, teacherAdminAPI } from './modules/teacher.api.js'
+export { topicAPI } from './modules/topic.api.js'
 export { grammarUserAPI, grammarAdminAPI } from './modules/grammar.api.js'
 export { readingUserAPI, readingAdminAPI } from './modules/reading.api.js'
 export { listeningUserAPI, listeningAdminAPI } from './modules/listening.api.js'
+export { taskGroupAPI } from './modules/taskGroup.api'
+export { aiAPI } from './modules/ai.api.js'

@@ -1,112 +1,164 @@
-import apiClient from '../config'
+import axiosClient from '@/api/config'
 
 export const userAPI = {
-  // ==================== USER SELF-SERVICE (AUTHENTICATED) ====================
+  // ==================== 1. UNIFIED USER ENDPOINTS (/me) ====================
+  // Dành cho User, Admin, Teacher tự thao tác trên tài khoản của chính mình
 
   /**
-   * Get current user info (from token)
+   * Lấy thông tin cá nhân cơ bản (Profile)
    * GET /api/users/me
    */
-  getCurrentUser: () => apiClient.get('/api/users/me'),
+  getProfile() {
+    return axiosClient.get('/api/users/me')
+  },
 
   /**
-   * Update current user info (only self)
+   * Lấy thống kê (Điểm, Level...)
+   * GET /api/users/me/stats
+   */
+  getStats() {
+    return axiosClient.get('/api/users/me/stats')
+  },
+
+  /**
+   * Lấy lịch sử hoạt động (Lần đăng nhập cuối...)
+   * GET /api/users/me/activity
+   */
+  getActivity() {
+    return axiosClient.get('/api/users/me/activity')
+  },
+
+  /**
+   * Lấy thông tin Streak chi tiết
+   * GET /api/users/me/streak
+   */
+  getStreakInfo() {
+    return axiosClient.get('/api/users/me/streak')
+  },
+
+  /**
+   * Cập nhật thông tin cá nhân (Chỉ cho phép sửa FullName)
    * PUT /api/users/me
+   * Payload: { fullName: "..." }
    */
-  updateCurrentUser: (userData) => apiClient.put('/api/users/me', userData),
+  updateProfile(data) {
+    return axiosClient.put('/api/users/me', data)
+  },
 
   /**
-   * Change password (only self)
+   * Đổi mật khẩu
    * PUT /api/users/me/change-password
-   * Body: { oldPassword, newPassword, confirmPassword }
+   * Payload: { oldPassword, newPassword, confirmPassword }
    */
-  changePassword: (passwordData) => {
-    return apiClient.put('/api/users/me/change-password', {
-      oldPassword: passwordData.oldPassword,
-      newPassword: passwordData.newPassword,
-      confirmPassword: passwordData.confirmPassword,
+  changePassword(data) {
+    return axiosClient.put('/api/users/me/change-password', data)
+  },
+
+  // ==================== 2. PUBLIC / COMMON ENDPOINTS ====================
+
+  /**
+   * Lấy thông tin public của user khác qua username
+   * GET /api/users/username/{username}
+   */
+  getUserByUsername(username) {
+    return axiosClient.get(`/api/users/username/${username}`)
+  },
+
+  // ==================== 3. ADMIN ONLY ENDPOINTS ====================
+
+  /**
+   * Lấy danh sách tất cả user
+   * GET /api/users
+   */
+  getAllUsers() {
+    return axiosClient.get('/api/users')
+  },
+
+  /**
+   * Lấy user theo ID
+   * GET /api/users/{id}
+   */
+  getUserById(id) {
+    return axiosClient.get(`/api/users/${id}`)
+  },
+
+  /**
+   * Lấy user theo Email
+   * GET /api/users/email/{email}
+   */
+  getUserByEmail(email) {
+    return axiosClient.get(`/api/users/email/${email}`)
+  },
+
+  /**
+   * Xóa user
+   * DELETE /api/users/{id}
+   */
+  deleteUser(id) {
+    return axiosClient.delete(`/api/users/${id}`)
+  },
+
+  /**
+   * Khóa user
+   * PUT /api/users/{id}/block
+   */
+  blockUser(id) {
+    return axiosClient.put(`/api/users/${id}/block`)
+  },
+
+  /**
+   * Mở khóa user
+   * PUT /api/users/{id}/unblock
+   */
+  unblockUser(id) {
+    return axiosClient.put(`/api/users/${id}/unblock`)
+  },
+
+  /**
+   * Cộng điểm cho user (Admin cheat/reward)
+   * PUT /api/users/{id}/points?points=...
+   */
+  addPoints(id, points) {
+    return axiosClient.put(`/api/users/${id}/points`, null, {
+      params: { points }
     })
   },
 
   /**
-   * Get user by username (public/authenticated)
-   * GET /api/users/username/{username}
+   * Chỉnh sửa streak (Admin fix)
+   * PUT /api/users/{id}/streak?streakDays=...
    */
-  getUserByUsername: (username) => apiClient.get(`/api/users/username/${username}`),
-
-  // ==================== ADMIN ONLY ENDPOINTS ====================
+  updateStreakDays(id, streakDays) {
+    return axiosClient.put(`/api/users/${id}/streak`, null, {
+      params: { streakDays }
+    })
+  },
 
   /**
-   * Get all users (Admin only)
-   * GET /api/users
-   */
-  getAllUsers: () => apiClient.get('/api/users'),
-
-  /**
-   * Get user by ID (Admin only)
-   * GET /api/users/{id}
-   */
-  getUserById: (id) => apiClient.get(`/api/users/${id}`),
-
-  /**
-   * Get user by email (Admin only)
-   * GET /api/users/email/{email}
-   */
-  getUserByEmail: (email) => apiClient.get(`/api/users/email/${email}`),
-
-  /**
-   * Delete user (Admin only)
-   * DELETE /api/users/{id}
-   */
-  deleteUser: (id) => apiClient.delete(`/api/users/${id}`),
-
-  /**
-   * Block user (Admin only)
-   * PUT /api/users/{id}/block
-   */
-  blockUser: (id) => apiClient.put(`/api/users/${id}/block`),
-
-  /**
-   * Unblock user (Admin only)
-   * PUT /api/users/{id}/unblock
-   */
-  unblockUser: (id) => apiClient.put(`/api/users/${id}/unblock`),
-
-  /**
-   * Add points to user (Admin only)
-   * PUT /api/users/{id}/points?points={points}
-   */
-  addPoints: (id, points) => apiClient.put(`/api/users/${id}/points?points=${points}`),
-
-  /**
-   * Update user streak days (Admin only)
-   * PUT /api/users/{id}/streak?streakDays={streakDays}
-   */
-  updateStreakDays: (id, streakDays) => apiClient.put(`/api/users/${id}/streak?streakDays=${streakDays}`),
-
-  /**
-   * Update last login (Admin only - internal use)
-   * PUT /api/users/{id}/last-login
-   */
-  updateLastLogin: (id) => apiClient.put(`/api/users/${id}/last-login`),
-
-  // ==================== QUERIES (ADMIN ONLY) ====================
-
-  /**
-   * Get active users (Admin only)
+   * Lấy danh sách user đang online/active
    * GET /api/users/active
    */
-  getActiveUsers: () => apiClient.get('/api/users/active'),
+  getActiveUsers() {
+    return axiosClient.get('/api/users/active')
+  },
 
   /**
-   * Get top users by points (Admin only)
-   * GET /api/users/top-points?minPoints={minPoints}
+   * Lấy Top user theo điểm
+   * GET /api/users/top-points
    */
-  getTopUsersByPoints: (minPoints = 0) => apiClient.get(`/api/users/top-points?minPoints=${minPoints}`),
+  getTopUsersByPoints(minPoints = 0) {
+    return axiosClient.get('/api/users/top-points', {
+      params: { minPoints }
+    })
+  },
 
   /**
-   * Get top users by streak (Admin only)
-   * GET /api/users/top-streak?minStreakDays={minStreakDays}
+   * Lấy Top user theo chuỗi streak
+   * GET /api/users/top-streak
    */
-  getTopUsersByStreak: (minStreakDays = 0) => apiClient.get(`/api/users/top-streak?minStreakDays=${minStreakDays}`),
+  getTopUsersByStreak(minStreakDays = 0) {
+    return axiosClient.get('/api/users/top-streak', {
+      params: { minStreakDays }
+    })
+  }
 }

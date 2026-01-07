@@ -2,13 +2,16 @@ package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.GrammarLessonDTO;
 import com.thanhnb.englishlearning.entity.grammar.GrammarLesson;
-import com.thanhnb.englishlearning.entity.grammar.GrammarTopic;
-import com.thanhnb.englishlearning.entity.question.Question;
+import com.thanhnb.englishlearning.entity.topic.Topic;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.enums.ParentType;
-import com.thanhnb.englishlearning.enums.LessonType;
+import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
-import com.thanhnb.englishlearning.repository.grammar.GrammarTopicRepository;
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
+import com.thanhnb.englishlearning.repository.topic.TopicRepository;
+import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.user.UserService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,8 +20,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Grammar Lesson Service
+ * Includes: CRUD + Pagination + Order Management + Status Toggle + Validation
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -26,205 +34,223 @@ import java.util.List;
 public class GrammarLessonService {
 
     private final GrammarLessonRepository lessonRepository;
-    private final GrammarTopicRepository topicRepository;
+    private final TopicRepository topicRepository;
     private final QuestionRepository questionRepository;
-    private final GrammarOrderService orderService;
+    private final TeacherPermissionService teacherPermissionService;
+    private final UserService userService;
 
-    public Page<GrammarLessonDTO> getLessonsByTopicPaginated(Long topicId, Pageable pageable) {
-        if (!topicRepository.existsById(topicId)) {
-            throw new RuntimeException("Topic không tồn tại với id: " + topicId);
-        }
+    // ═════════════════════════════════════════════════════════════════
+    // READ OPERATIONS
+    // ═════════════════════════════════════════════════════════════════
 
-        return lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId, pageable)
-                .map(lesson -> {
-                    GrammarLessonDTO dto = convertToDTO(lesson);
-                    long count = questionRepository.countByParentTypeAndParentId(
-                            ParentType.GRAMMAR,
-                            lesson.getId());
+    public Page<GrammarLessonDTO> getLessonsByTopic(Long topicId, Pageable pageable) {
 
-                    // Log ra kiểm tra xem số đúng chưa
-                    log.debug("[List] Lesson '{}' has {} questions", lesson.getTitle(), count);
-
-                    dto.setQuestionCount((int) count);
-                    return dto;
-                });
+        return lessonRepository.findByTopicId(topicId, pageable)
+                .map(this::toDTO);
     }
 
-    public GrammarLessonDTO getLessonDetail(Long lessonId) {
-        GrammarLesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + lessonId));
+    public GrammarLessonDTO getLessonById(Long id) {
+        GrammarLesson lesson = findLessonById(id);
 
-        GrammarLessonDTO dto = convertToDTO(lesson);
-
-        long count = questionRepository.countByParentTypeAndParentId(
-                ParentType.GRAMMAR,
-                lesson.getId());
-
-        // Log ra kiểm tra xem số đúng chưa
-        log.debug("[Detail] Lesson '{}' has {} questions", lesson.getTitle(), count);
-
-        dto.setQuestionCount((int) count);
-
-        return dto;
+        return toDTO(lesson);
     }
+
+    // ═════════════════════════════════════════════════════════════════
+    // CREATE
+    // ═════════════════════════════════════════════════════════════════
 
     public GrammarLessonDTO createLesson(GrammarLessonDTO dto) {
-        GrammarTopic topic = topicRepository.findById(dto.getTopicId())
-                .orElseThrow(() -> new RuntimeException("Topic không tồn tại với id: " + dto.getTopicId()));
 
+        teacherPermissionService.checkTopicPermission(dto.getTopicId());
+        // 1. Validate
+        validateForCreate(dto);
+
+        // 3. Check unique title
         if (lessonRepository.existsByTopicIdAndTitleIgnoreCase(dto.getTopicId(), dto.getTitle())) {
-            throw new RuntimeException("Tiêu đề bài học đã tồn tại trong topic này");
+            throw new IllegalArgumentException("Title already exists in this topic");
         }
 
-        if (dto.getTimeLimitSeconds() != null && dto.getTimeLimitSeconds() < 0) {
-            throw new RuntimeException("Thời gian ước lượng phải lớn hơn hoặc bằng 0");
-        }
+        // 4. Get topic
+        Topic topic = topicRepository.findById(dto.getTopicId())
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
-        if (dto.getPointsReward() != null && dto.getPointsReward() <= 0) {
-            throw new RuntimeException("Điểm thưởng phải lớn hơn 0");
-        }
+        User currentUser = userService.getCurrentUser();
+        // 5. Build entity
+        GrammarLesson lesson = GrammarLesson.builder()
+                .topic(topic)
+                .title(dto.getTitle())
+                .lessonType(dto.getLessonType())
+                .content(dto.getContent())
+                .orderIndex(dto.getOrderIndex())
+                .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 0)
+                .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 10)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .createdAt(LocalDateTime.now())
+                .modifiedBy(currentUser)
+                .build();
 
-        GrammarLesson lesson = new GrammarLesson();
-        lesson.setTopic(topic);
-        lesson.setTitle(dto.getTitle());
-        lesson.setLessonType(dto.getLessonType());
-        lesson.setContent(dto.getContent());
-        lesson.setOrderIndex(dto.getOrderIndex());
-        lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 30);
-        lesson.setPointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 10);
-        lesson.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
-        lesson.setCreatedAt(LocalDateTime.now());
-        lesson.setMetadata(dto.getMetadata());
+        GrammarLesson saved = lessonRepository.save(lesson);
+        log.info("Created grammar lesson: id={}, title={}", saved.getId(), saved.getTitle());
 
-        GrammarLesson savedLesson = lessonRepository.save(lesson);
-        log.info("Created new Grammar Lesson: {}", savedLesson.getTitle());
-
-        return convertToDTO(savedLesson);
+        return toDTO(saved);
     }
+
+    // ═════════════════════════════════════════════════════════════════
+    // UPDATE
+    // ═════════════════════════════════════════════════════════════════
 
     public GrammarLessonDTO updateLesson(Long id, GrammarLessonDTO dto) {
-        GrammarLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
-
-        String newTitle = dto.getTitle();
-
-        if (lessonRepository.existsByTopicIdAndTitleIgnoreCaseAndIdNot(
-                lesson.getTopic().getId(), newTitle, id)) {
-            throw new RuntimeException("Tiêu đề bài học đã tồn tại trong topic này");
+        
+        GrammarLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
+        // Check unique title (if changed)
+        if (dto.getTitle() != null && !dto.getTitle().equals(lesson.getTitle())) {
+            if (lessonRepository.existsByTopicIdAndTitleIgnoreCaseAndIdNot(
+                    lesson.getTopic().getId(), dto.getTitle(), id)) {
+                throw new IllegalArgumentException("Title already exists in this topic");
+            }
         }
 
-        if (dto.getTimeLimitSeconds() != null && dto.getTimeLimitSeconds() < 0) {
-            throw new RuntimeException("Thời gian ước lượng phải lớn hơn hoặc bằng 0");
-        }
+        User currentUser = userService.getCurrentUser();
+        lesson.setModifiedBy(currentUser);
 
-        if (dto.getPointsReward() != null && dto.getPointsReward() <= 0) {
-            throw new RuntimeException("Điểm thưởng phải lớn hơn 0");
-        }
+        // Update fields (only if provided)
+        updateFields(lesson, dto);
 
-        lesson.setTitle(dto.getTitle());
-        lesson.setLessonType(dto.getLessonType());
-        lesson.setContent(dto.getContent());
-        lesson.setOrderIndex(dto.getOrderIndex());
+        GrammarLesson saved = lessonRepository.save(lesson);
+        log.info("Updated grammar lesson: id={}", id);
 
-        if (dto.getTimeLimitSeconds() != null) {
-            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
-        }
-        if (dto.getPointsReward() != null) {
-            lesson.setPointsReward(dto.getPointsReward());
-        }
-        if (dto.getIsActive() != null) {
-            lesson.setIsActive(dto.getIsActive());
-        }
-
-        GrammarLesson savedLesson = lessonRepository.save(lesson);
-        log.info("Updated Grammar Lesson: {}", savedLesson.getTitle());
-
-        return convertToDTO(savedLesson);
+        return toDTO(saved);
     }
 
-    public void deleteLesson(Long id, boolean cascade) {
-        GrammarLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
+    // ═════════════════════════════════════════════════════════════════
+    // DELETE
+    // ═════════════════════════════════════════════════════════════════
 
-        boolean shouldCascade = cascade || lesson.getLessonType().equals(LessonType.PRACTICE);
-
-        if (shouldCascade) {
-            List<Question> questions = questionRepository
-                    .findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType.GRAMMAR, id);
-
-            if (!questions.isEmpty()) {
-                questionRepository.deleteAllByIdInBatch(
-                        questions.stream().map(Question::getId).toList());
-
-                log.info("Deleted {} questions for lesson {}",
-                        questions.size(), lesson.getTitle());
-            }
-        } else {
-            long count = questionRepository.countByParentTypeAndParentId(ParentType.GRAMMAR, id);
-            if (count > 0) {
-                throw new RuntimeException("Không thể xóa bài học vì có " + count + " câu hỏi thuộc bài học này");
-            }
-        }
-
+    public void deleteLesson(Long id) {
+        GrammarLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
         Long topicId = lesson.getTopic().getId();
-        Integer deletedOrderIndex = lesson.getOrderIndex();
+        Integer orderIndex = lesson.getOrderIndex();
 
+        // Delete (questions cascade via QuestionCascadeDeleteListener)
         lessonRepository.delete(lesson);
-        log.info("Deleted Grammar Lesson: {} (orderIndex: {})", lesson.getTitle(), deletedOrderIndex);
+        log.info("Deleted grammar lesson: id={}", id);
 
-        orderService.reorderLessonsAfterDelete(topicId, deletedOrderIndex);
+        // Reorder remaining lessons
+        reorderAfterDelete(topicId, orderIndex);
     }
 
-    public void deactivateLesson(Long id) {
-        GrammarLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
+    // ═════════════════════════════════════════════════════════════════
+    // STATUS TOGGLE
+    // ═════════════════════════════════════════════════════════════════
 
-        lesson.setIsActive(false);
+    public void toggleStatus(Long id) {
+        GrammarLesson lesson = findLessonById(id);
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
+
+        lesson.setIsActive(!lesson.getIsActive());
         lessonRepository.save(lesson);
-        log.info("Deactivated Grammar Lesson: {}", lesson.getTitle());
+
+        log.info("Toggled lesson {} status to: {}", id, lesson.getIsActive());
     }
 
-    public void activateLesson(Long id) {
-        GrammarLesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bài học không tồn tại với id: " + id));
+    // ═════════════════════════════════════════════════════════════════
+    // ORDER MANAGEMENT
+    // ═════════════════════════════════════════════════════════════════
 
-        lesson.setIsActive(true);
-        lessonRepository.save(lesson);
-        log.info("Activated Grammar Lesson: {}", lesson.getTitle());
+    public void fixOrderIndexes(Long topicId) {
+        // Lấy danh sách
+        List<GrammarLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
+        
+        // ✅ Sort lại trong memory để đảm bảo ổn định (ID tăng dần nếu trùng Order)
+        lessons.sort(Comparator.comparingInt(GrammarLesson::getOrderIndex)
+                .thenComparingLong(GrammarLesson::getId));
+
+        boolean changed = false;
+        for (int i = 0; i < lessons.size(); i++) {
+            GrammarLesson lesson = lessons.get(i);
+            int expected = i + 1;
+            
+            if (!Integer.valueOf(expected).equals(lesson.getOrderIndex())) {
+                lesson.setOrderIndex(expected);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            lessonRepository.saveAll(lessons);
+            log.info("Fixed order indexes for {} lessons in topic {}", lessons.size(), topicId);
+        }
     }
 
     public Integer getNextOrderIndex(Long topicId) {
-        if (!topicRepository.existsById(topicId)) {
-            throw new RuntimeException("Topic không tồn tại với id: " + topicId);
-        }
-
-        Integer maxOrder = lessonRepository.findMaxOrderIndexByTopicId(topicId);
-        if (maxOrder != null) {
-            log.info("Max lesson orderIndex in topic {}: {}", topicId, maxOrder);
-            return maxOrder + 1;
-        }
-
-        log.info("No lessons found in topic {}, returning 1", topicId);
-        return 1;
+        Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
+        return (max != null ? max : 0) + 1;
     }
 
-    public int reorderLessons(Long topicId, Integer insertPosition, Long excludeLessonId) {
-        return orderService.reorderLessons(topicId, insertPosition, excludeLessonId);
+    // ═════════════════════════════════════════════════════════════════
+    // PRIVATE HELPERS
+    // ═════════════════════════════════════════════════════════════════
+
+    private GrammarLesson findLessonById(Long id) {
+        return lessonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lesson not found: " + id));
     }
 
-    private GrammarLessonDTO convertToDTO(GrammarLesson lesson) {
-        return GrammarLessonDTO.full(
-                lesson.getId(),
-                lesson.getTopic().getId(),
-                lesson.getTitle(),
-                lesson.getLessonType(),
-                lesson.getContent(),
-                lesson.getOrderIndex(),
-                lesson.getPointsReward(),
-                lesson.getTimeLimitSeconds(),
-                lesson.getIsActive(),
-                lesson.getCreatedAt(),
-                lesson.getMetadata(),
-                lesson.getTopic().getName());
+    private void validateForCreate(GrammarLessonDTO dto) {
+        if (dto.getTitle() == null || dto.getTitle().isBlank()) {
+            throw new IllegalArgumentException("Title is required");
+        }
+        if (dto.getLessonType() == null) {
+            throw new IllegalArgumentException("Lesson type is required");
+        }
+        if (dto.getOrderIndex() == null || dto.getOrderIndex() < 1) {
+            throw new IllegalArgumentException("Order index must be >= 1");
+        }
+    }
+
+    private void updateFields(GrammarLesson lesson, GrammarLessonDTO dto) {
+        if (dto.getTitle() != null)
+            lesson.setTitle(dto.getTitle());
+        if (dto.getLessonType() != null)
+            lesson.setLessonType(dto.getLessonType());
+        if (dto.getContent() != null)
+            lesson.setContent(dto.getContent());
+        if (dto.getOrderIndex() != null)
+            lesson.setOrderIndex(dto.getOrderIndex());
+        if (dto.getTimeLimitSeconds() != null)
+            lesson.setTimeLimitSeconds(dto.getTimeLimitSeconds());
+        if (dto.getPointsReward() != null)
+            lesson.setPointsReward(dto.getPointsReward());
+        if (dto.getIsActive() != null)
+            lesson.setIsActive(dto.getIsActive());
+        }
+
+    private void reorderAfterDelete(Long topicId, Integer deletedPosition) {
+        int affected = lessonRepository.shiftOrderAfterDelete(topicId, deletedPosition);
+        log.debug("Reordered {} lessons after deletion", affected);
+    }
+
+    private GrammarLessonDTO toDTO(GrammarLesson lesson) {
+        long questionCount = questionRepository.countByParentTypeAndParentId(
+                ParentType.GRAMMAR, lesson.getId());
+
+        return GrammarLessonDTO.builder()
+                .id(lesson.getId())
+                .topicId(lesson.getTopic().getId())
+                .topicName(lesson.getTopic().getName())
+                .title(lesson.getTitle())
+                .lessonType(lesson.getLessonType())
+                .content(lesson.getContent())
+                .orderIndex(lesson.getOrderIndex())
+                .timeLimitSeconds(lesson.getTimeLimitSeconds())
+                .pointsReward(lesson.getPointsReward())
+                .isActive(lesson.getIsActive())
+                .createdAt(lesson.getCreatedAt())
+                .questionCount((int) questionCount)
+                .modifiedAt(lesson.getModifiedAt())
+                .modifiedBy(lesson.getModifiedBy() != null ? lesson.getModifiedBy().getId() : null)
+                .build();
     }
 }
