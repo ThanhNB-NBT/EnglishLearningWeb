@@ -7,9 +7,9 @@
         class="border border-gray-300 dark:border-gray-700 rounded-lg p-3 min-h-[100px]"
       >
         <div
-          class="font-bold text-center border-b pb-2 mb-2 bg-gray-50 dark:bg-gray-800 -mx-3 -mt-3 pt-2 rounded-t-lg"
+          class="font-bold text-center border-b pb-2 mb-2 bg-gray-50 dark:bg-gray-800 -mx-3 -mt-3 pt-2 rounded-t-lg text-lg"
         >
-          /{{ group }}/
+          {{ group }}
         </div>
 
         <div class="flex flex-wrap gap-2 min-h-[50px]">
@@ -66,7 +66,7 @@ import { ref, computed, onMounted } from 'vue'
 
 const props = defineProps({
   question: { type: Object, required: true },
-  modelValue: { type: Object, default: () => ({}) }, // Format: { "word": "groupName" }
+  modelValue: { type: Object, default: () => ({}) }, // Format: { "word": "categoryName" }
   disabled: { type: Boolean, default: false },
 })
 
@@ -75,10 +75,13 @@ const emit = defineEmits(['update:modelValue'])
 const userMap = ref({})
 const selectedWord = ref(null)
 
-// Parse dữ liệu từ question object
-// Giả định structure: question.data.groups = ["id", "ea"] và question.data.words = ["meat", "head", ...]
+// ✅ FIX: Parse dữ liệu từ question object - đổi 'groups' thành 'categories'
+// Structure: question.data.categories = ["/s/", "/z/"] và question.data.words = ["cats", "maps", ...]
 const groups = computed(() => {
-  return props.question?.data?.groups || props.question?.metadata?.groups || ['Group 1', 'Group 2']
+  return (
+    props.question?.data?.categories ||
+    props.question?.metadata?.categories || ['Group 1', 'Group 2']
+  )
 })
 
 const allWords = computed(() => {
@@ -123,4 +126,3 @@ const unassignWord = (word) => {
   emit('update:modelValue', newMap)
 }
 </script>
-}

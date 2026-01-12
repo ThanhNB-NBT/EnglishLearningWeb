@@ -45,21 +45,26 @@
       >
         <div class="w-8 text-gray-400 font-bold text-center">{{ index + 1 }}</div>
 
-        <el-input
-          v-model="item.word"
+        <!-- ✅ FIX: Use native input with manual binding -->
+        <input
+          type="text"
+          :value="classifications[index].word"
+          @input="handleWordChange(index, $event.target.value)"
           placeholder="Nhập từ vựng (VD: books)"
-          class="flex-1"
-          @input="syncToParent"
+          class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
 
-        <el-select
-          v-model="item.category"
-          placeholder="Chọn nhóm"
-          class="w-48"
-          @change="syncToParent"
+        <!-- ✅ FIX: Use native select instead of el-select -->
+        <select
+          :value="classifications[index].category"
+          @change="handleCategoryChange(index, $event.target.value)"
+          class="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
         >
-          <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
-        </el-select>
+          <option value="">Chọn nhóm</option>
+          <option v-for="cat in categories" :key="cat" :value="cat">
+            {{ cat }}
+          </option>
+        </select>
 
         <el-button type="danger" :icon="Delete" circle plain @click="removeClassification(index)" />
       </div>
@@ -133,7 +138,6 @@ watch(
 )
 
 const syncToParent = () => {
-  // Đồng bộ words từ classifications
   const words = classifications.value.map((c) => c.word).filter((w) => w)
 
   emit('update:metadata', {
@@ -142,6 +146,29 @@ const syncToParent = () => {
     classifications: classifications.value,
     words: words,
   })
+}
+
+// ✅ FIX: Direct mutation with force update
+const handleWordChange = (index, value) => {
+  // Create new array to trigger reactivity
+  const newClassifications = [...classifications.value]
+  newClassifications[index] = {
+    ...newClassifications[index],
+    word: value
+  }
+  classifications.value = newClassifications
+  syncToParent()
+}
+
+const handleCategoryChange = (index, value) => {
+  // Create new array to trigger reactivity
+  const newClassifications = [...classifications.value]
+  newClassifications[index] = {
+    ...newClassifications[index],
+    category: value
+  }
+  classifications.value = newClassifications
+  syncToParent()
 }
 
 // Logic Categories
@@ -161,7 +188,6 @@ const removeCategory = (index) => {
   const catToRemove = categories.value[index]
   categories.value.splice(index, 1)
 
-  // Xóa category của các classification liên quan
   classifications.value.forEach((c) => {
     if (c.category === catToRemove) c.category = ''
   })
@@ -188,7 +214,6 @@ const validate = () => {
     ElMessage.warning('Cần ít nhất 2 từ vựng để phân loại')
     return false
   }
-  // Check empty fields
   const hasEmpty = classifications.value.some((c) => !c.word.trim() || !c.category)
   if (hasEmpty) {
     ElMessage.warning('Vui lòng nhập từ vựng và chọn nhóm cho tất cả các dòng')
@@ -199,3 +224,32 @@ const validate = () => {
 
 defineExpose({ validate })
 </script>
+
+<style scoped>
+/* Match Element Plus styling for native inputs */
+input[type="text"],
+select {
+  font-family: inherit;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+input[type="text"]:hover,
+select:hover {
+  border-color: #c0c4cc;
+}
+
+input[type="text"]:focus,
+select:focus {
+  border-color: #409eff;
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23606266' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+</style>

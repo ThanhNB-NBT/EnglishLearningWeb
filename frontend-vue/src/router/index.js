@@ -101,9 +101,9 @@ const router = createRouter({
         },
         {
           path: 'reading/lesson/:lessonId',
-          name: 'user-reading-detail',
+          name: 'user-reading-lesson',
           component: () => import('@/views/user/reading/ReadingPlayerView.vue'),
-          meta: { title: 'Reading Player' },
+          meta: { title: 'Reading Lesson' },
           props: true,
         },
         {
@@ -114,10 +114,16 @@ const router = createRouter({
         },
         {
           path: 'listening/lesson/:lessonId',
-          name: 'user-listening-player',
+          name: 'user-listening-lesson',
           component: () => import('@/views/user/listening/ListeningPlayerView.vue'),
           props: true,
-          meta: { title: 'Listening Player' },
+          meta: { title: 'Listening Lesson' },
+        },
+        {
+          path: 'placement-test',
+          name: 'user-placement-test',
+          component: () => import('@/views/user/PlacementTestView.vue'),
+          meta: { title: 'Placement Test' },
         },
       ],
     },

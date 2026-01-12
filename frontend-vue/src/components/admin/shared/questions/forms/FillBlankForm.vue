@@ -22,12 +22,14 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Đáp án chấp nhận (Enter để thêm)</label>
+          <!-- ✅ FIX: Add :reserve-keyword="false" to clear input after Enter -->
           <el-select
             v-model="blank.correctAnswers"
             multiple
             filterable
             allow-create
             default-first-option
+            :reserve-keyword="false"
             placeholder="Nhập đáp án..."
             class="w-full"
             @change="syncToParent"
@@ -48,12 +50,14 @@
 
     <div class="bg-gray-50 p-4 rounded">
       <h4 class="text-sm font-bold mb-2">Word Bank (Từ gợi ý)</h4>
+      <!-- ✅ FIX: Add :reserve-keyword="false" -->
       <el-select
         v-model="localWordBank"
         multiple
         filterable
         allow-create
         default-first-option
+        :reserve-keyword="false"
         placeholder="Nhập các từ gây nhiễu hoặc đáp án..."
         class="w-full"
         @change="syncToParent"
@@ -107,7 +111,6 @@ watch(
   { deep: true }
 )
 
-// ✅ FIX: Emit metadata
 const syncToParent = () => {
   emit('update:metadata', {
     ...props.metadata,

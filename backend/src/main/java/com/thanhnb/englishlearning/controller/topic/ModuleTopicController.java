@@ -5,12 +5,20 @@ import com.thanhnb.englishlearning.dto.PaginatedResponse;
 import com.thanhnb.englishlearning.dto.topic.TopicDto;
 import com.thanhnb.englishlearning.dto.topic.request.CreateTopicRequest;
 import com.thanhnb.englishlearning.dto.topic.request.UpdateTopicRequest;
+import com.thanhnb.englishlearning.entity.user.User;
 import com.thanhnb.englishlearning.enums.ModuleType;
+import com.thanhnb.englishlearning.enums.UserRole;
+import com.thanhnb.englishlearning.service.topic.TeacherAssignmentService;
 import com.thanhnb.englishlearning.service.topic.TopicService;
+import com.thanhnb.englishlearning.service.user.UserService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,9 +27,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/admin/topics")
 @RequiredArgsConstructor
 @Tag(name = "Topic Management", description = "Admin & Teacher manage Topics")
+@Slf4j
 public class ModuleTopicController {
 
     private final TopicService topicService;
+    private final TeacherAssignmentService assignmentService;
+    private final UserService userService;
 
     // ==================== READ (ADMIN & TEACHER) ====================
 
@@ -39,11 +50,45 @@ public class ModuleTopicController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "orderIndex") String sort) {
 
-        PaginatedResponse<TopicDto> response = topicService.getAllTopics(moduleType, page, size, sort);
+        try {
+            User currentUser = userService.getCurrentUser();
+            
+            log.info("📄 {} requesting topics: module={}, page={}, size={}", 
+                    currentUser.getRole(), moduleType, page, size);
 
-        return ResponseEntity.ok(CustomApiResponse.success(
-                response,
-                "Lấy danh sách topic thành công"));
+            PaginatedResponse<TopicDto> response;
+
+            // ✅ Role-based filtering using existing services
+            if (currentUser.getRole() == UserRole.ADMIN) {
+                // Admin sees ALL topics via TopicService
+                response = topicService.getAllTopics(moduleType, page, size, sort);
+                log.info("✅ Admin: loaded {} topics (all)", response.getTotalElements());
+                
+            } else if (currentUser.getRole() == UserRole.TEACHER) {
+                // Teacher sees ONLY ASSIGNED topics via TeacherAssignmentService
+                response = assignmentService.getAssignedTopicsWithPagination(
+                        currentUser.getId(),
+                        moduleType,
+                        page,
+                        size
+                );
+                log.info("✅ Teacher: loaded {} assigned topics", response.getTotalElements());
+                
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(CustomApiResponse.error(403, "Không có quyền truy cập"));
+            }
+
+            return ResponseEntity.ok(CustomApiResponse.success(
+                    response,
+                    "Lấy danh sách chủ đề thành công"
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Error loading topics: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(CustomApiResponse.error(500, "Lỗi: " + e.getMessage()));
+        }
     }
 
     /**

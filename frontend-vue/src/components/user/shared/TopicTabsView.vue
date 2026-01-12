@@ -71,18 +71,28 @@
               </div>
             </div>
 
-            <!-- Action Button -->
-            <el-button
-              v-if="nextLesson"
-              type="primary"
-              size="large"
-              @click="handleLessonClick(nextLesson, currentTopicData)"
-            >
-              <el-icon><CaretRight /></el-icon>
-              {{ nextLesson.isCompleted ? 'Tiếp tục học' : 'Bắt đầu học' }}
-            </el-button>
-            <el-alert v-else type="success" :closable="false">
-              🎉 Bạn đã hoàn thành tất cả bài học trong chủ đề này!
+            <!-- ✅ FIX: Action Button/Alert with proper logic -->
+            <template v-if="canAccessTopic(currentTopicData)">
+              <!-- Case 1: Có bài tiếp theo để học -->
+              <el-button
+                v-if="nextLesson"
+                type="primary"
+                size="large"
+                @click="handleLessonClick(nextLesson, currentTopicData)"
+              >
+                <el-icon><CaretRight /></el-icon>
+                {{ nextLesson.isCompleted ? 'Tiếp tục học' : 'Bắt đầu học' }}
+              </el-button>
+
+              <!-- Case 2: Đã hoàn thành tất cả (CHỈ khi unlock) -->
+              <el-alert v-else type="success" :closable="false">
+                🎉 Bạn đã hoàn thành tất cả bài học trong chủ đề này!
+              </el-alert>
+            </template>
+
+            <!-- Case 3: Chủ đề bị khóa -->
+            <el-alert v-else type="warning" :closable="false" show-icon>
+              🔒 Yêu cầu: Level {{ currentTopicData.levelRequired }}
             </el-alert>
           </div>
         </el-card>
@@ -207,8 +217,9 @@ const currentLessons = computed(() => {
   return currentTopicData.value.lessons || []
 })
 
-// Next lesson to learn
+// ✅ FIX: Next lesson CHỈ trong số các bài ĐÃ UNLOCK
 const nextLesson = computed(() => {
+  // Chỉ tìm trong các bài đã unlock
   return currentLessons.value.find((l) => l.isUnlocked && !l.isCompleted)
 })
 

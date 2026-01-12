@@ -20,9 +20,11 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
        // ===== ADMIN ===========
        // Tìm tất cả lessons theo topic
        Page<GrammarLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId, Pageable pageable);
+
        Page<GrammarLesson> findByTopicId(Long topicId, Pageable pageable);
 
        List<GrammarLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId);
+
        List<GrammarLesson> findByIsActiveTrueOrderByOrderIndexAsc();
 
        // Lấy số thứ tự lớn nhất của lesson trong topic
@@ -50,6 +52,9 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
        long countByTopicId(Long topicId);
 
        int countByTopicIdAndIsActiveTrue(Long topicId);
+
+       @Query("SELECT gl FROM GrammarLesson gl WHERE gl.topic.id = :topicId ORDER BY gl.orderIndex ASC")
+       List<GrammarLesson> findAllByTopicIdOrderByOrderIndexAsc(@Param("topicId") Long topicId);
 
        // ===== USER ============
        // Tìm lesson theo topic, vị trí theo order_index

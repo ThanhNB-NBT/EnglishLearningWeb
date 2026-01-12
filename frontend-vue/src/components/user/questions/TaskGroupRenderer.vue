@@ -1,4 +1,3 @@
-{ type: uploaded file fileName: user/questions/TaskGroupRenderer.vue fullContent:
 <template>
   <div class="mb-10">
     <div
@@ -30,8 +29,8 @@
         <div class="flex-1 w-full min-w-0">
           <div
             v-if="shouldShowQuestionText(q)"
-            class="mb-2 text-gray-900 dark:text-gray-100 font-medium text-lg leading-relaxed pt-0.5"
-            v-html="q.questionText"
+            class="mb-2 text-gray-900 dark:text-gray-100 font-medium text-base leading-relaxed"
+            v-html="sanitizeQuestionText(q)"
           ></div>
 
           <QuestionRenderer
@@ -68,16 +67,28 @@ const onAnswerChange = (questionId, value) => emit('update-answer', { questionId
 
 const shouldShowQuestionText = (question) => {
   const type = question.questionType
-  const text = question.questionText || ''
 
+  // Các loại này tự render questionText bên trong component
   const fullControlTypes = ['SENTENCE_TRANSFORMATION', 'SENTENCE_BUILDING', 'ERROR_CORRECTION']
-  if (fullControlTypes.includes(type)) return false
 
-  if (type === 'FILL_BLANK' || type === 'VERB_FORM') {
-    return !text.includes('___')
+  return !fullControlTypes.includes(type)
+}
+
+// Xử lý questionText cho FILL_BLANK: loại bỏ <ol> wrapper, giữ lại nội dung <li>
+const sanitizeQuestionText = (question) => {
+  if (question.questionType !== 'FILL_BLANK' && question.questionType !== 'VERB_FORM') {
+    return question.questionText
   }
 
-  return true
+  let text = question.questionText || ''
+
+  // Loại bỏ thẻ <ol> và </ol>
+  text = text.replace(/<\/?ol[^>]*>/gi, '')
+
+  // Thay thế <li> bằng div với số thứ tự ẩn (vì đã có ở input)
+  text = text.replace(/<li[^>]*>/gi, '<div class="mb-1.5">')
+  text = text.replace(/<\/li>/gi, '</div>')
+
+  return text
 }
 </script>
-}

@@ -24,9 +24,6 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
        Optional<Integer> findMaxOrderIndexByLessonId(@Param("parentType") ParentType parentType,
                      @Param("parentId") Long parentId);
 
-       // Lấy danh sách câu hỏi theo bài học (Sắp xếp theo thứ tự) - Core
-       List<Question> findByParentTypeAndParentIdOrderByOrderIndexAsc(ParentType parentType, Long parentId);
-
        List<Question> findByParentTypeAndParentIdAndTaskGroupIsNullOrderByOrderIndexAsc(ParentType parentType,
                      Long parentId);
 
@@ -36,6 +33,11 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
        long countByParentTypeAndParentIdAndTaskGroupIsNull(
                      ParentType parentType,
                      Long parentId);
+
+       @Query("SELECT q FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId ORDER BY q.orderIndex ASC")
+       List<Question> findByParentTypeAndParentIdOrderByOrderIndexAsc(
+                     @Param("parentType") ParentType parentType,
+                     @Param("parentId") Long parentId);
 
        // Đếm số câu hỏi trong một bài học
        @Query("SELECT COUNT(q) FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId")

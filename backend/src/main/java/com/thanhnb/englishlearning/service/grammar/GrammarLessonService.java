@@ -44,14 +44,14 @@ public class GrammarLessonService {
     // ═════════════════════════════════════════════════════════════════
 
     public Page<GrammarLessonDTO> getLessonsByTopic(Long topicId, Pageable pageable) {
-
+        teacherPermissionService.checkTopicPermission(topicId);
         return lessonRepository.findByTopicId(topicId, pageable)
                 .map(this::toDTO);
     }
 
     public GrammarLessonDTO getLessonById(Long id) {
         GrammarLesson lesson = findLessonById(id);
-
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
         return toDTO(lesson);
     }
 

@@ -22,7 +22,6 @@ export function useLearningPlayer(store) {
   const startTimer = (onTimeoutCallback) => {
     stopTimer()
 
-    // ✅ FIX: Thêm safeguard để tránh timer chạy với giá trị âm
     if (remainingTime.value <= 0) {
       remainingTime.value = 0
       if (onTimeoutCallback) onTimeoutCallback()
@@ -46,23 +45,19 @@ export function useLearningPlayer(store) {
     }
   }
 
-  // ✅ FIX: Sửa setupScrollObserver để nhận parameter và query đúng element
   const setupScrollObserver = (markerId) => {
-    // Cleanup previous observer
     if (observer) {
       observer.disconnect()
       observer = null
     }
 
     nextTick(() => {
-      // ✅ Tìm element theo ID được truyền vào
       const markerElement = document.getElementById(markerId)
       if (!markerElement) {
         console.warn(`⚠️ Element #${markerId} not found for scroll observer`)
         return
       }
 
-      // ✅ Tìm parent scrollable container
       const contentElement = markerElement.closest('.overflow-y-auto')
       if (!contentElement) {
         console.warn('⚠️ No scrollable parent found')
@@ -75,15 +70,14 @@ export function useLearningPlayer(store) {
           if (debounceTimer) clearTimeout(debounceTimer)
           debounceTimer = setTimeout(() => {
             const isVisible = entries.some((entry) => entry.isIntersecting)
-            // ✅ CHỈ update khi giá trị thực sự thay đổi
             if (hasScrolledToBottom.value !== isVisible) {
               hasScrolledToBottom.value = isVisible
             }
-          }, 200) // Debounce 200ms để tránh loop
+          }, 200)
         },
         {
           root: contentElement,
-          threshold: 0.1, // Chỉ trigger khi ít nhất 10% visible
+          threshold: 0.1,
         },
       )
 
@@ -93,14 +87,59 @@ export function useLearningPlayer(store) {
   }
 
   const handleAnswerUpdate = ({ questionId, value }) => {
-    // ✅ Ensure questionId is valid
     if (!questionId) return
     userAnswers.value[questionId] = value
   }
 
-  // ✅ FIX: Xử lý Merge đáp án thông minh
+  // ✅ FIX: NEW METHOD - Clear question state để retry hoạt động đúng
+  const clearQuestionsState = (groupedTasks, standaloneQuestions) => {
+    console.log('🔄 Clearing questions state for retry...')
+
+    const clearQuestion = (q) => {
+      // Clear feedback và correct answer
+      delete q.isCorrect
+      delete q.feedback
+      delete q.score
+      delete q.correctAnswer
+
+      // Clear options state
+      if (q.data?.options) {
+        q.data.options.forEach((opt) => {
+          delete opt.isCorrect
+        })
+      }
+
+      // Clear blanks correct answers
+      if (q.data?.blanks) {
+        q.data.blanks.forEach((blank) => {
+          delete blank.correctAnswers
+        })
+      }
+
+      // Clear other data fields
+      if (q.data) {
+        delete q.data.correction
+        delete q.data.correctAnswer
+        delete q.data.correctAnswers
+      }
+    }
+
+    if (groupedTasks) {
+      groupedTasks.forEach((task) => {
+        if (task.questions) {
+          task.questions.forEach(clearQuestion)
+        }
+      })
+    }
+
+    if (standaloneQuestions) {
+      standaloneQuestions.forEach(clearQuestion)
+    }
+
+    console.log('✅ Questions state cleared')
+  }
+
   const mergeResultsToQuestions = (resultData, groupedTasks, standaloneQuestions) => {
-    // API trả về 'results' (List) chứ không phải 'questionResults'
     if (!resultData.results) return
 
     const resultsMap = new Map()
@@ -134,7 +173,6 @@ export function useLearningPlayer(store) {
           if (q.data && q.data.blanks) {
             let parsedAnswers = {}
             try {
-              // Nếu backend trả về JSON {"1": "abc"}, parse ra để map đúng vị trí
               if (res.correctAnswer && res.correctAnswer.startsWith('{')) {
                 parsedAnswers = JSON.parse(res.correctAnswer)
               }
@@ -143,7 +181,6 @@ export function useLearningPlayer(store) {
             }
 
             q.data.blanks.forEach((blank) => {
-              // Nếu có map JSON -> lấy theo position, ngược lại dùng raw string
               if (Object.keys(parsedAnswers).length > 0) {
                 const key = blank.position || 1
                 if (parsedAnswers[key]) blank.correctAnswers = [parsedAnswers[key]]
@@ -185,7 +222,6 @@ export function useLearningPlayer(store) {
     if (standaloneQuestions) standaloneQuestions.forEach(updateQ)
   }
 
-  // ✅ Submit Exam: Đã bao gồm logic map answers và merge results
   const submitExam = async (lessonId, groupedTasks, standaloneQuestions) => {
     submitting.value = true
     try {
@@ -201,10 +237,7 @@ export function useLearningPlayer(store) {
       })
 
       resultData.value = res
-
-      // Tự động merge kết quả để UI hiển thị xanh/đỏ
       mergeResultsToQuestions(res, groupedTasks, standaloneQuestions)
-
       showResult.value = true
       stopTimer()
 
@@ -220,7 +253,6 @@ export function useLearningPlayer(store) {
   const resetPlayerState = () => {
     stopTimer()
 
-    // ✅ Reset tất cả ref values
     userAnswers.value = {}
     showResult.value = false
     submitting.value = false
@@ -229,7 +261,6 @@ export function useLearningPlayer(store) {
     viewMode.value = 'full'
     remainingTime.value = 0
 
-    // ✅ Clear observer
     if (observer) {
       observer.disconnect()
       observer = null
@@ -267,6 +298,7 @@ export function useLearningPlayer(store) {
     handleAnswerUpdate,
     submitExam,
     resetPlayerState,
+    clearQuestionsState, // ✅ NEW: Export method mới
     formatTime,
   }
 }

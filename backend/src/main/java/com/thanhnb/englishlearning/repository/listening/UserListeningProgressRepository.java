@@ -2,6 +2,7 @@ package com.thanhnb.englishlearning.repository.listening;
 
 import com.thanhnb.englishlearning.entity.listening.UserListeningProgress;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -44,4 +45,8 @@ public interface UserListeningProgressRepository extends JpaRepository<UserListe
 
         // Check nhanh xem user đã hoàn thành bài này chưa (Dùng cho logic unlock)
         boolean existsByUserIdAndLessonIdAndIsCompletedTrue(Long userId, Long lessonId);
+
+        @Modifying
+        @Query("DELETE FROM UserListeningProgress ulp WHERE ulp.user.id = :userId")
+        int deleteByUserId(@Param("userId") Long userId);
 }

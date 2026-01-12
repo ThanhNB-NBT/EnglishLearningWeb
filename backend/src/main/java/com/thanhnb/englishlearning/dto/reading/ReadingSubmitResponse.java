@@ -72,7 +72,7 @@ public class ReadingSubmitResponse {
                         int correctCount,
                         int totalScore,
                         double scorePercentage,
-                        boolean isPassed,
+                        boolean isCompleted,
                         int pointsEarned,
                         boolean hasNextLesson,
                         Long nextLessonId,
@@ -86,7 +86,7 @@ public class ReadingSubmitResponse {
                                 .correctCount(correctCount)
                                 .totalScore(totalScore)
                                 .scorePercentage(scorePercentage)
-                                .isCompleted(isPassed)
+                                .isCompleted(isCompleted)
                                 .pointsEarned(pointsEarned)
                                 .hasNextLesson(hasNextLesson)
                                 .nextLessonId(nextLessonId)

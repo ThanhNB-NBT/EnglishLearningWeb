@@ -8,7 +8,11 @@ import com.thanhnb.englishlearning.entity.user.UserStats;
 import com.thanhnb.englishlearning.enums.ParentType;
 import com.thanhnb.englishlearning.exception.InvalidCredentialsException;
 import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
+import com.thanhnb.englishlearning.repository.grammar.UserGrammarProgressRepository;
+import com.thanhnb.englishlearning.repository.listening.UserListeningProgressRepository;
+import com.thanhnb.englishlearning.repository.reading.UserReadingProgressRepository;
 import com.thanhnb.englishlearning.repository.user.UserActivityRepository;
+import com.thanhnb.englishlearning.repository.user.UserLearningBehaviorRepository;
 import com.thanhnb.englishlearning.repository.user.UserRepository;
 import com.thanhnb.englishlearning.repository.user.UserStatsRepository;
 import com.thanhnb.englishlearning.util.ValidationUtil;
@@ -37,6 +41,10 @@ public class UserService {
     private final UserStatsRepository statsRepository;
     private final UserActivityRepository activityRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserGrammarProgressRepository grammarProgressRepository;
+    private final UserReadingProgressRepository readingProgressRepository;
+    private final UserListeningProgressRepository listeningProgressRepository;
+    private final UserLearningBehaviorRepository learningBehaviorRepository;
 
     // ==================== BASIC CRUD ====================
 
@@ -68,39 +76,53 @@ public class UserService {
     /**
      * ✅ ENHANCED: Delete user with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 200, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 1.5))
     public User deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
-        
+
+        String username = user.getUsername();
+        log.info("Starting deletion of user: {}", username);
+
         try {
-            UserActivity activity = activityRepository.findById(id).orElse(null);
-            if (activity != null) {
+            // 1. Xóa User Progress
+            grammarProgressRepository.deleteByUserId(id);
+            readingProgressRepository.deleteByUserId(id);
+            listeningProgressRepository.deleteByUserId(id);
+
+            // 2. Xóa Learning Behavior
+            learningBehaviorRepository.findById(id).ifPresent(
+                    behavior -> learningBehaviorRepository.delete(behavior));
+
+            // 3. Xóa Activity (invalidate tokens trước)
+            activityRepository.findById(id).ifPresent(activity -> {
                 activity.invalidateAllTokens();
                 activityRepository.save(activity);
-                log.info("Invalidated all tokens for deleted user: {}", user.getUsername());
-            }
+                activityRepository.delete(activity);
+            });
+
+            // 4. Xóa Stats
+            statsRepository.findById(id).ifPresent(
+                    stats -> statsRepository.delete(stats));
+
+            // 5. Xóa User
+            userRepository.delete(user);
+
+            log.info("✅ Successfully deleted user: {}", username);
         } catch (Exception e) {
-            log.warn("Failed to invalidate tokens for user: {}", user.getUsername(), e);
+            log.error("❌ Failed to delete user: {}", username, e);
+            throw new RuntimeException("Không thể xóa người dùng: " + e.getMessage());
         }
-        
-        userRepository.delete(user);
-        log.info("User deleted: {}", user.getUsername());
+
         return user;
     }
 
     /**
      * ✅ ENHANCED: Change password with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 200, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 1.5))
     public void changePassword(Long userId, ChangePasswordRequest changePasswordRequest) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
@@ -121,10 +143,10 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
         userRepository.save(user);
-        
+
         UserActivity activity = activityRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User activity not found"));
-        
+
         activity.invalidateAllTokens();
         activityRepository.save(activity);
 
@@ -134,52 +156,46 @@ public class UserService {
     /**
      * ✅ ENHANCED: Block user with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 200, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 1.5))
     public void blockUser(long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
-        
+
         user.setIsActive(false);
         userRepository.save(user);
-        
+
         UserActivity activity = activityRepository.findById(id).orElse(null);
         if (activity != null) {
             activity.invalidateAllTokens();
             activityRepository.save(activity);
         }
-        
+
         log.info("User {} has been BLOCKED and all sessions INVALIDATED", user.getUsername());
     }
 
     public void unblockUser(long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
-        
+
         user.setIsActive(true);
         userRepository.save(user);
-        
+
         log.info("User {} has been UNBLOCKED", user.getUsername());
     }
 
     /**
      * ✅ ENHANCED: Update last login with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 100, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 1.5))
     public void updateLastLogin(Long id, String ip, String userAgent) {
         UserActivity activity = activityRepository.findById(id)
                 .orElseGet(() -> createNewActivity(id));
-        
+
         activity.recordLogin(ip != null ? ip : "unknown", userAgent != null ? userAgent : "unknown");
         activityRepository.save(activity);
-        
+
         log.debug("Last login updated for user ID: {}", id);
     }
 
@@ -193,80 +209,68 @@ public class UserService {
     /**
      * ✅ ENHANCED: Add points with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 100, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 1.5))
     public void addPoints(Long userId, int points) {
         UserStats stats = statsRepository.findById(userId)
                 .orElseGet(() -> createNewStats(userId));
-        
+
         stats.addPoints(points);
         statsRepository.save(stats);
-        
-        log.debug("Added {} points to user ID: {} (Total: {})", 
+
+        log.debug("Added {} points to user ID: {} (Total: {})",
                 points, userId, stats.getTotalPoints());
     }
 
     /**
      * ✅ ENHANCED: Update streak with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 100, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 1.5))
     public void updateStreakDays(Long userId, int streakDays) {
         UserStats stats = statsRepository.findById(userId)
                 .orElseGet(() -> createNewStats(userId));
-        
+
         stats.setCurrentStreak(streakDays);
         statsRepository.save(stats);
-        
+
         log.debug("Updated streak to {} days for user ID: {}", streakDays, userId);
     }
 
     /**
      * ✅ ENHANCED: Increment lesson with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 100, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 1.5))
     public void incrementLessonCompleted(Long userId, ParentType parentType) {
         UserStats stats = statsRepository.findById(userId)
                 .orElseGet(() -> createNewStats(userId));
-        
+
         stats.incrementLessons(parentType);
         statsRepository.save(stats);
-        
+
         log.debug("Incremented {} lesson for user ID: {}", parentType, userId);
     }
 
     /**
      * ✅ ENHANCED: Add study time with retry on optimistic lock
      */
-    @Retryable(
-        retryFor = {ObjectOptimisticLockingFailureException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 100, multiplier = 1.5)
-    )
+    @Retryable(retryFor = {
+            ObjectOptimisticLockingFailureException.class }, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 1.5))
     public void addStudyTime(Long userId, int minutes) {
         UserStats stats = statsRepository.findById(userId)
                 .orElseGet(() -> createNewStats(userId));
-        
+
         stats.addStudyTime(minutes);
         statsRepository.save(stats);
-        
+
         log.debug("Added {} minutes study time for user ID: {}", minutes, userId);
     }
 
     // ==================== QUERIES ====================
 
     public List<UserStats> getTopUsersByPoints(int minPoints) {
-        return statsRepository.findTopByPoints(minPoints, 
+        return statsRepository.findTopByPoints(minPoints,
                 org.springframework.data.domain.PageRequest.of(0, 10));
     }
 
@@ -290,7 +294,7 @@ public class UserService {
     private UserStats createNewStats(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         UserStats stats = UserStats.builder()
                 .userId(userId)
                 .user(user)
@@ -303,7 +307,7 @@ public class UserService {
                 .listeningCompleted(0)
                 .totalStudyTimeMinutes(0)
                 .build();
-        
+
         log.warn("Creating missing stats for user ID: {}", userId);
         return statsRepository.save(stats);
     }
@@ -311,13 +315,13 @@ public class UserService {
     private UserActivity createNewActivity(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         UserActivity activity = UserActivity.builder()
                 .userId(userId)
                 .user(user)
                 .loginCount(0)
                 .build();
-        
+
         log.warn("Creating missing activity for user ID: {}", userId);
         return activityRepository.save(activity);
     }

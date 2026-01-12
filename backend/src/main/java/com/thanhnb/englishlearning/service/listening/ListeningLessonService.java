@@ -48,13 +48,14 @@ public class ListeningLessonService {
     // ═════════════════════════════════════════════════════════════════
 
     public Page<ListeningLessonDTO> getLessonsByTopic(Long topicId, Pageable pageable) {
+        teacherPermissionService.checkTopicPermission(topicId);
         return lessonRepository.findByTopicId(topicId, pageable)
                 .map(this::toDTO);
     }
 
     public ListeningLessonDTO getLessonById(Long id) {
         ListeningLesson lesson = findLessonById(id);
-
+        teacherPermissionService.checkTopicPermission(lesson.getTopic().getId());
         return toDTO(lesson);
     }
 

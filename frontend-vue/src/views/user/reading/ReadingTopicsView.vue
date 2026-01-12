@@ -1,8 +1,8 @@
 <template>
   <TopicTabsView
-    title="Luyện Đọc"
-    icon="📖"
-    default-icon="📚"
+    title="Đọc Hiểu"
+    icon="📚"
+    default-icon="📖"
     :topics="topics"
     :loading="loading"
     module-type="reading"
@@ -25,10 +25,7 @@ const loading = computed(() => readingStore.topicsLoading)
 const progressSummary = computed(() => readingStore.progressSummary)
 
 const fetchData = async () => {
-  await Promise.all([
-    readingStore.fetchTopics(),
-    readingStore.fetchProgressSummary(),
-  ])
+  await Promise.all([readingStore.fetchTopics(), readingStore.fetchProgressSummary()])
 }
 
 onMounted(() => {

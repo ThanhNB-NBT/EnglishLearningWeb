@@ -17,6 +17,14 @@
         <span v-else class="text-red-500 font-bold text-lg">✕</span>
       </div>
     </div>
+
+    <!-- ✅ NEW: Display correct answer after submit -->
+    <div v-if="disabled && showFeedback && question.data?.correctAnswer" class="mt-2 text-sm">
+      <span class="text-gray-500 dark:text-gray-400">Đáp án đúng: </span>
+      <span class="font-bold text-green-700 dark:text-green-400">
+        {{ beginningPhrase }} {{ question.data.correctAnswer }}
+      </span>
+    </div>
   </div>
 </template>
 
@@ -37,7 +45,6 @@ const beginningPhrase = computed(
   () => props.question?.data?.beginningPhrase || props.question?.data?.beginWith || '',
 )
 
-// ✅ FIX: Chỉ dùng API
 const isCorrect = computed(() => {
   return props.question.isCorrect === true
 })

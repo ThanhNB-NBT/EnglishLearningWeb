@@ -37,7 +37,7 @@ export const listeningAdminAPI = {
   },
 
   updateLesson: (id, formData) => {
-    return api.post(`/api/admin/listening/lessons/${id}`, formData, {
+    return api.put(`/api/admin/listening/lessons/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 1200000,
     })

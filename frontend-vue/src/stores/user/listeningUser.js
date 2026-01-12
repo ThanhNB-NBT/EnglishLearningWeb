@@ -7,22 +7,34 @@ export const useListeningUserStore = defineStore('listeningUser', {
   state: () => ({
     topics: [],
     topicsLoading: false,
-    currentLesson: null,
+
+    // ✅ Current topic lessons
+    currentTopicLessons: [],
     lessonsLoading: false,
+
+    currentLesson: null,
     progressSummary: null,
     progressLoading: false,
     lastSubmitResult: null,
-    currentTopicLessons: [],
   }),
 
   getters: {
-    allLessons: (state) => state.topics.flatMap((t) => t.lessons || []),
+    allLessons: (state) => {
+      return state.topics.flatMap((topic) => topic.lessons || [])
+    },
 
-    getTopicById: (state) => (id) => state.topics.find((t) => t.id === id),
+    getTopicById: (state) => (id) => {
+      return state.topics.find((t) => t.id === id)
+    },
 
     getLessonsByTopicId: (state) => (topicId) => {
       const topic = state.topics.find((t) => t.id === topicId)
       return topic?.lessons || []
+    },
+
+    // ✅ Get current topic lessons
+    getCurrentTopicLessons: (state) => {
+      return state.currentTopicLessons
     },
 
     nextLessonToLearn: (state) => {
@@ -31,11 +43,12 @@ export const useListeningUserStore = defineStore('listeningUser', {
         .find((l) => l.isUnlocked && !l.isCompleted)
     },
 
-    getCurrentTopicLessons: (state) => {
-      return state.currentTopicLessons
+    overallCompletionRate: (state) => {
+      const totalLessons = state.topics.reduce((sum, t) => sum + (t.totalLessons || 0), 0)
+      const completed = state.topics.reduce((sum, t) => sum + (t.completedLessons || 0), 0)
+      return totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0
     },
 
-    // ✅ NEW: Get flat questions array from groupedQuestions
     flatQuestions: (state) => {
       if (!state.currentLesson?.groupedQuestions) return []
 
@@ -63,6 +76,7 @@ export const useListeningUserStore = defineStore('listeningUser', {
       this.topicsLoading = true
       try {
         const response = await listeningUserAPI.getTopics()
+
         if (response.data.success) {
           this.topics = response.data.data || []
           console.log('✅ Fetched listening topics:', this.topics.length)
@@ -76,18 +90,20 @@ export const useListeningUserStore = defineStore('listeningUser', {
       }
     },
 
+    // ✅ Fetch lessons by topic (for sidebar in PlayerView)
     async fetchLessonsByTopic(topicId) {
       this.lessonsLoading = true
       try {
         const response = await listeningUserAPI.getLessonsByTopic(topicId)
 
         if (response.data.success) {
-          this.lessons = response.data.data || []
-          console.log('✅ Fetched lessons:', this.lessons.length)
+          this.currentTopicLessons = response.data.data || []
+          console.log(`✅ Fetched ${this.currentTopicLessons.length} lessons for topic ${topicId}`)
+          return this.currentTopicLessons
         }
       } catch (error) {
         console.error('❌ Error fetching lessons:', error)
-        ElMessage.error('Không thể tải danh sách bài nghe')
+        ElMessage.error('Không thể tải danh sách bài học')
         throw error
       } finally {
         this.lessonsLoading = false
@@ -98,22 +114,41 @@ export const useListeningUserStore = defineStore('listeningUser', {
       this.lessonsLoading = true
       try {
         const response = await listeningUserAPI.getLessonDetail(lessonId)
+
         if (response.data.success) {
           this.currentLesson = response.data.data
 
           console.log('✅ Fetched lesson:', this.currentLesson.title)
           console.log('  - Has groupedQuestions:', !!this.currentLesson.groupedQuestions)
-
-          if (this.currentLesson.topicId) {
-            await this.fetchLessonsByTopic(this.currentLesson.topicId)
-          }
+          console.log('  - Tasks:', this.currentLesson.groupedQuestions?.tasks?.length || 0)
+          console.log(
+            '  - Standalone:',
+            this.currentLesson.groupedQuestions?.standaloneQuestions?.length || 0,
+          )
 
           return this.currentLesson
         }
       } catch (error) {
-        console.error('❌ Error:', error)
-        const message = error.response?.data?.message || 'Không thể tải bài nghe'
-        ElMessage.error(message)
+        console.error('❌ Error fetching lesson:', error)
+
+        const message = error.response?.data?.message || 'Không thể tải chi tiết bài học'
+
+        if (message.includes('locked') || message.includes('khóa')) {
+          ElMessage.warning('Bài học này đang bị khóa. Hoàn thành bài trước để mở khóa!')
+        } else if (
+          message.includes('trình độ') ||
+          message.includes('level') ||
+          message.includes('yêu cầu')
+        ) {
+          ElMessage.warning({
+            message: message,
+            duration: 4000,
+            showClose: true,
+          })
+        } else {
+          ElMessage.error(message)
+        }
+
         throw error
       } finally {
         this.lessonsLoading = false
@@ -131,31 +166,55 @@ export const useListeningUserStore = defineStore('listeningUser', {
       }
     },
 
+    // Fix trong listeningUser.js store
+
     async viewTranscript(lessonId) {
       try {
+        // 1. Call API để unlock
         await listeningUserAPI.viewTranscript(lessonId)
+
+        // 2. ✅ CRITICAL: Update local state immediately
         if (this.currentLesson?.id === lessonId) {
           this.currentLesson.transcriptUnlocked = true
         }
-        ElMessage.success('Đã mở transcript!')
+
+        // 3. ✅ CRITICAL: Refetch lesson để lấy transcript content
+        // Vì backend có thể chỉ trả về transcript khi đã unlock
+        const response = await listeningUserAPI.getLessonDetail(lessonId)
+        if (response.data.success) {
+          // Update transcript content
+          if (this.currentLesson?.id === lessonId) {
+            this.currentLesson.transcript = response.data.data.transcript
+            this.currentLesson.transcriptTranslation = response.data.data.transcriptTranslation
+          }
+        }
+
+        console.log('✅ Transcript unlocked and content loaded')
+        return true
       } catch (error) {
         console.error('❌ Error:', error)
-        ElMessage.error(error.response?.data?.message || 'Không thể mở transcript')
+        throw error
       }
     },
 
-    async submitLesson(lessonId, submitData) {
+    async submitLesson(submitData) {
       try {
-        const response = await listeningUserAPI.submitLesson(lessonId, submitData)
+        const response = await listeningUserAPI.submitLesson(submitData.lessonId, submitData)
+
         if (response.data.success) {
           this.lastSubmitResult = response.data.data
 
+          // Update topics
           this.topics = this.topics.map((topic) => {
-            const lessonIndex = (topic.lessons || []).findIndex((l) => l.id === lessonId)
+            const lessonIndex = (topic.lessons || []).findIndex((l) => l.id === submitData.lessonId)
+
             if (lessonIndex !== -1) {
               const updatedLessons = [...topic.lessons]
-              updatedLessons[lessonIndex].isCompleted = this.lastSubmitResult.isPassed
-              updatedLessons[lessonIndex].scorePercentage = this.lastSubmitResult.scorePercentage
+              updatedLessons[lessonIndex] = {
+                ...updatedLessons[lessonIndex],
+                isCompleted: this.lastSubmitResult.isPassed,
+                scorePercentage: this.lastSubmitResult.scorePercentage,
+              }
 
               if (
                 this.lastSubmitResult.hasUnlockedNext &&
@@ -164,45 +223,49 @@ export const useListeningUserStore = defineStore('listeningUser', {
                 updatedLessons[lessonIndex + 1].isUnlocked = true
               }
 
+              const completedCount = updatedLessons.filter((l) => l.isCompleted).length
+
               return {
                 ...topic,
                 lessons: updatedLessons,
-                completedLessons: updatedLessons.filter((l) => l.isCompleted).length,
+                completedLessons: completedCount,
               }
             }
+
             return topic
           })
 
-          ElMessage.success(
-            this.lastSubmitResult.isPassed
-              ? `Đạt ${this.lastSubmitResult.scorePercentage}%`
-              : `Chưa đạt (${this.lastSubmitResult.scorePercentage}%)`,
-          )
+          // ✅ Update currentTopicLessons
+          this.currentTopicLessons = this.currentTopicLessons.map((lesson) => {
+            if (lesson.id === submitData.lessonId) {
+              return {
+                ...lesson,
+                isCompleted: this.lastSubmitResult.isPassed,
+                scorePercentage: this.lastSubmitResult.scorePercentage,
+              }
+            }
+            if (lesson.id === this.lastSubmitResult.nextLessonId) {
+              return { ...lesson, isUnlocked: true }
+            }
+            return lesson
+          })
+
+          if (this.lastSubmitResult.isPassed) {
+            ElMessage.success(
+              `Chúc mừng! Bạn đạt ${this.lastSubmitResult.scorePercentage?.toFixed(0)}%`,
+            )
+          } else {
+            ElMessage.warning(
+              `Chưa đạt! Cần ≥80% (Hiện tại: ${this.lastSubmitResult.scorePercentage?.toFixed(0)}%)`,
+            )
+          }
 
           return this.lastSubmitResult
         }
       } catch (error) {
-        console.error('❌ Error submitting:', error)
+        console.error('❌ Error submitting lesson:', error)
         ElMessage.error(error.response?.data?.message || 'Không thể nộp bài')
         throw error
-      }
-    },
-
-    async fetchCompletedLessons() {
-      this.progressLoading = true
-      try {
-        const response = await listeningUserAPI.getCompletedLessons()
-
-        if (response.data.success) {
-          this.completedLessons = response.data.data || []
-          console.log('✅ Fetched completed lessons:', this.completedLessons.length)
-        }
-      } catch (error) {
-        console.error('❌ Error fetching completed lessons:', error)
-        ElMessage.error('Không thể tải danh sách bài đã hoàn thành')
-        throw error
-      } finally {
-        this.progressLoading = false
       }
     },
 
@@ -210,11 +273,14 @@ export const useListeningUserStore = defineStore('listeningUser', {
       this.progressLoading = true
       try {
         const response = await listeningUserAPI.getProgressSummary()
+
         if (response.data.success) {
           this.progressSummary = response.data.data
+          console.log('✅ Fetched progress summary:', this.progressSummary)
         }
       } catch (error) {
-        console.error('❌ Error:', error)
+        console.error('❌ Error fetching progress summary:', error)
+        ElMessage.error('Không thể tải tổng quan tiến độ')
       } finally {
         this.progressLoading = false
       }
@@ -223,20 +289,13 @@ export const useListeningUserStore = defineStore('listeningUser', {
     clearCurrentLesson() {
       this.currentLesson = null
       this.lastSubmitResult = null
-    },
-
-    clearLessons() {
-      this.lessons = []
-      this.currentLesson = null
-      this.lastSubmitResult = null
+      this.currentTopicLessons = []
     },
 
     reset() {
       this.topics = []
-      this.currentTopic = null
-      this.lessons = []
       this.currentLesson = null
-      this.completedLessons = []
+      this.currentTopicLessons = []
       this.progressSummary = null
       this.lastSubmitResult = null
     },

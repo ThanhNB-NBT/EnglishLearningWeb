@@ -575,8 +575,7 @@ const handleRowClick = (row) => {
 
 const handleViewDetail = async (row) => {
   try {
-    const questionDetail = await questionStore.fetchQuestionById(props.config.moduleType, row.id)
-    previewQuestion.value = questionDetail || row
+    previewQuestion.value = row
     previewVisible.value = true
   } catch (error) {
     console.error('Failed to load question detail:', error)

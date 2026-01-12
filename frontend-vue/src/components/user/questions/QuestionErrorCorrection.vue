@@ -29,6 +29,17 @@
         <span v-else class="text-red-500 font-bold text-lg">✕</span>
       </div>
     </div>
+
+    <!-- ✅ NEW: Display correct answer after submit -->
+    <div
+      v-if="disabled && showFeedback && question.data?.correction"
+      class="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
+    >
+      <div class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Đáp án đúng:</div>
+      <div class="text-sm font-mono text-green-700 dark:text-green-400">
+        {{ question.data.correction }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -42,7 +53,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 const localModel = ref({ error: '', correction: '' })
-// ... initData & watch giữ nguyên ...
+
 const initData = () => {
   if (props.modelValue && typeof props.modelValue === 'object') {
     localModel.value = {
@@ -63,7 +74,6 @@ onMounted(initData)
 watch(() => props.modelValue, initData)
 const emitUpdate = () => emit('update:modelValue', { ...localModel.value })
 
-// ✅ FIX: Chỉ dùng API
 const isCorrect = computed(() => {
   return props.question.isCorrect === true
 })

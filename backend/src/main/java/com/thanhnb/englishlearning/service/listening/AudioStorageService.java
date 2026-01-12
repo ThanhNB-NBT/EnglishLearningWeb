@@ -3,6 +3,7 @@ package com.thanhnb.englishlearning.service.listening;
 import com.thanhnb.englishlearning.config.AudioStorageProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
@@ -24,13 +25,17 @@ public class AudioStorageService {
 
     private final AudioStorageProperties audioProperties;
 
+    // ✅ ADD: Inject server base URL from application.yml
+    @Value("${app.server.base-url:http://localhost:8980}")
+    private String serverBaseUrl;
+
     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/ogg");
 
     /**
      * Upload audio file
      * 
-     * @return URL path để lưu vào DB (bắt đầu bằng /media/listening/)
+     * ✅ FIX: Return FULL URL instead of relative path
      */
     public String uploadAudio(MultipartFile file, Long lessonId) throws IOException {
         validateAudioFile(file);
@@ -44,7 +49,7 @@ public class AudioStorageService {
             Files.createDirectories(lessonDir);
         }
 
-        // 3. Tạo tên file an toàn (UUID + Extension gốc) để tránh cache hoặc trùng tên
+        // 3. Tạo tên file an toàn (UUID + Extension gốc)
         String originalFilename = file.getOriginalFilename();
         String extension = getFileExtension(originalFilename);
         String safeFilename = UUID.randomUUID().toString() + "." + extension;
@@ -58,10 +63,14 @@ public class AudioStorageService {
 
         log.info("Audio uploaded: {} (Size: {} bytes)", targetPath, file.getSize());
 
-        // 5. Trả về URL Web (Khớp với WebConfig:
-        // registry.addResourceHandler("/media/listening/**"))
-        // URL format: /media/listening/lesson_{id}/{filename}
-        return "/media/listening/lesson_" + lessonId + "/" + safeFilename;
+        // ✅ FIX 5: Trả về FULL URL
+        // OLD: return "/media/listening/lesson_" + lessonId + "/" + safeFilename;
+        // NEW: return "http://localhost:8080/media/listening/lesson_1/abc.mp3"
+        String relativePath = "/media/listening/lesson_" + lessonId + "/" + safeFilename;
+        String fullUrl = serverBaseUrl + relativePath;
+
+        log.info("Generated audio URL: {}", fullUrl);
+        return fullUrl;
     }
 
     /**
@@ -72,13 +81,18 @@ public class AudioStorageService {
             return;
 
         try {
-            // Convert URL web -> Đường dẫn vật lý
-            // URL: /media/listening/lesson_1/abc.mp3
-            // Config UploadDir: /app/media/listening
-            // -> Path: /app/media/listening/lesson_1/abc.mp3
+            // ✅ FIX: Handle both full URL and relative path
+            String relativePath;
+            if (audioUrl.startsWith("http")) {
+                // Extract path from full URL: http://localhost:8080/media/listening/... →
+                // /media/listening/...
+                relativePath = audioUrl.substring(audioUrl.indexOf("/media/listening/"));
+            } else {
+                relativePath = audioUrl;
+            }
 
-            // Xóa prefix "/media/listening/" khỏi URL
-            String relativePath = audioUrl.replace("/media/listening/", "");
+            // Remove prefix "/media/listening/"
+            relativePath = relativePath.replace("/media/listening/", "");
 
             Path filePath = Paths.get(audioProperties.getUploadDir(), relativePath);
 
@@ -94,7 +108,6 @@ public class AudioStorageService {
             }
         } catch (IOException e) {
             log.error("Failed to delete audio: {}", audioUrl, e);
-            // Không ném lỗi để quy trình xóa bài học vẫn tiếp tục
         }
     }
 
@@ -105,7 +118,7 @@ public class AudioStorageService {
         return uploadAudio(file, lessonId);
     }
 
-    // --- Private Helpers ---
+    // --- Private Helpers (unchanged) ---
 
     private void validateAudioFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -117,12 +130,8 @@ public class AudioStorageService {
         }
 
         String contentType = file.getContentType();
-        // Một số trình duyệt/OS gửi content-type application/octet-stream cho file
-        // audio, nên check lỏng hơn hoặc check đuôi
         if (contentType != null && !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())
                 && !contentType.equals("application/octet-stream")) {
-            // throw new IllegalArgumentException("Định dạng không hỗ trợ: " + contentType);
-            // Log warning thay vì throw chặt nếu cần thiết
             log.warn("Warning: Uploading content-type {}", contentType);
         }
     }

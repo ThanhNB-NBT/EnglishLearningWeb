@@ -1,12 +1,9 @@
-// src/api/modules/teacher.api.js - COMPLETE VERSION
+// src/api/modules/teacher.api.js - FIXED VERSION
 import apiClient from '@/api/config'
 
-/**
- * ✅ COMPLETE: Separate APIs for ADMIN and TEACHER
- */
+// ==================== DEFINITIONS ====================
 
-// ==================== ADMIN OPERATIONS (Admin Portal Only) ====================
-export const teacherAdminAPI = {
+const adminOperations = {
   /**
    * ✅ Assign teacher to topic (ADMIN ONLY)
    * POST /api/admin/teachers/assign
@@ -74,40 +71,16 @@ export const teacherAdminAPI = {
    */
   revokeAllTopicAssignments: (topicId) => {
     return apiClient.delete(`/api/admin/teachers/topics/${topicId}/assignments`)
-  },
+  }
 }
 
-// ==================== TEACHER OPERATIONS (Teacher Portal) ====================
-export const teacherAPI = {
+const teacherOperations = {
   /**
    * ✅ Get current teacher's assignments
    * GET /api/teacher/my-assignments
    */
   getMyAssignments: () => {
     return apiClient.get('/api/teacher/my-assignments')
-  },
-
-  /**
-   * ✅ Get topics assigned to current teacher (by module type)
-   * GET /api/teacher/my-topics?moduleType=GRAMMAR
-   */
-  getMyTopics: (moduleType) => {
-    const params = moduleType ? { moduleType } : {}
-    return apiClient.get('/api/teacher/my-topics', { params })
-  },
-
-  /**
-   * ✅ Get topics assigned to teacher with pagination
-   * GET /api/teacher/my-topics/paginated?moduleType=GRAMMAR&page=0&size=10
-   */
-  getMyTopicsPaginated: (moduleType, page = 0, size = 10) => {
-    return apiClient.get('/api/teacher/my-topics/paginated', {
-      params: {
-        moduleType,
-        page,
-        size,
-      },
-    })
   },
 
   /**
@@ -135,6 +108,16 @@ export const teacherAPI = {
   },
 }
 
-// ==================== BACKWARD COMPATIBILITY ====================
-// Keep old exports for existing admin code
-export default teacherAdminAPI
+// ==================== EXPORTS ====================
+
+// 1. Export dành riêng cho Admin (nếu code mới dùng cái này)
+export const teacherAdminAPI = adminOperations
+
+// 2. Export gộp chung (FIX LỖI: code cũ import teacherAPI nhưng gọi hàm Admin)
+export const teacherAPI = {
+  ...adminOperations,
+  ...teacherOperations
+}
+
+// 3. Default export cũng là bản gộp chung
+export default teacherAPI

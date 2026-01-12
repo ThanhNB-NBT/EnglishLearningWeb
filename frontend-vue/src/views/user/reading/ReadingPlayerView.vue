@@ -1,119 +1,155 @@
 <template>
-  <LearningSplitLayout mode="split">
+  <LearningSplitLayout mode="split" v-if="!isLoading" :key="`lesson-${currentLesson?.id}`">
     <template #header-left>
-      <el-button link :icon="ArrowLeft" @click="$router.back()">Thoát</el-button>
-      <h1 class="text-sm md:text-base font-bold truncate max-w-[150px] md:max-w-md ml-2">
-        {{ currentLesson?.title }}
-      </h1>
+      <el-button link :icon="ArrowLeft" @click="$router.push('/user/reading')">Thoát</el-button>
+      <div class="ml-2 hidden sm:block">
+        <h1 class="text-sm font-bold truncate max-w-[200px]">{{ currentLesson?.title }}</h1>
+      </div>
     </template>
 
     <template #header-center>
       <div
-        v-if="remainingTime > 0"
-        class="flex items-center gap-2 text-orange-600 font-mono font-bold text-lg bg-orange-50 px-3 py-1 rounded-md"
+        v-if="shouldShowTimer"
+        class="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-md font-mono font-bold text-lg"
       >
         <el-icon><Timer /></el-icon>
-        {{ formatTime(remainingTime) }}
+        <span>{{ player.formatTime(player.remainingTime.value) }}</span>
       </div>
     </template>
 
     <template #sidebar>
-      <div class="p-4">
-        <h3 class="font-bold text-gray-500 uppercase text-xs mb-3 px-2">Danh sách bài đọc</h3>
-        <ul class="space-y-1">
-          <li v-for="lesson in topicLessons" :key="lesson.id">
-            <button
-              class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between group"
-              :class="
-                lesson.id === currentLesson?.id
-                  ? 'bg-blue-100 text-blue-700 font-medium'
-                  : 'hover:bg-gray-100 text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-              "
-              @click="switchLesson(lesson.id)"
-            >
-              <span class="truncate">{{ lesson.title }}</span>
-              <el-icon v-if="lesson.isCompleted" class="text-green-500"><CircleCheck /></el-icon>
-            </button>
-          </li>
-        </ul>
-      </div>
+      <LessonSidebar
+        :lessons="topicLessons"
+        :current-lesson-id="currentLesson?.id"
+        @select-lesson="switchLesson"
+      />
     </template>
 
     <template #content-left>
-      <div class="prose dark:prose-invert max-w-none">
-        <img
-          v-if="currentLesson?.imageUrl"
-          :src="currentLesson.imageUrl"
-          class="rounded-lg mb-4 w-full object-cover max-h-60"
-          alt="Lesson Image"
-        />
-
+      <!-- Reading Passage -->
+      <div class="prose dark:prose-invert prose-sm max-w-none">
+        <h3 class="font-bold text-gray-800 dark:text-gray-100 mb-4">📖 Bài đọc</h3>
         <div
-          v-html="currentLesson?.content"
-          class="reading-content font-serif text-lg leading-relaxed"
+          v-if="currentLesson?.content"
+          class="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 leading-relaxed"
+          v-html="currentLesson.content"
         ></div>
+        <div
+          v-else
+          class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed text-gray-400 text-center"
+        >
+          Không có nội dung bài đọc
+        </div>
       </div>
     </template>
 
     <template #content-right>
-      <div class="space-y-8">
-        <div
-          v-for="(question, index) in questions"
-          :key="question.id"
-          class="border-b border-gray-100 dark:border-gray-800 pb-6 last:border-0"
-        >
-          <div class="flex gap-3 mb-3">
-            <span
-              class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded h-fit shrink-0"
-              >Câu {{ index + 1 }}</span
-            >
-            <div
-              class="font-medium text-gray-800 dark:text-gray-200"
-              v-html="question.questionText"
-            ></div>
-          </div>
+      <div class="pb-10">
+        <LevelUpgradeAlert
+          v-if="player.showResult.value && lastResult?.levelUpgradeResult"
+          :level-result="lastResult.levelUpgradeResult"
+        />
 
-          <QuestionRenderer
-            :question="question"
-            v-model="userAnswers[question.id]"
-            :disabled="showResult"
+        <div class="mb-6 flex items-center justify-between border-b pb-4">
+          <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Câu hỏi</h2>
+          <div
+            class="text-sm bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-3 py-1 rounded-full font-bold"
+          >
+            {{ player.answeredCount.value }}/{{ totalQuestions }} câu
+          </div>
+        </div>
+
+        <div v-if="hasQuestions">
+          <TaskGroupRenderer
+            v-for="(task, index) in groupedTasks"
+            :key="'task-' + task.taskGroupId + '-' + index"
+            :task="task"
+            :answers="player.userAnswers.value"
+            :label="'Task ' + (index + 1)"
+            :start-index="getStartIndex(index)"
+            :disabled="player.showResult.value"
+            :show-feedback="player.showResult.value"
+            @update-answer="player.handleAnswerUpdate"
           />
+
+          <div v-if="standaloneQuestions.length > 0" class="mt-8">
+            <div
+              v-if="groupedTasks.length > 0"
+              class="mb-4 pb-2 border-b border-gray-200 dark:border-gray-700"
+            >
+              <span class="text-xs font-bold text-gray-400 uppercase">Câu hỏi khác</span>
+            </div>
+            <div class="space-y-8">
+              <div
+                v-for="(q, idx) in standaloneQuestions"
+                :key="'standalone-' + q.id"
+                class="flex gap-4"
+              >
+                <div class="shrink-0 pt-0.5">
+                  <span
+                    class="text-lg font-bold font-mono"
+                    :class="player.userAnswers.value[q.id] ? 'text-green-600' : 'text-gray-400'"
+                  >
+                    {{ getStandaloneStartIndex() + idx }}.
+                  </span>
+                </div>
+                <div class="flex-1">
+                  <div
+                    class="mb-3 text-gray-900 dark:text-gray-100 font-medium text-lg"
+                    v-html="q.questionText"
+                  ></div>
+                  <QuestionRenderer
+                    :question="q"
+                    :model-value="player.userAnswers.value[q.id] || null"
+                    @update:model-value="
+                      (val) => player.handleAnswerUpdate({ questionId: q.id, value: val })
+                    "
+                    :disabled="player.showResult.value"
+                    :show-feedback="player.showResult.value"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="text-center py-20 bg-gray-50 dark:bg-gray-800 rounded-xl border border-dashed"
+        >
+          <p class="text-gray-500 dark:text-gray-400">Bài đọc này không có câu hỏi.</p>
         </div>
       </div>
     </template>
 
     <template #footer>
       <div class="w-full flex justify-between items-center">
-        <div class="text-sm">
-          Đã làm: <span class="font-bold">{{ answeredCount }}/{{ questions.length }}</span>
-        </div>
-
-        <div class="flex gap-3">
-          <template v-if="showResult">
-            <div class="flex items-center gap-2 mr-2">
+        <div class="text-sm hidden sm:block"></div>
+        <div class="flex gap-3 w-full sm:w-auto justify-end">
+          <template v-if="(player.showResult.value || isLessonCompleted) && !isRetrying">
+            <div
+              v-if="lastResult"
+              class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg mr-2"
+            >
               <span
-                class="font-bold text-lg"
-                :class="resultData.isPassed ? 'text-green-600' : 'text-red-600'"
+                class="font-bold text-xl"
+                :class="lastResult.isPassed ? 'text-green-600' : 'text-red-500'"
               >
-                {{ resultData.scorePercentage }}%
+                {{ lastResult.scorePercentage }}%
               </span>
-              <span class="text-sm text-gray-500"
-                >({{ resultData.isPassed ? 'ĐẠT' : 'CHƯA ĐẠT' }})</span
-              >
             </div>
-            <el-button v-if="resultData.hasUnlockedNext" type="success" @click="nextLesson">
-              Bài tiếp theo <el-icon class="ml-1"><ArrowRight /></el-icon>
+            <el-button v-if="nextLessonId" type="success" size="large" @click="goToNextLesson">
+              Bài tiếp <el-icon class="ml-1"><ArrowRight /></el-icon>
             </el-button>
-            <el-button @click="retryLesson">Làm lại</el-button>
+            <el-button size="large" @click="retryLesson">Làm lại</el-button>
           </template>
-
           <el-button
             v-else
             type="primary"
             size="large"
-            :loading="submitting"
-            @click="submitExam"
-            :disabled="answeredCount === 0"
+            :loading="player.submitting.value"
+            @click="handleSubmit"
+            :disabled="player.answeredCount.value === 0"
           >
             Nộp bài
           </el-button>
@@ -121,38 +157,62 @@
       </div>
     </template>
   </LearningSplitLayout>
+
+  <div v-else class="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <div class="text-center">
+      <el-icon class="is-loading text-green-500" :size="48"><Loading /></el-icon>
+      <p class="mt-4 text-gray-500 dark:text-gray-400">Đang tải bài đọc...</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useReadingUserStore } from '@/stores/user/readingUser'
+import { useLearningPlayer } from '@/composables/common/useLearningPlayer'
 import LearningSplitLayout from '@/layouts/LearningSplitLayout.vue'
+import LessonSidebar from '@/components/user/shared/LessonSidebar.vue'
 import QuestionRenderer from '@/components/user/questions/QuestionRenderer.vue'
-import { ArrowLeft, Timer, ArrowRight, CircleCheck } from '@element-plus/icons-vue'
-import { ElMessage} from 'element-plus'
+import TaskGroupRenderer from '@/components/user/questions/TaskGroupRenderer.vue'
+import LevelUpgradeAlert from '@/components/user/shared/LevelUpgradeAlert.vue'
+import { ArrowLeft, Timer, ArrowRight, Loading } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const readingStore = useReadingUserStore()
+const player = useLearningPlayer(readingStore)
 
-// State
-const remainingTime = ref(0)
-const timerInterval = ref(null)
-const userAnswers = ref({})
-const submitting = ref(false)
-const showResult = ref(false)
-const resultData = ref({})
-const topicLessons = ref([])
+const isLoading = ref(true)
+const isRetrying = ref(false)
 
-// Computed
 const currentLesson = computed(() => readingStore.currentLesson)
-const questions = computed(() => readingStore.questions || [])
-const answeredCount = computed(() => Object.keys(userAnswers.value).length)
+const topicLessons = computed(() => readingStore.currentTopicLessons || [])
+const isLessonCompleted = computed(() => currentLesson.value?.isCompleted)
+const groupedTasks = computed(() => currentLesson.value?.groupedQuestions?.tasks || [])
+const standaloneQuestions = computed(
+  () => currentLesson.value?.groupedQuestions?.standaloneQuestions || [],
+)
+const lastResult = computed(() => readingStore.lastSubmitResult)
+const nextLessonId = computed(() => readingStore.lastSubmitResult?.nextLessonId)
 
-// === INIT ===
+const totalQuestions = computed(() => {
+  let count = standaloneQuestions.value.length
+  groupedTasks.value.forEach((t) => (count += t.questions?.length || 0))
+  return count
+})
+
+const hasQuestions = computed(() => totalQuestions.value > 0)
+
+const shouldShowTimer = computed(() => {
+  if (player.showResult.value) return false
+  if (isLessonCompleted.value) return false
+  if (player.remainingTime.value <= 0) return false
+  return true
+})
+
 onMounted(() => {
-  loadData(route.params.lessonId)
+  if (route.params.lessonId) loadData(route.params.lessonId)
 })
 
 watch(
@@ -163,69 +223,67 @@ watch(
 )
 
 const loadData = async (lessonId) => {
-  showResult.value = false
-  userAnswers.value = {}
-  clearInterval(timerInterval.value)
+  isLoading.value = true
+  player.resetPlayerState()
+  readingStore.clearCurrentLesson()
 
-  await readingStore.fetchLessonDetail(lessonId)
-
-  // Load sidebar list (nếu cần)
-  if (currentLesson.value?.topicId) {
-    // Gọi API lấy list bài học của Topic này để hiển thị Sidebar
-    // topicLessons.value = await readingStore.getLessonsByTopic(currentLesson.value.topicId)
-  }
-
-  if (currentLesson.value?.timeLimitSeconds) {
-    remainingTime.value = currentLesson.value.timeLimitSeconds
-    startTimer()
-  }
-}
-
-// === TIMER & ACTIONS (Giống Grammar) ===
-const startTimer = () => {
-  clearInterval(timerInterval.value)
-  timerInterval.value = setInterval(() => {
-    if (remainingTime.value > 0) remainingTime.value--
-    else {
-      clearInterval(timerInterval.value)
-      if (!showResult.value) {
-        ElMessage.warning('Hết giờ! Tự động nộp bài.')
-        submitExam()
-      }
-    }
-  }, 1000)
-}
-
-const submitExam = async () => {
-  if (answeredCount.value === 0 && !showResult.value) return
-  submitting.value = true
   try {
-    const answers = Object.entries(userAnswers.value).map(([qId, ans]) => ({
-      questionId: parseInt(qId),
-      textAnswer: typeof ans === 'string' ? ans : JSON.stringify(ans),
-    }))
+    await readingStore.fetchLessonDetail(lessonId)
 
-    const res = await readingStore.submitLesson(currentLesson.value.id, { answers })
-    resultData.value = res
-    showResult.value = true
-    clearInterval(timerInterval.value)
-  } catch (e) {
-    console.error(e)
-  } finally {
-    submitting.value = false
+    if (currentLesson.value?.topicId) {
+      await readingStore.fetchLessonsByTopic(currentLesson.value.topicId)
+    }
+
+    await nextTick()
+
+    if (!isLessonCompleted.value || isRetrying.value) {  // ← ADD CHECK
+      player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
+      player.startTimer(() => handleSubmit())
+    }
+
+    isLoading.value = false
+    isRetrying.value = false  // ← RESET FLAG
+
+  } catch (error) {
+    console.error('Load data error:', error)
+    isLoading.value = false
+    isRetrying.value = false  // ← RESET ON ERROR
   }
 }
 
-const switchLesson = (id) => router.push({ name: 'user-reading-detail', params: { lessonId: id } })
-const nextLesson = () =>
-  resultData.value.nextLessonId && switchLesson(resultData.value.nextLessonId)
-const retryLesson = () => loadData(currentLesson.value.id)
-
-const formatTime = (s) => {
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return `${m}:${sec.toString().padStart(2, '0')}`
+const handleSubmit = async () => {
+  await player.submitExam(currentLesson.value.id, groupedTasks.value, standaloneQuestions.value)
+  if (currentLesson.value?.topicId) {
+    readingStore.fetchLessonsByTopic(currentLesson.value.topicId)
+  }
 }
 
-onUnmounted(() => clearInterval(timerInterval.value))
+const switchLesson = (id) => {
+  isLoading.value = true
+  router.push({ name: 'user-reading-lesson', params: { lessonId: id } })
+}
+
+const goToNextLesson = () => {
+  if (nextLessonId.value) switchLesson(nextLessonId.value)
+}
+
+const retryLesson = () => {
+  console.log('🔄 Retrying lesson...')
+  isRetrying.value = true
+  player.showResult.value = false
+  player.clearQuestionsState(groupedTasks.value, standaloneQuestions.value)
+  loadData(currentLesson.value.id)
+}
+
+const getStartIndex = (taskIndex) => {
+  let count = 1
+  for (let i = 0; i < taskIndex; i++) count += groupedTasks.value[i].questions?.length || 0
+  return count
+}
+
+const getStandaloneStartIndex = () => {
+  let count = 1
+  groupedTasks.value.forEach((t) => (count += t.questions?.length || 0))
+  return count
+}
 </script>

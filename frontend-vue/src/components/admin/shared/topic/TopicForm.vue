@@ -52,7 +52,7 @@
         <el-form-item label="Thứ tự hiển thị" prop="orderIndex">
           <el-input-number
             v-model="form.orderIndex"
-            :min="1"
+            :min="0"
             :max="9999"
             class="!w-full"
             size="large"
@@ -183,7 +183,7 @@ const openEdit = (topic) => {
     name: topic.name || '',
     description: topic.description || '',
     levelRequired: topic.levelRequired || 'A1',
-    orderIndex: topic.orderIndex || 1,
+    orderIndex: topic.orderIndex || 0,
     isActive: topic.isActive ?? true,
   })
 
