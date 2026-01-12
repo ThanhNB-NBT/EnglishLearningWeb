@@ -1,8 +1,8 @@
 <template>
   <TopicTabsView
-    title="Luyện Nghe"
+    title="Nghe Hiểu"
     icon="🎧"
-    default-icon="💿"
+    default-icon="🔊"
     :topics="topics"
     :loading="loading"
     module-type="listening"

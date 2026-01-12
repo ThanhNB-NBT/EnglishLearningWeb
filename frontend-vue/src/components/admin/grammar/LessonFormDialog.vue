@@ -42,19 +42,20 @@
 
       <el-row :gutter="20">
         <el-col :span="12">
-           <el-form-item label="Thời gian (s)">
-             <el-input-number
-               v-model="formData.timeLimitSeconds"
-               :min="0" :step="60"
-               class="!w-full"
-               placeholder="0 = Không giới hạn"
-             />
-           </el-form-item>
+          <el-form-item label="Thời gian (s)">
+            <el-input-number
+              v-model="formData.timeLimitSeconds"
+              :min="0"
+              :step="60"
+              class="!w-full"
+              placeholder="0 = Không giới hạn"
+            />
+          </el-form-item>
         </el-col>
         <el-col :span="12">
-           <el-form-item label="Điểm thưởng">
-             <el-input-number v-model="formData.pointsReward" :min="0" class="!w-full" />
-           </el-form-item>
+          <el-form-item label="Điểm thưởng">
+            <el-input-number v-model="formData.pointsReward" :min="0" class="!w-full" />
+          </el-form-item>
         </el-col>
       </el-row>
 
@@ -79,12 +80,7 @@
     <template #footer>
       <div class="flex justify-end gap-3">
         <el-button @click="visible = false">Hủy bỏ</el-button>
-        <el-button
-          type="primary"
-          :loading="isLoading"
-          @click="handleSubmit"
-          class="!px-6"
-        >
+        <el-button type="primary" :loading="isLoading" @click="handleSubmit" class="!px-6">
           {{ mode === 'create' ? 'Lưu bài học' : 'Cập nhật' }}
         </el-button>
       </div>
@@ -141,8 +137,9 @@ const openCreate = async () => {
 
   if (props.topicId) {
     try {
-      const nextOrder = await grammarStore.getNextOrderIndex(props.topicId)
-      formData.value.orderIndex = nextOrder || 1
+      const nextOrder = await grammarStore.getNextLessonOrderIndex(props.topicId)
+      console.log('Next lesson order index:', nextOrder)
+      formData.value.orderIndex = nextOrder.data || 1
     } catch (e) {
       console.warn(e)
     }
@@ -157,7 +154,7 @@ const openEdit = (row) => {
   formData.value = {
     ...row,
     // Backend trả về null cho timeLimitSeconds thì set về 0
-    timeLimitSeconds: row.timeLimitSeconds || 0
+    timeLimitSeconds: row.timeLimitSeconds || 0,
   }
   visible.value = true
 }
@@ -177,7 +174,7 @@ const handleSubmit = async () => {
       orderIndex: formData.value.orderIndex,
       timeLimitSeconds: formData.value.timeLimitSeconds,
       pointsReward: formData.value.pointsReward,
-      isActive: formData.value.isActive
+      isActive: formData.value.isActive,
     }
 
     if (mode.value === 'create') {

@@ -11,6 +11,27 @@
       </p>
     </div>
 
+    <!-- ✅ Hiển thị thông báo lỗi từ backend -->
+    <el-alert
+      v-if="errorMessage"
+      :title="errorMessage"
+      type="error"
+      :closable="true"
+      @close="errorMessage = ''"
+      class="mb-4"
+      show-icon
+    />
+
+    <!-- ✅ Hiển thị thông tin số lần thử còn lại -->
+    <el-alert
+      v-if="attemptsRemaining !== null && attemptsRemaining < 3"
+      :title="`Còn ${attemptsRemaining} lần thử`"
+      type="warning"
+      :closable="false"
+      class="mb-4"
+      show-icon
+    />
+
     <el-form
       ref="formRef"
       :model="formData"
@@ -27,8 +48,10 @@
           :prefix-icon="Lock"
           maxlength="6"
           clearable
+          :disabled="loading"
           class="!text-center tracking-widest font-mono"
           @keyup.enter="handleVerify"
+          @input="errorMessage = ''"
         >
           <template #append><span class="text-xs">6 số</span></template>
         </el-input>
@@ -42,10 +65,10 @@
           v-else
           type="button"
           class="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium disabled:opacity-50"
-          :disabled="resending"
+          :disabled="resending || rateLimitReached"
           @click="handleResend"
         >
-          Gửi lại mã OTP
+          {{ rateLimitReached ? 'Đã vượt giới hạn gửi OTP' : 'Gửi lại mã OTP' }}
         </button>
       </div>
 
@@ -53,7 +76,7 @@
         type="primary"
         native-type="submit"
         :loading="loading"
-        :disabled="loading"
+        :disabled="loading || formData.otp.length !== 6"
         class="!w-full !h-11 !text-base !font-bold !rounded-lg shadow-md shadow-blue-500/20"
       >
         Xác thực
@@ -85,6 +108,9 @@ const loading = ref(false)
 const resending = ref(false)
 const email = ref(route.query.email || '')
 const countdown = ref(60)
+const errorMessage = ref('')
+const attemptsRemaining = ref(null)
+const rateLimitReached = ref(false)
 let countdownInterval = null
 
 const formData = reactive({ otp: '' })
@@ -108,16 +134,57 @@ const startCountdown = () => {
 
 const handleVerify = async () => {
   if (!formRef.value) return
+
+  // Reset error trước khi verify
+  errorMessage.value = ''
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      if (!email.value) { toast.error('Email không hợp lệ'); return }
+      if (!email.value) {
+        errorMessage.value = 'Email không hợp lệ'
+        toast.error('Email không hợp lệ')
+        return
+      }
+
       loading.value = true
       try {
         await authStore.verifyEmail(email.value, formData.otp)
-        // toast.success('Tài khoản đã được kích hoạt! Vui lòng đăng nhập.') // Store đã toast rồi
-        router.push('/auth/login')
+
+        // ✅ Hiển thị thông báo thành công
+        toast.success('Xác thực thành công! Tài khoản đã được kích hoạt.')
+
+        // Chờ 1 giây để user đọc thông báo rồi chuyển trang
+        setTimeout(() => {
+          router.push('/auth/login')
+        }, 1000)
+
       } catch (error) {
-        console.error(error)
+        console.error('Verify error:', error)
+
+        // ✅ Xử lý các loại lỗi cụ thể từ backend
+        const errorMsg = error.response?.data?.message || error.message || 'Xác thực OTP thất bại'
+
+        errorMessage.value = errorMsg
+        toast.error(errorMsg)
+
+        // ✅ Parse số lần thử còn lại từ message
+        const remainingMatch = errorMsg.match(/Còn lại (\d+) lần thử/)
+        if (remainingMatch) {
+          attemptsRemaining.value = parseInt(remainingMatch[1])
+        }
+
+        // ✅ Nếu hết lần thử, clear form và yêu cầu gửi lại OTP
+        if (errorMsg.includes('vượt quá') || errorMsg.includes('Đã vượt quá')) {
+          formData.otp = ''
+          attemptsRemaining.value = 0
+          toast.warning('Vui lòng yêu cầu mã OTP mới')
+        }
+
+        // ✅ Nếu OTP hết hạn
+        if (errorMsg.includes('hết hạn') || errorMsg.includes('không tồn tại')) {
+          formData.otp = ''
+          toast.warning('Mã OTP đã hết hạn. Vui lòng gửi lại mã mới.')
+        }
       } finally {
         loading.value = false
       }
@@ -126,13 +193,42 @@ const handleVerify = async () => {
 }
 
 const handleResend = async () => {
-  if (!email.value) { toast.error('Email không hợp lệ'); return }
+  if (!email.value) {
+    errorMessage.value = 'Email không hợp lệ'
+    toast.error('Email không hợp lệ')
+    return
+  }
+
+  // Reset error và số lần thử
+  errorMessage.value = ''
+  attemptsRemaining.value = null
+  formData.otp = ''
+
   resending.value = true
   try {
     await authStore.resendVerifyEmail(email.value)
+
+    // ✅ Hiển thị thông báo thành công
+    toast.success('Đã gửi lại mã OTP! Vui lòng kiểm tra email.')
+
     startCountdown()
   } catch (error) {
-    console.error(error)
+    console.error('Resend error:', error)
+
+    // ✅ Xử lý rate limit
+    const errorMsg = error.response?.data?.message || error.message || 'Gửi lại mã thất bại'
+
+    errorMessage.value = errorMsg
+    toast.error(errorMsg)
+
+    // ✅ Nếu vượt giới hạn rate limit
+    if (errorMsg.includes('vượt quá giới hạn') || errorMsg.includes('thử lại sau')) {
+      rateLimitReached.value = true
+      // Reset sau 1 giờ
+      setTimeout(() => {
+        rateLimitReached.value = false
+      }, 60 * 60 * 1000)
+    }
   } finally {
     resending.value = false
   }
@@ -147,5 +243,18 @@ onMounted(() => {
   startCountdown()
 })
 
-onUnmounted(() => { if (countdownInterval) clearInterval(countdownInterval) })
+onUnmounted(() => {
+  if (countdownInterval) clearInterval(countdownInterval)
+})
 </script>
+
+<style scoped>
+/* Custom styles for better UX */
+.el-input :deep(.el-input__inner) {
+  text-align: center;
+  letter-spacing: 0.5em;
+  font-family: 'Sans Serif', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+</style>

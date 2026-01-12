@@ -131,14 +131,30 @@ public class SecurityConfig {
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
+
+                // ✅ FIX: Allow specific origins instead of wildcard
                 configuration.setAllowedOrigins(Arrays.asList(
                                 "http://localhost:5173",
                                 "http://localhost:3000",
-                                "http://localhost:8080",
-                                "*"));
+                                "http://localhost:8980"));
+
+                // ✅ FIX: Allow all HTTP methods
                 configuration.setAllowedMethods(Arrays.asList("*"));
+
+                // ✅ FIX: Allow all headers
                 configuration.setAllowedHeaders(Arrays.asList("*"));
-                configuration.setAllowCredentials(false);
+
+                // ✅ CRITICAL: Expose headers needed for audio streaming
+                configuration.setExposedHeaders(Arrays.asList(
+                                "Content-Type",
+                                "Content-Length",
+                                "Accept-Ranges",
+                                "Content-Range"));
+
+                // ✅ FIX: Enable credentials (needed for Range requests)
+                configuration.setAllowCredentials(true);
+
+                // Cache CORS preflight response
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

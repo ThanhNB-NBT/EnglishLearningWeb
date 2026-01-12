@@ -9,20 +9,18 @@
     </el-form-item>
 
     <el-form-item label="Gợi ý đầu câu" label-width="100px">
-      <el-input
-        v-model="beginningPhrase"
-        placeholder="VD: I wish"
-        @input="syncToParent"
-      />
+      <el-input v-model="beginningPhrase" placeholder="VD: I wish" @input="syncToParent" />
     </el-form-item>
 
     <el-form-item label="Đáp án đúng" label-width="100px">
+      <!-- ✅ FIX: Add :reserve-keyword="false" -->
       <el-select
         v-model="correctAnswers"
         multiple
         filterable
         allow-create
         default-first-option
+        :reserve-keyword="false"
         placeholder="Nhập các câu trả lời chấp nhận được (Enter để thêm)"
         class="w-full"
         @change="syncToParent"
@@ -66,7 +64,11 @@ onMounted(() => {
 })
 
 watch(
-  () => [props.metadata.originalSentence, props.metadata.beginningPhrase, props.metadata.correctAnswers],
+  () => [
+    props.metadata.originalSentence,
+    props.metadata.beginningPhrase,
+    props.metadata.correctAnswers,
+  ],
   ([newOriginal, newBeginning, newAnswers]) => {
     if (newOriginal !== originalSentence.value) {
       originalSentence.value = newOriginal || ''
@@ -78,7 +80,7 @@ watch(
       correctAnswers.value = [...newAnswers]
     }
   },
-  { deep: true }
+  { deep: true },
 )
 
 const syncToParent = () => {

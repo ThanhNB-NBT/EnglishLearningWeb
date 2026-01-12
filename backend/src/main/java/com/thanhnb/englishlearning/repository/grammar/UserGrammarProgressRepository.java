@@ -1,6 +1,7 @@
 package com.thanhnb.englishlearning.repository.grammar;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -108,4 +109,8 @@ public interface UserGrammarProgressRepository extends JpaRepository<UserGrammar
                      "FROM UserGrammarProgress ugp JOIN ugp.lesson gl " +
                      "WHERE ugp.user.id = :userId AND gl.topic.id = :topicId")
        Double getCompletionRateInTopic(@Param("userId") Long userId, @Param("topicId") Long topicId);
+
+       @Modifying
+       @Query("DELETE FROM UserGrammarProgress ugp WHERE ugp.user.id = :userId")
+       int deleteByUserId(@Param("userId") Long userId);
 }

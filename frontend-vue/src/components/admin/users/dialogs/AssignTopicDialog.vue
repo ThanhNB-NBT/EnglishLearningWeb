@@ -1,140 +1,97 @@
-<!-- src/components/admin/users/dialogs/AssignTopicDialog.vue - FIXED -->
 <template>
   <el-dialog
-    v-model="visible"
-    title="Phân quyền Topic cho Teacher"
-    width="600px"
-    align-center
-    :close-on-click-modal="false"
+    :model-value="modelValue"
+    title="Phân quyền Teacher - Topic"
+    width="500px"
+    @update:model-value="$emit('update:modelValue', $event)"
     @close="handleClose"
+    append-to-body
   >
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-position="top"
-      @submit.prevent="handleSubmit"
-    >
-      <!-- Teacher Selection -->
-      <el-form-item label="Chọn Teacher" prop="teacherId">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" label-position="top">
+      <el-form-item label="Teacher" prop="teacherId">
         <el-select
           v-model="form.teacherId"
           placeholder="Chọn giáo viên"
-          filterable
           class="w-full"
-          :loading="teachersLoading"
+          filterable
+          :loading="loadingTeachers"
+          no-data-text="Không tìm thấy giáo viên nào"
         >
           <el-option
             v-for="teacher in teachers"
             :key="teacher.id"
             :label="`${teacher.fullName || teacher.username} (@${teacher.username})`"
             :value="teacher.id"
-          >
-            <div class="flex items-center justify-between">
-              <span>{{ teacher.fullName || teacher.username }}</span>
-              <el-tag type="success" size="small">{{ teacher.assignedTopicsCount || 0 }} topics</el-tag>
-            </div>
-          </el-option>
+          />
         </el-select>
       </el-form-item>
 
-      <!-- Module Type Selection -->
       <el-form-item label="Module" prop="moduleType">
         <el-select
           v-model="form.moduleType"
-          placeholder="Chọn module"
-          @change="handleModuleChange"
+          placeholder="Chọn kỹ năng"
           class="w-full"
+          @change="handleModuleChange"
         >
-          <el-option label="Grammar" value="GRAMMAR">
-            <div class="flex items-center gap-2">
-              <el-icon><Reading /></el-icon>
-              <span>Grammar</span>
-            </div>
-          </el-option>
-          <el-option label="Reading" value="READING">
-            <div class="flex items-center gap-2">
-              <el-icon><Document /></el-icon>
-              <span>Reading</span>
-            </div>
-          </el-option>
-          <el-option label="Listening" value="LISTENING">
-            <div class="flex items-center gap-2">
-              <el-icon><Microphone /></el-icon>
-              <span>Listening</span>
-            </div>
-          </el-option>
+          <el-option label="Grammar" value="GRAMMAR" />
+          <el-option label="Reading" value="READING" />
+          <el-option label="Listening" value="LISTENING" />
         </el-select>
       </el-form-item>
 
-      <!-- Topic Selection -->
-      <el-form-item label="Chọn Topic" prop="topicId">
+      <el-form-item label="Topic" prop="topicId">
         <el-select
           v-model="form.topicId"
-          placeholder="Chọn topic"
-          filterable
-          :loading="topicsLoading"
-          :disabled="!form.moduleType"
+          placeholder="Chọn chủ đề"
           class="w-full"
+          filterable
+          :disabled="!form.moduleType"
+          :loading="topicsLoading"
+          no-data-text="Không có topic nào"
         >
           <el-option
-            v-for="topic in availableTopics"
-            :key="topic.id"
-            :label="topic.name"
-            :value="topic.id"
-          >
-            <div class="flex items-center justify-between">
-              <span>{{ topic.name }}</span>
-              <el-tag :type="topic.isActive ? 'success' : 'info'" size="small">
-                {{ topic.isActive ? 'Active' : 'Inactive' }}
-              </el-tag>
-            </div>
-          </el-option>
+            v-for="item in topics"
+            :key="item.id"
+            :label="item.displayLabel"
+            :value="item.id"
+          />
         </el-select>
       </el-form-item>
-
-      <el-alert type="info" :closable="false" class="mb-4">
-        <template #title>
-          <span class="text-sm">Teacher sẽ có quyền quản lý Lessons và Questions trong Topic này</span>
-        </template>
-      </el-alert>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">Hủy</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">
-        Phân quyền
-      </el-button>
+      <span class="dialog-footer">
+        <el-button @click="handleClose">Hủy</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting">
+          Phân quyền
+        </el-button>
+      </span>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Reading, Document, Microphone } from '@element-plus/icons-vue'
-import { teacherAPI } from '@/api/modules/teacher.api'
-import { userAPI } from '@/api'
-import { topicAPI } from '@/api/modules/topic.api'
+import { userAPI, topicAPI } from '@/api'
+import { useTeacherAssignmentStore } from '@/stores/admin/teacherAssignment'
 
-const props = defineProps({
+// Props & Emits
+defineProps({
   modelValue: Boolean,
-  teacher: {
-    type: Object,
-    default: null,
-  }
 })
-
 const emit = defineEmits(['update:modelValue', 'assigned'])
 
-const visible = ref(props.modelValue)
+// Store
+const store = useTeacherAssignmentStore()
+
+// State
 const formRef = ref(null)
 const submitting = ref(false)
 const topicsLoading = ref(false)
-const teachersLoading = ref(false)
-
+const loadingTeachers = ref(false)
 const teachers = ref([])
-const allTopics = ref([])
+const topics = ref([])
 
 const form = reactive({
   teacherId: null,
@@ -148,153 +105,120 @@ const rules = {
   topicId: [{ required: true, message: 'Vui lòng chọn topic', trigger: 'change' }],
 }
 
-// Computed: Filter topics by selected module
-const availableTopics = computed(() => {
-  if (!form.moduleType) return []
-  return allTopics.value.filter((t) => t.moduleType === form.moduleType)
-})
+// === METHODS ===
 
-watch(
-  () => props.modelValue,
-  async (val) => {
-    visible.value = val
-    if (val) {
-      await Promise.all([fetchTeachers(), fetchAllTopics()])
-
-      // ✅ Pre-fill teacher if passed from TeacherList
-      if (props.teacher) {
-        form.teacherId = props.teacher.id
-      }
-    }
-  },
-)
-
-watch(visible, (val) => {
-  emit('update:modelValue', val)
-})
-
-/**
- * ✅ Fetch teachers với assignments count
- */
+// 1. Fetch Teachers (FIXED)
 const fetchTeachers = async () => {
-  teachersLoading.value = true
+  loadingTeachers.value = true
   try {
-    console.log('🔄 Fetching teachers...')
-    const response = await userAPI.getAllUsers()
-    const allUsers = response.data.data || []
+    // Nếu userAPI.getTeachers() không có, hãy thử dùng getAllUsers() và filter
+    // Ở đây mình cố gắng lấy dữ liệu an toàn nhất
+    let data = []
 
-    // Filter TEACHER role
-    const teacherUsers = allUsers.filter((u) => u.role === 'TEACHER')
+    // Thử gọi API getTeachers nếu có
+    if (typeof userAPI.getTeachers === 'function') {
+      const res = await userAPI.getTeachers()
+      // ⚠️ FIX: Xử lý cả 2 trường hợp response structure
+      data = Array.isArray(res.data) ? res.data : res.data?.data || []
+    }
+    // Fallback: Gọi getAllUsers nếu getTeachers lỗi hoặc không có
+    else {
+      const res = await userAPI.getAllUsers()
+      const allUsers = Array.isArray(res.data) ? res.data : res.data?.data || []
+      // Filter role TEACHER thủ công
+      data = allUsers.filter((u) => u.role === 'TEACHER')
+    }
 
-    // ✅ Fetch assignments count for each teacher
-    const teachersWithCount = await Promise.all(
-      teacherUsers.map(async (teacher) => {
-        try {
-          const assignResponse = await teacherAPI.getTeacherAssignments(teacher.id)
-          const assignments = assignResponse.data.data || []
-
-          return {
-            ...teacher,
-            assignedTopicsCount: assignments.length,
-          }
-        } catch (error) {
-          console.error(`❌ Error fetching assignments for teacher ${teacher.id}:`, error)
-          console.warn(`⚠️ Could not fetch assignments for teacher ${teacher.id}`)
-          return {
-            ...teacher,
-            assignedTopicsCount: 0,
-          }
-        }
-      })
-    )
-
-    teachers.value = teachersWithCount
-    console.log('✅ Loaded teachers:', teachers.value.length)
+    teachers.value = data
+    console.log('✅ Teachers loaded:', teachers.value.length)
   } catch (error) {
     console.error('❌ Error fetching teachers:', error)
     ElMessage.error('Không thể tải danh sách giáo viên')
-    teachers.value = []
   } finally {
-    teachersLoading.value = false
+    loadingTeachers.value = false
   }
 }
 
-/**
- * ✅ Fetch all topics from all modules
- */
-const fetchAllTopics = async () => {
+// 2. Handle Module Change (FIXED)
+const handleModuleChange = async (val) => {
+  // 1. Reset dữ liệu cũ
+  form.topicId = null
+  topics.value = []
+
+  if (!val) return
+
   topicsLoading.value = true
   try {
-    console.log('🔄 Fetching topics from all modules...')
+    console.log('🔄 Fetching topics for module:', val)
 
-    // ✅ FIXED: Use topicAPI with correct method
-    const [grammarRes, readingRes, listeningRes] = await Promise.all([
-      topicAPI.getTopicsByModule('GRAMMAR', { page: 1, size: 1000 }),
-      topicAPI.getTopicsByModule('READING', { page: 1, size: 1000 }),
-      topicAPI.getTopicsByModule('LISTENING', { page: 1, size: 1000 }),
-    ])
+    // Gọi API
+    const res = await topicAPI.getTopicsByModule(val)
+    console.log('📦 API Response:', res.data) // Log để kiểm tra
 
-    const grammarTopics = grammarRes.data.data?.data || []
-    const readingTopics = readingRes.data.data?.data || []
-    const listeningTopics = listeningRes.data.data?.data || []
+    // 2. ⚠️ TRÍCH XUẤT DỮ LIỆU MẢNG AN TOÀN (FIX LỖI map is not a function)
+    let itemsArray = []
 
-    allTopics.value = [...grammarTopics, ...readingTopics, ...listeningTopics]
-    console.log('✅ Loaded topics:', allTopics.value.length)
+    // Kiểm tra từng lớp dữ liệu để tìm ra mảng 'content' hoặc mảng dữ liệu gốc
+    if (res.data?.data?.content && Array.isArray(res.data.data.content)) {
+      // Trường hợp 1: Phân trang (Data nằm trong data.content) -> Đây là case của bạn
+      itemsArray = res.data.data.content
+    } else if (Array.isArray(res.data?.data)) {
+      // Trường hợp 2: Backend trả về mảng bọc trong data (không phân trang)
+      itemsArray = res.data.data
+    } else if (Array.isArray(res.data)) {
+      // Trường hợp 3: Backend trả về mảng trực tiếp
+      itemsArray = res.data
+    } else if (res.data?.content && Array.isArray(res.data.content)) {
+      // Trường hợp 4: Một số cấu hình trả thẳng content ở root
+      itemsArray = res.data.content
+    }
+
+    // 3. Map dữ liệu (Lúc này itemsArray chắc chắn là Array nên hàm .map sẽ không lỗi)
+    topics.value = itemsArray.map((t) => ({
+      id: t.id,
+      // Ưu tiên hiển thị: name -> topicName -> title
+      displayLabel: t.name || t.topicName || t.title || `Topic #${t.id}`,
+    }))
+
+    console.log(`✅ Loaded ${topics.value.length} topics`)
   } catch (error) {
     console.error('❌ Error fetching topics:', error)
-    ElMessage.error('Không thể tải danh sách topics')
-    allTopics.value = []
+    // Không show error message để tránh làm phiền user nếu lỗi do race condition
   } finally {
     topicsLoading.value = false
   }
 }
 
-/**
- * Reset topic when module changes
- */
-const handleModuleChange = () => {
-  form.topicId = null
-}
-
-/**
- * ✅ Submit assignment
- */
+// 3. Submit Form
 const handleSubmit = async () => {
   if (!formRef.value) return
 
   await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    submitting.value = true
-    try {
-      console.log('📤 Assigning teacher to topic:', form)
-
-      await teacherAPI.assignTeacher({
-        teacherId: form.teacherId,
-        topicId: form.topicId,
-      })
-
-      ElMessage.success('✅ Phân quyền thành công!')
-      emit('assigned')
-      handleClose()
-    } catch (error) {
-      console.error('❌ Error assigning teacher:', error)
-      const message = error.response?.data?.message || 'Không thể phân quyền'
-      ElMessage.error(message)
-    } finally {
-      submitting.value = false
+    if (valid) {
+      submitting.value = true
+      try {
+        await store.assignTeacher(form.teacherId, form.topicId)
+        handleClose()
+        emit('assigned')
+      } catch (error) {
+        // Error handled in store
+        console.error('❌ Assignment failed:', error)
+      } finally {
+        submitting.value = false
+      }
     }
   })
 }
 
-/**
- * Close dialog
- */
 const handleClose = () => {
-  formRef.value?.resetFields()
-  form.teacherId = null
-  form.moduleType = null
+  // Không reset form hoàn toàn để UX tốt hơn (giữ lại module/teacher nếu muốn add tiếp)
+  // Chỉ reset nếu đóng hẳn, ở đây ta reset các trường cần thiết
   form.topicId = null
-  visible.value = false
+  emit('update:modelValue', false)
 }
+
+// Lifecycle
+onMounted(() => {
+  fetchTeachers()
+})
 </script>

@@ -40,6 +40,9 @@ public interface ListeningLessonRepository extends JpaRepository<ListeningLesson
 
         long countByTopicIdAndIsActiveTrue(Long topicId);
 
+        @Query("SELECT ll FROM ListeningLesson ll WHERE ll.topic.id = :topicId ORDER BY ll.orderIndex ASC")
+        List<ListeningLesson> findAllByTopicIdOrderByOrderIndexAsc(@Param("topicId") Long topicId);
+
         /**
          * Đếm tổng số lessons
          */

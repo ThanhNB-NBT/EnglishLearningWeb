@@ -77,12 +77,17 @@ export const useListeningAdminStore = defineStore('listeningAdmin', {
     },
 
     async createLesson(formData) {
-      // formData contains both fields + audio file (sent by component)
-      // Backend will auto-map @ModelAttribute and @RequestPart("audio")
-      const res = await listeningAdminAPI.createLesson(formData)
-      if (res.data.success) {
-        // this.lessons.unshift(res.data.data) // Optional: update list
-        return res.data.data
+      try {
+        const res = await listeningAdminAPI.createLesson(formData)
+        if (res.data.success) {
+          ElMessage.success('Tạo bài học thành công')
+          // Optional: update local state
+          // this.lessons.unshift(res.data.data)
+          return res.data.data
+        }
+      } catch (error) {
+        ElMessage.error('Tạo bài học thất bại')
+        throw error
       }
     },
 
@@ -90,9 +95,14 @@ export const useListeningAdminStore = defineStore('listeningAdmin', {
       try {
         const res = await listeningAdminAPI.updateLesson(id, formData)
         if (res.data.success) {
-          // Update local state nếu cần
+          ElMessage.success('Cập nhật thành công')
+
+          // Update local state
           const index = this.lessons.findIndex((l) => l.id === id)
-          if (index !== -1) this.lessons[index] = res.data.data
+          if (index !== -1) {
+            this.lessons[index] = res.data.data
+          }
+
           return res.data.data
         }
       } catch (error) {

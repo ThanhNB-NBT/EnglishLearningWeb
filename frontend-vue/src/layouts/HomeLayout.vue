@@ -52,6 +52,10 @@
           <el-menu-item index="/user/listening" class="menu-item-user hover-left-bar">
             <el-icon><Microphone /></el-icon> <template #title>Nghe hiểu</template>
           </el-menu-item>
+          <el-menu-item index="/user/placement-test" class="menu-item-user hover-left-bar">
+            <el-icon><Aim /></el-icon>
+            <template #title>Kiểm tra đầu vào</template>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
@@ -175,6 +179,7 @@ import {
   SwitchButton,
   Menu,
   Microphone,
+  Aim,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -186,7 +191,6 @@ const isMobileMenuOpen = ref(false)
 
 const currentUser = computed(() => authStore.currentUser)
 
-// ✅ FIX: Avatar
 const userAvatar = computed(() => {
   const name = currentUser.value?.fullName || currentUser.value?.username
   return getAvatarUrl(name)
@@ -196,10 +200,11 @@ const pageTitle = computed(() => {
   const map = {
     '/user/grammar': 'Ngữ pháp',
     '/user/reading': 'Đọc hiểu',
+    '/user/listening': 'Nghe hiểu',
     '/user/profile': 'Hồ sơ cá nhân',
     '/user/change-password': 'Đổi mật khẩu',
     '/user/home': 'Tổng quan',
-    '/user/listening': 'Nghe hiểu',
+    '/user/placement-test': 'Kiểm tra đầu vào',
   }
   if (route.path.includes('/lesson/')) return 'Bài học'
   return map[route.path] || ''

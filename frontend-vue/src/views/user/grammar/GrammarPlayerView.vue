@@ -1,4 +1,3 @@
-{ type: uploaded file fileName: src/views/user/grammar/GrammarPlayerView.vue fullContent:
 <template>
   <LearningSplitLayout :mode="layoutMode" v-if="!isLoading" :key="`lesson-${currentLesson?.id}`">
     <template #header-left>
@@ -73,6 +72,12 @@
       </div>
 
       <div v-else class="pb-10">
+        <!-- ✅ Level Upgrade Alert -->
+        <LevelUpgradeAlert
+          v-if="player.showResult.value && lastResult?.levelUpgradeResult"
+          :level-result="lastResult.levelUpgradeResult"
+        />
+
         <div class="mb-6 flex items-center justify-between border-b pb-4">
           <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Bài tập thực hành</h2>
           <div
@@ -175,7 +180,29 @@
       <div v-else class="w-full flex justify-between items-center">
         <div class="text-sm hidden sm:block"></div>
         <div class="flex gap-3 w-full sm:w-auto justify-end">
-          <template v-if="player.showResult.value || isLessonCompleted">
+          <!-- ✅ DEBUG: Hiển thị state để kiểm tra -->
+          <!-- <div class="text-xs text-gray-400 mr-2">
+            isRetrying: {{ isRetrying }} |
+            showResult: {{ player.showResult.value }} |
+            isCompleted: {{ isLessonCompleted }}
+          </div> -->
+
+          <!-- ✅ FIX: Logic đơn giản hơn - Nếu KHÔNG phải đang xem kết quả thì hiện Nộp bài -->
+          <template v-if="!player.showResult.value">
+            <!-- Đang làm bài (chưa submit) -->
+            <el-button
+              type="primary"
+              size="large"
+              :loading="player.submitting.value"
+              @click="handleSubmit"
+              :disabled="player.answeredCount.value === 0"
+            >
+              Nộp bài
+            </el-button>
+          </template>
+
+          <template v-else>
+            <!-- Đã nộp bài - hiển thị kết quả -->
             <div
               v-if="lastResult"
               class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg mr-2"
@@ -192,16 +219,6 @@
             </el-button>
             <el-button size="large" @click="retryLesson">Làm lại</el-button>
           </template>
-          <el-button
-            v-else
-            type="primary"
-            size="large"
-            :loading="player.submitting.value"
-            @click="handleSubmit"
-            :disabled="player.answeredCount.value === 0"
-          >
-            Nộp bài
-          </el-button>
         </div>
       </div>
     </template>
@@ -218,12 +235,14 @@
 <script setup>
 import { computed, onMounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 import { useGrammarUserStore } from '@/stores/user/grammarUser'
 import { useLearningPlayer } from '@/composables/common/useLearningPlayer'
 import LearningSplitLayout from '@/layouts/LearningSplitLayout.vue'
 import LessonSidebar from '@/components/user/shared/LessonSidebar.vue'
 import QuestionRenderer from '@/components/user/questions/QuestionRenderer.vue'
 import TaskGroupRenderer from '@/components/user/questions/TaskGroupRenderer.vue'
+import LevelUpgradeAlert from '@/components/user/shared/LevelUpgradeAlert.vue'
 import { ArrowLeft, Timer, ArrowRight, CircleCheckFilled, Loading } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -232,6 +251,7 @@ const grammarStore = useGrammarUserStore()
 const player = useLearningPlayer(grammarStore)
 
 const isLoading = ref(true)
+const isRetrying = ref(false)
 
 const currentLesson = computed(() => grammarStore.currentLesson)
 const topicLessons = computed(() => grammarStore.currentTopicLessons || [])
@@ -252,10 +272,6 @@ const totalQuestions = computed(() => {
 const hasQuestions = computed(() => totalQuestions.value > 0)
 const currentPhase = ref('theory')
 
-// Logic hiển thị Layout:
-// Nếu là Theory + Có câu hỏi -> Split (chia đôi màn hình)
-// Nếu là Theory + Không câu hỏi -> Full (chỉ hiện lý thuyết)
-// Nếu là Practice -> Full (chỉ hiện bài tập)
 const layoutMode = computed(() => {
   if (currentPhase.value === 'theory') {
     return hasQuestions.value ? 'split' : 'full'
@@ -272,10 +288,7 @@ const shouldShowTimer = computed(() => {
 
 const canStartPractice = computed(() => {
   if (isLessonCompleted.value) return true
-  // Nếu không set thời gian đọc lý thuyết thì cho qua luôn
   if (!currentLesson.value?.theoryDurationSeconds) return true
-
-  // Logic: Hết thời gian VÀ đã cuộn xuống cuối (hoặc bài ngắn tự coi là đã cuộn)
   return player.remainingTime.value <= 0 && player.hasScrolledToBottom.value
 })
 
@@ -308,28 +321,27 @@ const loadData = async (lessonId) => {
 
     await nextTick()
 
-    // Logic: Nếu không có lý thuyết -> Vào thẳng bài tập
     if (!hasTheoryContent) {
       currentPhase.value = 'practice'
       player.remainingTime.value = 0
-      if (!isLessonCompleted.value && hasQuestions.value) {
+
+      // ✅ FIX: Kiểm tra isRetrying để khởi động timer
+      if ((!isLessonCompleted.value || isRetrying.value) && hasQuestions.value) {
         player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
         player.startTimer(() => handleSubmit())
       }
       player.hasScrolledToBottom.value = true
     } else {
-      // Có lý thuyết -> Ở lại 'theory'
       currentPhase.value = 'theory'
 
-      // Nếu đã hoàn thành rồi thì không cần timer lý thuyết
-      if (isLessonCompleted.value) {
+      // ✅ FIX: Kiểm tra isRetrying
+      if (isLessonCompleted.value && !isRetrying.value) {
         player.remainingTime.value = 0
         player.hasScrolledToBottom.value = true
       } else {
         player.remainingTime.value = currentLesson.value?.theoryDurationSeconds || 10
         player.startTimer(null)
 
-        // Setup observer
         setTimeout(() => {
           player.setupScrollObserver('end-of-theory-marker')
         }, 100)
@@ -337,19 +349,19 @@ const loadData = async (lessonId) => {
     }
 
     isLoading.value = false
+    isRetrying.value = false
+
   } catch (error) {
     console.error('Load data error:', error)
     isLoading.value = false
+    isRetrying.value = false
   }
 }
 
-// Hàm điều hướng chính ở Footer
 const handleTheoryAction = async () => {
   if (hasQuestions.value) {
-    // Nếu có câu hỏi -> Chuyển sang làm bài tập
     startPractice()
   } else {
-    // Nếu KHÔNG có câu hỏi (Bài Lý thuyết thuần túy) -> Nộp bài để hoàn thành
     await submitPureTheory()
   }
 }
@@ -358,7 +370,8 @@ const startPractice = async () => {
   await nextTick()
   currentPhase.value = 'practice'
 
-  if (isLessonCompleted.value) {
+  // ✅ FIX: Kiểm tra isRetrying
+  if (isLessonCompleted.value && !isRetrying.value) {
     player.remainingTime.value = 0
   } else {
     player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
@@ -366,7 +379,7 @@ const startPractice = async () => {
   }
 }
 
-// Xử lý nộp bài lý thuyết (không có câu hỏi)
+// ✅ FIXED: Xử lý nộp bài lý thuyết với Level Upgrade notification
 const submitPureTheory = async () => {
   try {
     // 1. Gọi API nộp bài (dữ liệu rỗng vì là lý thuyết)
@@ -375,27 +388,44 @@ const submitPureTheory = async () => {
     // 2. Lấy kết quả từ store sau khi submit
     const result = grammarStore.lastSubmitResult
 
-    // 3. Xử lý điều hướng
+    // ✅ 3. HIỂN THỊ LEVEL UPGRADE TRƯỚC KHI REDIRECT
+    if (result?.levelUpgradeResult) {
+      const levelRes = result.levelUpgradeResult
+
+      // Nếu có upgrade/progress message → Hiển thị alert
+      if (levelRes.upgraded || levelRes.partialComplete || levelRes.maxLevelReached) {
+        try {
+          await ElMessageBox.alert(
+            levelRes.message,
+            levelRes.upgraded ? '🎉 Nâng cấp trình độ!' : '📊 Tiến trình học tập',
+            {
+              confirmButtonText: 'Tiếp tục',
+              type: levelRes.upgraded ? 'success' : 'info',
+              center: true,
+            },
+          )
+        } catch (e) {
+          console.log('User dismissed alert', e)
+        }
+      }
+    }
+
+    // 4. Xử lý điều hướng
     if (result && result.isPassed) {
       if (result.nextLessonId) {
-        // CASE A: Có bài tiếp theo -> Chuyển sang bài đó
         isLoading.value = true
         router.push({
           name: 'user-grammar-lesson',
           params: { lessonId: result.nextLessonId },
         })
       } else {
-        // CASE B: Hết bài (hoặc bài cuối topic) -> Về danh sách topic
-        // Dùng path trực tiếp để tránh lỗi sai tên route
         router.push('/user/grammar')
       }
     } else {
-      // Fallback: Nếu API không trả về passed (hiếm gặp với theory) -> Về danh sách
       router.push('/user/grammar')
     }
   } catch (e) {
     console.error('Lỗi khi hoàn thành bài lý thuyết:', e)
-    // Nếu lỗi, vẫn cho về danh sách để user không bị kẹt
     router.push('/user/grammar')
   }
 }
@@ -405,6 +435,8 @@ const handleSubmit = async () => {
   if (currentLesson.value?.topicId) {
     grammarStore.fetchLessonsByTopic(currentLesson.value.topicId)
   }
+  // ✅ FIX: Reset isRetrying sau khi submit thành công
+  isRetrying.value = false
 }
 
 const switchLesson = (id) => {
@@ -416,7 +448,19 @@ const goToNextLesson = () => {
   if (nextLessonId.value) switchLesson(nextLessonId.value)
 }
 
-const retryLesson = () => loadData(currentLesson.value.id)
+const retryLesson = () => {
+  console.log('🔄 Retrying lesson...')
+
+  // ✅ CRITICAL: Phải set isRetrying TRƯỚC và showResult = false
+  isRetrying.value = true
+  player.showResult.value = false  // ← Đây là key để đổi nút!
+
+  // Clear tất cả state
+  player.clearQuestionsState(groupedTasks.value, standaloneQuestions.value)
+
+  // Load lại
+  loadData(currentLesson.value.id)
+}
 
 const getStartIndex = (taskIndex) => {
   let count = 1
@@ -430,4 +474,3 @@ const getStandaloneStartIndex = () => {
   return count
 }
 </script>
-}

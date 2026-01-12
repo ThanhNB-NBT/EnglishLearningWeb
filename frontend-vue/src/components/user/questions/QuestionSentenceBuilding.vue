@@ -18,6 +18,14 @@
         <span v-else class="text-red-500 font-bold text-lg">✕</span>
       </div>
     </div>
+
+    <!-- ✅ NEW: Display correct answer after submit -->
+    <div v-if="disabled && showFeedback && question.data?.correctAnswer" class="mt-2 text-sm">
+      <span class="text-gray-500 dark:text-gray-400">Đáp án đúng: </span>
+      <span class="font-bold text-green-700 dark:text-green-400">
+        {{ question.data.correctAnswer }}
+      </span>
+    </div>
   </div>
 </template>
 
@@ -40,7 +48,6 @@ onMounted(() => {
 })
 const shuffledWordsString = computed(() => shuffledWords.value.join(' / '))
 
-// ✅ FIX: Chỉ dùng API, không tự tính
 const isCorrect = computed(() => {
   return props.question.isCorrect === true
 })

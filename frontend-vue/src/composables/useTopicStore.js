@@ -4,31 +4,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useTopicAdminStore } from '@/stores/admin/topicAdmin'
 import { useTopicTeacherStore } from '@/stores/teacher/topicTeacher'
 
-/**
- * ✅ Unified Topic Store Composable
- * Automatically selects the correct store based on user role
- * Returns a UNIFIED interface that works for both admin and teacher
- *
- * Usage in components:
- * const topicOps = useTopicStore('GRAMMAR')
- * await topicOps.fetchTopics()
- *
- * Response structure from API:
- * {
- *   status: 200,
- *   message: "Success",
- *   data: {
- *     content: [...],      // ✅ List of topics (changed from "data")
- *     page: 1,
- *     size: 10,
- *     totalElements: 5,
- *     totalPages: 1,
- *     last: true
- *   },
- *   timestamp: "...",
- *   success: true
- * }
- */
 export function useTopicStore(moduleType = null) {
   const authStore = useAuthStore()
   const adminStore = useTopicAdminStore()

@@ -86,11 +86,12 @@
         <div
           class="bg-gray-50 dark:bg-[#1d1d1d] p-4 rounded-lg border border-gray-200 dark:border-gray-700"
         >
-          <!-- ✅ FIX: Bind metadata prop and handle update -->
+          <!-- ✅ FIX: Pass questionType prop -->
           <component
             :is="currentFormComponent"
             v-if="currentFormComponent"
             :metadata="formMetadata"
+            :question-type="form.questionType"
             @update:metadata="handleMetadataUpdate"
           />
           <el-empty v-else description="Vui lòng chọn loại câu hỏi" :image-size="60" />
@@ -157,8 +158,6 @@ const defaultForm = {
 }
 
 const form = ref({ ...defaultForm })
-
-// ✅ FIX: Separate metadata object for form components
 const formMetadata = ref({})
 
 const rules = {
@@ -183,7 +182,6 @@ const currentFormComponent = computed(() => {
   return map[form.value.questionType] || null
 })
 
-// ✅ FIX: Handle metadata updates from form components
 const handleMetadataUpdate = (newMetadata) => {
   console.log('📝 Metadata updated:', newMetadata)
   formMetadata.value = { ...newMetadata }
@@ -205,9 +203,7 @@ const openCreate = async (lessonId) => {
     orderIndex: nextOrder,
   }
 
-  // ✅ Reset metadata
   formMetadata.value = {}
-
   visible.value = true
   loading.value = false
   nextTick(() => formRef.value?.clearValidate())
@@ -227,7 +223,6 @@ const openEdit = async (row) => {
     explanation: row.data?.explanation || '',
   }
 
-  // ✅ Set metadata from row.data
   if (row.data) {
     formMetadata.value = { ...row.data }
   } else {
@@ -259,7 +254,6 @@ const handleTypeChange = (newType) => {
     orderIndex,
   }
 
-  // ✅ Reset metadata when type changes
   formMetadata.value = {}
 }
 
@@ -268,7 +262,7 @@ const handleCreateTaskGroup = async (taskGroupData) => {
     const created = await questionStore.createTaskGroup(
       props.config.moduleType,
       currentLessonId.value,
-      taskGroupData
+      taskGroupData,
     )
     form.value.taskGroupId = created.id
     ElMessage.success('Tạo Task Group thành công!')
@@ -285,10 +279,9 @@ const handleSubmit = async () => {
       try {
         submitting.value = true
 
-        // ✅ FIX: Merge form + metadata correctly
         const payload = {
           ...form.value,
-          ...formMetadata.value, // Spread all metadata fields
+          ...formMetadata.value,
         }
 
         console.log('📤 Submitting payload:', payload)

@@ -2,6 +2,7 @@ package com.thanhnb.englishlearning.repository.reading;
 
 import com.thanhnb.englishlearning.entity.reading.UserReadingProgress;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -104,8 +105,7 @@ public interface UserReadingProgressRepository extends JpaRepository<UserReading
          */
         void deleteByLessonId(Long lessonId);
 
-        /**
-         * Xóa tất cả progress của một user
-         */
-        void deleteByUserId(Long userId);
+        @Modifying
+        @Query("DELETE FROM UserReadingProgress urp WHERE urp.user.id = :userId")
+        int deleteByUserId(@Param("userId") Long userId);
 }

@@ -54,6 +54,12 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
         @Query("SELECT MAX(t.orderIndex) FROM Topic t WHERE t.moduleType = :moduleType")
         Integer findMaxOrderIndexByModuleType(@Param("moduleType") ModuleType moduleType);
 
+        @Query("SELECT t.id FROM Topic t WHERE t.moduleType = :moduleType " +
+                        "AND t.orderIndex = 0 " +
+                        "AND t.isActive = false " +
+                        "AND t.description = 'PLACEMENT_TEST'")
+        Optional<Long> findPlacementTopicIdByModuleType(@Param("moduleType") ModuleType moduleType);
+
         // ==================== LEVEL-BASED QUERIES ====================
 
         /**

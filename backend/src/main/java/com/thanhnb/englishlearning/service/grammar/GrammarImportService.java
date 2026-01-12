@@ -1,13 +1,10 @@
 package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.GrammarLessonDTO;
-import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
-import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.entity.grammar.GrammarLesson;
 import com.thanhnb.englishlearning.entity.topic.Topic;
 import com.thanhnb.englishlearning.enums.LessonType;
 import com.thanhnb.englishlearning.enums.ModuleType;
-import com.thanhnb.englishlearning.enums.ParentType;
 import com.thanhnb.englishlearning.exception.ResourceNotFoundException;
 import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
 import com.thanhnb.englishlearning.repository.topic.TopicRepository;
@@ -32,7 +29,6 @@ public class GrammarImportService {
 
     private final TopicRepository topicRepository;
     private final GrammarLessonRepository lessonRepository;
-    private final GrammarQuestionService questionService;
 
     /**
      * Import lessons from AI parsing service

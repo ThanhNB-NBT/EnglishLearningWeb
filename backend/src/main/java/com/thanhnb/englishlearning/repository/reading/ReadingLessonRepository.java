@@ -24,6 +24,9 @@ public interface ReadingLessonRepository extends JpaRepository<ReadingLesson, Lo
 
         List<ReadingLesson> findByTopicIdOrderByOrderIndexAsc(Long topicId);
 
+        @Query("SELECT rl FROM ReadingLesson rl WHERE rl.topic.id = :topicId ORDER BY rl.orderIndex ASC")
+        List<ReadingLesson> findAllByTopicIdOrderByOrderIndexAsc(@Param("topicId") Long topicId);
+
         // ==================== EXISTENCE CHECKS ====================
 
         /**

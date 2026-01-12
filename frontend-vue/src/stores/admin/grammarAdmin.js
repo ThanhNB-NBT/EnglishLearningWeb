@@ -171,7 +171,7 @@ export const useGrammarAdminStore = defineStore('grammarAdmin', {
     async getNextLessonOrderIndex(topicId) {
       try {
         const res = await grammarAdminAPI.getNextLessonOrderIndex(topicId)
-        return res.data.data.nextOrderIndex
+        return res.data
       } catch {
         return 1
       }

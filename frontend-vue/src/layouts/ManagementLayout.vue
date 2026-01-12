@@ -61,11 +61,6 @@
               <el-icon><User /></el-icon>
               <template #title>Quản lý User</template>
             </el-menu-item>
-
-            <el-menu-item index="/admin/cleanup-user" class="menu-item-custom">
-              <el-icon><Delete /></el-icon>
-              <template #title>Cleanup User</template>
-            </el-menu-item>
           </template>
 
           <el-menu-item :index="grammarPath" class="menu-item-custom">
@@ -186,7 +181,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDarkMode } from '@/composables/useDarkMode'
-import { getAvatarUrl } from '@/utils/avatar' // ✅ FIX: Import hàm lấy Avatar
+import { getAvatarUrl } from '@/utils/avatar'
 import { ElMessage } from 'element-plus'
 import {
   Odometer,
@@ -194,7 +189,6 @@ import {
   Reading,
   Document,
   Microphone,
-  Delete,
   Moon,
   Sunny,
   ArrowDown,

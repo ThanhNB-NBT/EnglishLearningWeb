@@ -269,10 +269,12 @@ const handleSubmit = async () => {
 
   isLoading.value = true
   try {
+    // ✅ FIX: Tạo FormData đơn giản
     const submitData = new FormData()
-    const tId = props.topicId || formData.value.topicId
+
+    // Required fields
+    submitData.append('topicId', props.topicId || formData.value.topicId)
     submitData.append('title', formData.value.title)
-    submitData.append('topicId', tId)
     submitData.append('orderIndex', formData.value.orderIndex)
     submitData.append('timeLimitSeconds', formData.value.timeLimitSeconds)
     submitData.append('pointsReward', formData.value.pointsReward)
@@ -282,77 +284,29 @@ const handleSubmit = async () => {
     submitData.append('transcript', formData.value.transcript || '')
     submitData.append('transcriptTranslation', formData.value.transcriptTranslation || '')
 
-    // Chỉ append file nếu có chọn file mới
+    // Audio file (chỉ khi có chọn file mới)
     if (selectedFile.value) {
       submitData.append('audio', selectedFile.value)
     }
 
+    // ✅ FIX: Gọi store đúng cách
     if (mode.value === 'create') {
       if (!selectedFile.value) {
         ElMessage.warning('Vui lòng chọn file Audio cho bài học mới')
         isLoading.value = false
         return
       }
-      await listeningAdminStore.createLesson(submitData, selectedFile.value)
+      await listeningAdminStore.createLesson(submitData)
     } else {
-      // Đối với update, truyền file riêng qua hàm của store để store xử lý logic gọi API upload riêng (nếu cần) hoặc chung
-      // Tuy nhiên hàm store createLesson hiện tại của bạn đang nhận (lessonData, audioFile) nhưng ở đây ta đã append audio vào FormData rồi.
-      // Cần check lại store: ListeningAdminStore.createLesson nhận (lessonData) -> API post FormData.
-      // ListeningAdminStore.updateLesson nhận (id, lessonData) -> API put FormData.
-
-      // Ở đây ta gửi thẳng FormData chứa cả text và file xuống store.
-      // Store cần được điều chỉnh nhẹ để không upload 2 lần nếu logic store tách rời.
-      // Nhưng dựa theo code store bạn gửi:
-      // createLesson(lessonData, audioFile) -> API createLesson(lessonData) -> Upload Audio.
-      // Cách này hơi tách rời. Để đơn giản, ta truyền null vào tham số thứ 2 của store action
-      // VÀ đảm bảo lessonData (FormData) đã chứa file 'audio'.
-
-      // FIX logic gọi store cho khớp với code store hiện tại:
-      // Store: async createLesson(lessonData, audioFile)
-
-      // Cách gọi đúng dựa trên store hiện tại:
-      if (mode.value === 'create') {
-        // CreateLesson API backend (ListeningAdminController) thường mong đợi JSON trước rồi mới upload file,
-        // HOẶC mong đợi @ModelAttribute (Multipart).
-        // Dựa vào code ListeningAdminController (tôi đoán là Multipart), ta chỉ cần gửi 1 request FormData là đủ.
-        // Nhưng Store hiện tại đang tách ra 2 bước (create -> upload).
-        // Để an toàn nhất: Ta truyền DTO Object cho create, và File cho tham số 2.
-
-        const createDto = {
-          title: formData.value.title,
-          topicId: props.topicId,
-          orderIndex: formData.value.orderIndex,
-          timeLimitSeconds: formData.value.timeLimitSeconds,
-          pointsReward: formData.value.pointsReward,
-          allowUnlimitedReplay: formData.value.allowUnlimitedReplay,
-          maxReplayCount: formData.value.maxReplayCount,
-          isActive: formData.value.isActive,
-          transcript: formData.value.transcript,
-          transcriptTranslation: formData.value.transcriptTranslation,
-        }
-        await listeningAdminStore.createLesson(createDto, selectedFile.value)
-      } else {
-        const updateDto = {
-          title: formData.value.title,
-          topicId: props.topicId, // Backend có thể cần hoặc không khi update
-          orderIndex: formData.value.orderIndex,
-          timeLimitSeconds: formData.value.timeLimitSeconds,
-          pointsReward: formData.value.pointsReward,
-          allowUnlimitedReplay: formData.value.allowUnlimitedReplay,
-          maxReplayCount: formData.value.maxReplayCount,
-          isActive: formData.value.isActive,
-          transcript: formData.value.transcript,
-          transcriptTranslation: formData.value.transcriptTranslation,
-        }
-        await listeningAdminStore.updateLesson(formData.value.id, updateDto, selectedFile.value)
-      }
+      // Update - FormData đã chứa cả text và file
+      await listeningAdminStore.updateLesson(formData.value.id, submitData)
     }
 
     visible.value = false
-    emit('success') // Báo cho cha reload list
+    emit('success')
   } catch (err) {
-    console.error(err)
-    // Lỗi đã được catch ở store và show message
+    console.error('Submit error:', err)
+    // Error đã được handle ở store
   } finally {
     isLoading.value = false
   }

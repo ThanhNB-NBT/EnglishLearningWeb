@@ -11,12 +11,14 @@
     </el-form-item>
 
     <el-form-item label="Các từ (Words)" label-width="120px">
+      <!-- ✅ FIX: Add :reserve-keyword="false" -->
       <el-select
         v-model="words"
         multiple
         filterable
         allow-create
         default-first-option
+        :reserve-keyword="false"
         placeholder="Nhập các từ rời rạc..."
         class="w-full"
         @change="syncToParent"

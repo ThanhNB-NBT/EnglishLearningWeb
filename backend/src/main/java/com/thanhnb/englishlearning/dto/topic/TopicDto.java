@@ -38,7 +38,7 @@ public class TopicDto {
     @Schema(description = "Required English level", example = "A1")
     private EnglishLevel levelRequired;
 
-    @Schema(description = "Display order", example = "1")
+    @Schema(description = "Display order", example = "0")
     private Integer orderIndex;
 
     @Schema(description = "Is topic active", example = "true")

@@ -10,6 +10,7 @@
 
     <el-form-item label="Đáp án chấp nhận" label-width="0">
       <div class="w-full">
+        <!-- ✅ FIX: Add :reserve-keyword="false" -->
         <el-select
           v-model="correctAnswers"
           multiple
@@ -72,7 +73,7 @@ watch(
       }
     }
   },
-  { deep: true }
+  { deep: true },
 )
 
 const syncToParent = () => {

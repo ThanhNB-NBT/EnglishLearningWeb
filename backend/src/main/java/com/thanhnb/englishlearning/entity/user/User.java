@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 
@@ -17,7 +18,7 @@ import java.util.HashMap;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"stats", "activity"})
+@ToString(exclude = { "stats", "activity" })
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class User {
 
@@ -62,6 +63,9 @@ public class User {
     @Column(name = "updated_at")
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Column(name = "last_placement_test_date")
+    private LocalDateTime lastPlacementTestDate;
 
     // ==================== RELATIONSHIPS ====================
 
@@ -134,5 +138,12 @@ public class User {
 
     public boolean isStudent() {
         return role == UserRole.USER;
+    }
+
+    public boolean canRetakePlacementTest(int cooldownHours) {
+        if (lastPlacementTestDate == null)
+            return true;
+        return Duration.between(lastPlacementTestDate, LocalDateTime.now())
+                .toHours() >= cooldownHours;
     }
 }
