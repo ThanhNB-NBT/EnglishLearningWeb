@@ -1,4 +1,4 @@
-<!-- src/views/teacher/TeacherDashboardView.vue - COMPLETE VERSION -->
+<!-- src/views/teacher/TeacherDashboardView.vue - FIXED -->
 <template>
   <div class="teacher-dashboard">
     <!-- Header -->
@@ -8,7 +8,7 @@
           Teacher Dashboard
         </h1>
         <p class="text-gray-500 dark:text-gray-400 mt-1">
-          Xin chào, {{ teacher?.fullName || teacher?.username }}! 👋
+          Xin chào, {{ teacher?. fullName || teacher?.username }}!  👋
         </p>
       </div>
 
@@ -23,7 +23,7 @@
     </div>
 
     <!-- Statistics Cards -->
-    <div class="stats-grid" v-loading="statsLoading">
+    <div class="stats-grid" v-loading="loading">
       <el-card shadow="hover" class="stat-card">
         <div class="stat-content">
           <div class="stat-icon bg-blue-100 text-blue-600">
@@ -93,67 +93,46 @@
         v-loading="loading"
         stripe
         style="width: 100%"
-        :default-sort="{ prop: 'assignedAt', order: 'descending' }"
+        @row-click="handleRowClick"
+        class="cursor-pointer"
       >
-        <el-table-column type="index" label="#" width="60" />
-
-        <el-table-column prop="topicName" label="Tên Topic" min-width="200">
+        <el-table-column label="Module" width="120">
           <template #default="{ row }">
-            <div class="flex items-center gap-2">
-              <el-tag
-                :type="getModuleTagType(row.moduleType)"
-                size="small"
-                effect="plain"
-              >
-                {{ getModuleLabel(row.moduleType) }}
-              </el-tag>
-              <span class="font-medium">{{ row.topicName }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="moduleType" label="Module" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getModuleTagType(row.moduleType)">
+            <el-tag :type="getModuleTypeTag(row.moduleType)">
               {{ row.moduleType }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="isActive" label="Trạng thái" width="120">
+        <el-table-column label="Topic" prop="name" min-width="200" />
+
+        <el-table-column label="Mô tả" prop="description" min-width="250" show-overflow-tooltip />
+
+        <el-table-column label="Trạng thái" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-              {{ row.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động' }}
+            <el-tag :type="row.isActive ? 'success' : 'danger'" size="small">
+              {{ row.isActive ? 'Active' : 'Inactive' }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="assignedAt" label="Ngày phân công" width="180">
+        <el-table-column label="Ngày tạo" width="180">
           <template #default="{ row }">
-            {{ formatDate(row.assignedAt) }}
+            {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="Thao tác" width="180" fixed="right">
+        <el-table-column label="Actions" width="150" align="center">
           <template #default="{ row }">
             <el-button
               type="primary"
               size="small"
-              :icon="Edit"
-              @click="goToManageTopic(row)"
+              @click.stop="goToModule(row)"
             >
               Quản lý
             </el-button>
           </template>
         </el-table-column>
-
-        <template #empty>
-          <el-empty description="Chưa có phân công nào">
-            <el-button type="primary" @click="refreshData">
-              Làm mới
-            </el-button>
-          </el-empty>
-        </template>
       </el-table>
     </el-card>
   </div>
@@ -163,175 +142,121 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { teacherAPI } from '@/api'
+import { useTopicTeacherStore } from '@/stores/teacher/topicTeacher'
 import { ElMessage } from 'element-plus'
-import {
-  Document,
-  Reading,
-  Memo,
-  Headset,
-  Refresh,
-  Search,
-  Edit
-} from '@element-plus/icons-vue'
+import { Document, Reading, Memo, Headset, Refresh, Search } from '@element-plus/icons-vue'
+import dayjs from 'dayjs'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const teacherStore = useTopicTeacherStore()
 
-// ==================== STATE ====================
-const teacher = ref(authStore.teacher)
-const assignments = ref([])
 const loading = ref(false)
-const statsLoading = ref(false)
 const searchQuery = ref('')
 
 const stats = ref({
-  totalAssignments: 0,
+  totalAssignments:  0,
   grammarTopics: 0,
   readingTopics: 0,
-  listeningTopics: 0
+  listeningTopics: 0,
 })
 
-// ==================== COMPUTED ====================
+const teacher = computed(() => authStore.teacher)
+
+// ✅ Combine all topics from 3 modules
+const allAssignments = computed(() => {
+  const grammar = teacherStore.grammarTopics. map(t => ({ ...t, moduleType: 'GRAMMAR' }))
+  const reading = teacherStore.readingTopics. map(t => ({ ...t, moduleType: 'READING' }))
+  const listening = teacherStore.listeningTopics.map(t => ({ ...t, moduleType: 'LISTENING' }))
+
+  return [...grammar, ...reading, ...listening]
+})
+
 const filteredAssignments = computed(() => {
-  if (!searchQuery.value) return assignments.value
+  if (!searchQuery.value) return allAssignments.value
 
   const query = searchQuery.value.toLowerCase()
-  return assignments.value.filter(item =>
-    item.topicName?.toLowerCase().includes(query) ||
-    item.moduleType?.toLowerCase().includes(query)
+  return allAssignments. value.filter((a) =>
+    a.name?.toLowerCase().includes(query) ||
+    a.description?.toLowerCase().includes(query)
   )
 })
 
-// ==================== METHODS ====================
-
 /**
- * ✅ Load teacher's assignments
+ * ✅ Fetch topics from 3 modules
  */
-const loadAssignments = async () => {
+const fetchAssignments = async () => {
+  loading.value = true
   try {
-    loading.value = true
+    console.log('📄 Fetching teacher assigned topics from all modules...')
 
-    console.log('🔄 Loading teacher assignments...')
-    const response = await teacherAPI.getMyAssignments()
+    // ✅ Call all 3 modules in parallel
+    await Promise.all([
+      teacherStore.fetchMyTopics('GRAMMAR', { size: 100 }),
+      teacherStore.fetchMyTopics('READING', { size: 100 }),
+      teacherStore.fetchMyTopics('LISTENING', { size: 100 }),
+    ])
 
-    assignments.value = response.data.data || []
-    console.log('✅ Assignments loaded:', assignments.value.length)
-  } catch (error) {
-    console.error('❌ Failed to load assignments:', error)
-    ElMessage.error({
-      message: 'Không thể tải danh sách phân công',
-      duration: 3000
+    // Calculate stats
+    stats.value.grammarTopics = teacherStore.grammarTopics.length
+    stats.value.readingTopics = teacherStore.readingTopics.length
+    stats.value.listeningTopics = teacherStore.listeningTopics.length
+    stats.value.totalAssignments =
+      stats.value.grammarTopics +
+      stats.value.readingTopics +
+      stats. value.listeningTopics
+
+    console.log('✅ Loaded assignments:', {
+      grammar: stats.value. grammarTopics,
+      reading: stats.value.readingTopics,
+      listening: stats. value.listeningTopics,
+      total: stats.value. totalAssignments,
     })
+
+  } catch (error) {
+    console.error('❌ Error fetching assignments:', error)
+    ElMessage. error('Không thể tải danh sách phân công')
   } finally {
     loading.value = false
   }
 }
 
-/**
- * ✅ Load teacher statistics
- */
-const loadStats = async () => {
-  try {
-    statsLoading.value = true
-
-    console.log('🔄 Loading teacher stats...')
-    const response = await teacherAPI.getTeacherStats()
-
-    stats.value = response.data.data || stats.value
-    console.log('✅ Stats loaded:', stats.value)
-  } catch (error) {
-    console.error('❌ Failed to load stats:', error)
-    // Don't show error message for stats, just log it
-  } finally {
-    statsLoading.value = false
-  }
-}
-
-/**
- * Refresh all data
- */
 const refreshData = async () => {
-  await Promise.all([
-    loadAssignments(),
-    loadStats()
-  ])
+  await fetchAssignments()
   ElMessage.success('Đã làm mới dữ liệu')
 }
 
-/**
- * Navigate to topic management page
- */
-const goToManageTopic = (assignment) => {
-  const moduleType = assignment.moduleType.toLowerCase()
+const goToModule = (assignment) => {
+  const moduleType = assignment.moduleType. toLowerCase()
 
-  // Route mapping based on module type
-  const routeMap = {
-    'grammar': 'teacher-grammar',
-    'reading': 'teacher-reading',
-    'listening': 'teacher-listening'
-  }
+  console.log('🔍 Navigating to module:', moduleType, 'topicId:', assignment.id)
 
-  const routeName = routeMap[moduleType]
-
-  if (routeName) {
-    router.push({
-      name: routeName,
-      query: { topicId: assignment.topicId }
-    })
-  } else {
-    ElMessage.warning('Module type không hợp lệ')
-  }
+  // Navigate to correct module management page
+  router.push({
+    name: `teacher-${moduleType}`,
+  })
 }
 
-/**
- * Get module tag type for styling
- */
-const getModuleTagType = (moduleType) => {
-  const typeMap = {
-    'GRAMMAR': 'success',
-    'READING': 'warning',
-    'LISTENING': 'danger'
+const handleRowClick = (row) => {
+  goToModule(row)
+}
+
+const getModuleTypeTag = (type) => {
+  const map = {
+    GRAMMAR: 'success',
+    READING: 'warning',
+    LISTENING: 'danger',
   }
-  return typeMap[moduleType] || 'info'
+  return map[type] || 'info'
 }
 
-/**
- * Get module label
- */
-const getModuleLabel = (moduleType) => {
-  const labelMap = {
-    'GRAMMAR': 'Ngữ pháp',
-    'READING': 'Đọc hiểu',
-    'LISTENING': 'Nghe hiểu'
-  }
-  return labelMap[moduleType] || moduleType
+const formatDate = (date) => {
+  if (!date) return '-'
+  return dayjs(date).format('DD/MM/YYYY HH:mm')
 }
 
-/**
- * Format date string
- */
-const formatDate = (dateString) => {
-  if (!dateString) return '-'
-
-  const date = new Date(dateString)
-  return new Intl.DateTimeFormat('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date)
-}
-
-// ==================== LIFECYCLE ====================
 onMounted(() => {
-  console.log('🎯 Teacher Dashboard mounted')
-  console.log('👤 Current teacher:', teacher.value)
-
-  // Load data
-  loadAssignments()
-  loadStats()
+  fetchAssignments()
 })
 </script>
 
@@ -349,20 +274,15 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
-/* Statistics Grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
+  gap: 20px;
   margin-bottom: 24px;
 }
 
 .stat-card {
-  transition: transform 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
+  border-radius: 12px;
 }
 
 .stat-content {
@@ -378,7 +298,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
 }
 
 .stat-info {
@@ -386,48 +305,36 @@ onMounted(() => {
 }
 
 .stat-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #6b7280;
   margin-bottom: 4px;
 }
 
 .stat-value {
   font-size: 28px;
-  font-weight: bold;
+  font-weight:  bold;
   color: #111827;
 }
 
-.dark .stat-value {
-  color: #f9fafb;
-}
-
-/* Card Header */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .teacher-dashboard {
-    padding: 16px;
-  }
+.cursor-pointer :deep(.el-table__row) {
+  cursor: pointer;
+}
 
-  .dashboard-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
+.cursor-pointer :deep(.el-table__row:hover) {
+  background-color: #f3f4f6;
+}
 
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
+.dark .stat-value {
+  color: #f9fafb;
+}
 
-  .card-header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-  }
+.dark .cursor-pointer :deep(.el-table__row:hover) {
+  background-color: #374151;
 }
 </style>

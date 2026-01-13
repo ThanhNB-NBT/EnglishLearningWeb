@@ -1,4 +1,4 @@
-// src/composables/useTopicStore.js - FIXED VERSION
+// src/composables/useTopicStore.js - SIMPLIFIED
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useTopicAdminStore } from '@/stores/admin/topicAdmin'
@@ -9,10 +9,7 @@ export function useTopicStore(moduleType = null) {
   const adminStore = useTopicAdminStore()
   const teacherStore = useTopicTeacherStore()
 
-  console.log('🔧 [useTopicStore] Initializing with moduleType:', moduleType)
-  console.log('🔧 [useTopicStore] authStore:', authStore ? '✓' : '✗')
-
-  // ==================== ROLE DETECTION ====================
+  // Role detection
   const currentRole = computed(() => {
     if (authStore.isAdminAuthenticated && authStore.admin) {
       return authStore.admin.role
@@ -26,189 +23,87 @@ export function useTopicStore(moduleType = null) {
   const isAdmin = computed(() => currentRole.value === 'ADMIN')
   const isTeacher = computed(() => currentRole.value === 'TEACHER')
 
-  // ==================== STORE SELECTION ====================
+  // Store selection
   const activeStore = computed(() => {
-    if (isAdmin.value) {
-      console.log('📦 Using ADMIN topic store')
-      return adminStore
-    } else if (isTeacher.value) {
-      console.log('📦 Using TEACHER topic store')
-      return teacherStore
-    }
-    console.warn('⚠️ No active store - user not authenticated as admin or teacher')
+    if (isAdmin.value) return adminStore
+    if (isTeacher.value) return teacherStore
     return null
   })
 
-  // ==================== UNIFIED API ====================
-
-  /**
-   * Get topics for current module from active store
-   */
+  // Unified API
   const topics = computed(() => {
-    if (!activeStore.value) {
-      console.warn('[useTopicStore] No active store')
-      return []
-    }
-
-    if (!moduleType) {
-      console.warn('[useTopicStore] No moduleType provided')
-      return []
-    }
-
-    const topicsArray = activeStore.value.getTopicsByModule(moduleType)
-    console.log(`📊 [useTopicStore] Topics for ${moduleType}:`, topicsArray?.length || 0)
-    return topicsArray || []
+    if (! activeStore.value || !moduleType) return []
+    return activeStore.value.getTopicsByModule(moduleType) || []
   })
 
-  /**
-   * Get loading state for current module
-   */
   const isLoading = computed(() => {
     if (!activeStore.value || !moduleType) return false
-
     const loadingKey = `${moduleType.toLowerCase()}Loading`
     return activeStore.value[loadingKey] || false
   })
 
   /**
-   * Fetch topics by module
-   * Automatically routes to admin or teacher store
+   * ✅ SIMPLIFIED: Both call the same method
    */
   const fetchTopics = async (params = {}) => {
-    if (!activeStore.value) {
-      throw new Error('No active store - user not authenticated')
+    if (!activeStore.value || !moduleType) {
+      throw new Error('Store or moduleType not available')
     }
 
-    if (!moduleType) {
-      throw new Error('moduleType is required')
-    }
+    console.log(`📄 [useTopicStore] Fetching ${moduleType} for ${currentRole.value}`)
 
-    console.log(`📄 [useTopicStore] Fetching ${moduleType} topics...`)
+    // ✅ Both admin and teacher call fetchTopicsByModule / fetchMyTopics
+    // They both call topicAPI.getTopicsByModule() now
+    // Backend handles the filtering
 
     if (isAdmin.value) {
-      // Admin: fetch all topics
-      return await activeStore.value.fetchTopicsByModule(moduleType, params)
+      await adminStore.fetchTopicsByModule(moduleType, params)
     } else if (isTeacher.value) {
-      // Teacher: fetch only assigned topics
-      return await activeStore.value.fetchMyTopics(moduleType, params)
+      await teacherStore.fetchMyTopics(moduleType, params)
     }
+
+    console.log(`✅ [useTopicStore] Fetched ${topics.value.length} topics`)
   }
 
-  /**
-   * Create topic (Admin only)
-   */
   const createTopic = async (topicData) => {
-    if (!isAdmin.value) {
-      throw new Error('Only admins can create topics')
-    }
-    if (!moduleType) {
-      throw new Error('moduleType is required')
-    }
+    if (!isAdmin.value) throw new Error('Only admins can create topics')
+    if (!moduleType) throw new Error('moduleType required')
     return await activeStore.value.createTopic(moduleType, topicData)
   }
 
-  /**
-   * Update topic (Admin and Teacher if assigned)
-   */
   const updateTopic = async (topicId, topicData) => {
-    if (!activeStore.value) {
-      throw new Error('No active store - user not authenticated')
-    }
+    if (!isAdmin.value) throw new Error('Only admins can update topics')
     return await activeStore.value.updateTopic(topicId, topicData)
   }
 
-  /**
-   * Delete topic (Admin only)
-   */
   const deleteTopic = async (topic) => {
-    if (!isAdmin.value) {
-      throw new Error('Only admins can delete topics')
-    }
-    if (!moduleType) {
-      throw new Error('moduleType is required')
-    }
+    if (!isAdmin.value) throw new Error('Only admins can delete topics')
+    if (!moduleType) throw new Error('moduleType required')
     return await activeStore.value.deleteTopic(topic.id, moduleType)
   }
 
-  /**
-   * Toggle topic status (Admin and Teacher if assigned)
-   */
-  const toggleStatus = async (topic) => {
-    if (!activeStore.value) {
-      throw new Error('No active store - user not authenticated')
-    }
-    return await activeStore.value.toggleTopicStatus(topic.id)
+  const toggleStatus = async (topicId) => {
+    if (!isAdmin.value) throw new Error('Only admins can toggle status')
+    return await activeStore.value.toggleTopicStatus(topicId)
   }
 
-  /**
-   * Fix order indexes (Admin only)
-   */
-  const fixOrderIndexes = async () => {
-    if (!isAdmin.value) {
-      throw new Error('Only admins can fix order indexes')
-    }
-    if (!moduleType) {
-      throw new Error('moduleType is required')
-    }
-    return await activeStore.value.fixOrderIndexes(moduleType)
-  }
-
-  /**
-   * Get topic by ID from store
-   */
-  const getTopicById = (id) => {
+  const getTopicById = (topicId) => {
     if (!activeStore.value) return null
-    return activeStore.value.getTopicById(id)
+    return activeStore.value.getTopicById(topicId)
   }
 
-  /**
-   * Get next order index for new topic
-   */
-  const getNextOrderIndex = () => {
-    if (!activeStore.value) return 1
-    return activeStore.value.getNextOrderIndex?.(moduleType) || 1
-  }
-
-  /**
-   * Check if teacher can manage a topic
-   */
-  const canManageTopic = async (topicId) => {
-    if (isAdmin.value) return true
-    if (isTeacher.value && teacherStore.checkAssignment) {
-      return await teacherStore.checkAssignment(topicId)
-    }
-    return false
-  }
-
-  // ==================== RETURN UNIFIED INTERFACE ====================
   return {
-    // Role info
+    topics,
+    isLoading,
     currentRole,
     isAdmin,
     isTeacher,
-
-    // State (computed)
-    topics,
-    isLoading,
-
-    // Store reference (for advanced usage)
-    store: activeStore,
-
-    // Actions
     fetchTopics,
     createTopic,
     updateTopic,
     deleteTopic,
     toggleStatus,
-    fixOrderIndexes,
-
-    // Helpers
     getTopicById,
-    getNextOrderIndex,
-    canManageTopic,
-
-    // Direct store access (for debugging)
-    adminStore,
-    teacherStore,
+    activeStore,
   }
 }
