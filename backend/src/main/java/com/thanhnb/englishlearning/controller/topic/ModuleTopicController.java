@@ -52,8 +52,8 @@ public class ModuleTopicController {
 
         try {
             User currentUser = userService.getCurrentUser();
-            
-            log.info("📄 {} requesting topics: module={}, page={}, size={}", 
+
+            log.info("📄 {} requesting topics: module={}, page={}, size={}",
                     currentUser.getRole(), moduleType, page, size);
 
             PaginatedResponse<TopicDto> response;
@@ -63,17 +63,16 @@ public class ModuleTopicController {
                 // Admin sees ALL topics via TopicService
                 response = topicService.getAllTopics(moduleType, page, size, sort);
                 log.info("✅ Admin: loaded {} topics (all)", response.getTotalElements());
-                
+
             } else if (currentUser.getRole() == UserRole.TEACHER) {
                 // Teacher sees ONLY ASSIGNED topics via TeacherAssignmentService
                 response = assignmentService.getAssignedTopicsWithPagination(
                         currentUser.getId(),
                         moduleType,
                         page,
-                        size
-                );
+                        size);
                 log.info("✅ Teacher: loaded {} assigned topics", response.getTotalElements());
-                
+
             } else {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(CustomApiResponse.error(403, "Không có quyền truy cập"));
@@ -81,8 +80,7 @@ public class ModuleTopicController {
 
             return ResponseEntity.ok(CustomApiResponse.success(
                     response,
-                    "Lấy danh sách chủ đề thành công"
-            ));
+                    "Lấy danh sách chủ đề thành công"));
 
         } catch (Exception e) {
             log.error("❌ Error loading topics: {}", e.getMessage(), e);
@@ -98,8 +96,30 @@ public class ModuleTopicController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @Operation(summary = "Get topic details by ID")
     public ResponseEntity<CustomApiResponse<TopicDto>> getTopicById(@PathVariable Long topicId) {
-        TopicDto topic = topicService.getTopicById(topicId);
-        return ResponseEntity.ok(CustomApiResponse.success(topic, "Lấy topic thành công"));
+        try {
+            User currentUser = userService.getCurrentUser();
+
+            // Check permission for teachers
+            if (currentUser.getRole() == UserRole.TEACHER) {
+                boolean hasAccess = assignmentService.isTeacherAssignedToTopic(
+                        currentUser.getId(), topicId);
+
+                if (!hasAccess) {
+                    log.warn("⚠️ Teacher {} has no access to topic {}",
+                            currentUser.getUsername(), topicId);
+                    return ResponseEntity.status(403)
+                            .body(CustomApiResponse.error(403, "You don't have access to this topic"));
+                }
+            }
+
+            TopicDto topic = topicService.getTopicById(topicId);
+            return ResponseEntity.ok(CustomApiResponse.success(topic, "Success"));
+
+        } catch (Exception e) {
+            log.error("❌ Error getting topic: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
+                    .body(CustomApiResponse.error(500, "Error: " + e.getMessage()));
+        }
     }
 
     // ==================== WRITE (ADMIN ONLY) ====================

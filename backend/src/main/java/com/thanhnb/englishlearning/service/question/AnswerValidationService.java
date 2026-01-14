@@ -83,10 +83,7 @@ public class AnswerValidationService {
                     }
                     break;
 
-                // ✅ FIX: Tách riêng TEXT_ANSWER và OPEN_ENDED
                 case TEXT_ANSWER:
-                    // TEXT_ANSWER: Câu trả lời ngắn có đáp án cố định
-                    // Sử dụng CreateFillBlankDTO vì cấu trúc tương tự (có correctAnswers)
                     if (data instanceof CreateFillBlankDTO dto) {
                         return validateTextAnswer(dto, textAnswer, builder);
                     }
@@ -111,7 +108,7 @@ public class AnswerValidationService {
     }
 
     // =========================================================================
-    // ✅ NEW: TEXT_ANSWER VALIDATION (Câu trả lời ngắn có đáp án cố định)
+    // TEXT_ANSWER VALIDATION (Câu trả lời ngắn có đáp án cố định)
     // =========================================================================
 
     /**
@@ -166,7 +163,7 @@ public class AnswerValidationService {
     }
 
     // =========================================================================
-    // ✅ NEW: OPEN_ENDED VALIDATION (Câu hỏi tự luận, cần giáo viên chấm)
+    // OPEN_ENDED VALIDATION (Câu hỏi tự luận, cần giáo viên chấm)
     // =========================================================================
 
     /**
@@ -232,7 +229,7 @@ public class AnswerValidationService {
             .userAnswer(textAnswer) // Lưu lại câu trả lời
             .explanation(dto.getExplanation())
             .feedback(String.format("Đã ghi nhận câu trả lời (%d từ). Giáo viên sẽ chấm điểm sau.", wordCount))
-            // .needsManualGrading(true)  // TODO: Thêm field này vào QuestionResultDTO nếu cần
+            // .needsManualGrading(true)
             .build();
     }
 
