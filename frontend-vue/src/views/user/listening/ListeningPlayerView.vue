@@ -1,5 +1,12 @@
+<!-- ========================================
+     ListeningPlayerView.vue - SIMPLE FIX
+     ======================================== -->
 <template>
-  <LearningSplitLayout mode="split" v-if="!isLoading" :key="`lesson-${currentLesson?.id}`">
+  <LearningSplitLayout
+    mode="split"
+    v-if="!isLoading"
+    :key="`lesson-${currentLesson?.id}-${retryCount}`"
+  >
     <template #header-left>
       <el-button link :icon="ArrowLeft" @click="$router.push('/user/listening')">Thoát</el-button>
       <div class="ml-2 hidden sm:block">
@@ -26,17 +33,16 @@
     </template>
 
     <template #content-left>
-      <!-- ✅ Audio Player Component -->
       <AudioPlayer
         v-if="currentLesson?.audioUrl"
         ref="audioPlayerRef"
+        :key="`audio-${retryCount}`"
         :audio-url="currentLesson.audioUrl"
         :play-count="currentLesson.playCount || 0"
         @play="handleAudioPlay"
         @error="handleAudioError"
       />
 
-      <!-- ✅ Transcript Section -->
       <div class="flex-1 mt-4">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
@@ -44,40 +50,84 @@
             Transcript
           </h3>
 
-          <!-- Unlock Button -->
+          <!-- ✅ Hiển thị điều kiện unlock rõ ràng -->
           <el-button
             v-if="!currentLesson?.transcriptUnlocked"
             size="small"
             type="primary"
             plain
             :loading="unlockingTranscript"
+            :disabled="!canUnlockTranscript"
             @click="unlockTranscript"
           >
-            <el-icon class="mr-1"><Lock /></el-icon> Mở khóa
+            <el-icon class="mr-1"><Lock /></el-icon>
+            {{ canUnlockTranscript ? 'Mở khóa' : 'Chưa đủ điều kiện' }}
           </el-button>
           <el-tag v-else type="success" size="small">
             <el-icon><CircleCheck /></el-icon> Đã mở
           </el-tag>
         </div>
 
-        <!-- Transcript Content -->
+        <!-- ✅ UNLOCKED: Hiển thị cả transcript và translation -->
         <div
           v-if="currentLesson?.transcriptUnlocked && currentLesson?.transcript"
-          class="transcript-content"
+          class="space-y-4"
         >
-          {{ currentLesson.transcript }}
+          <!-- Original Transcript -->
+          <div class="transcript-card">
+            <div class="transcript-label">
+              <el-icon><Document /></el-icon>
+              <span>Original Transcript</span>
+            </div>
+            <div class="transcript-content">
+              {{ currentLesson.transcript }}
+            </div>
+          </div>
+
+          <!-- Vietnamese Translation -->
+          <div v-if="currentLesson.transcriptTranslation" class="transcript-card translation">
+            <div class="transcript-label">
+              <el-icon><Document /></el-icon>
+              <span>Bản dịch tiếng Việt</span>
+            </div>
+            <div class="transcript-content">
+              {{ currentLesson.transcriptTranslation }}
+            </div>
+          </div>
         </div>
 
-        <!-- Locked State -->
+        <!-- ✅ LOCKED: Hiển thị thông tin điều kiện unlock -->
         <div v-else-if="!currentLesson?.transcriptUnlocked" class="transcript-locked">
-          <el-icon size="24" class="mb-2"><Lock /></el-icon>
-          <span class="text-sm">Hoàn thành bài để xem transcript</span>
+          <el-icon size="32" class="mb-3 text-gray-400"><Lock /></el-icon>
+          <div class="text-center space-y-2">
+            <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">
+              Transcript đang bị khóa
+            </p>
+            <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <p>📌 Để mở khóa, bạn cần:</p>
+              <p class="font-semibold text-orange-600 dark:text-orange-400">
+                ✅ Hoàn thành bài học (đạt ≥80%)
+              </p>
+            </div>
+            <!-- ✅ Progress indicator -->
+            <div class="mt-3 text-xs">
+              <div class="flex items-center justify-center gap-2">
+                <span>Trạng thái:</span>
+                <el-tag size="small" :type="currentLesson?.isCompleted ? 'success' : 'info'">
+                  {{ currentLesson?.isCompleted ? 'Đã hoàn thành' : 'Chưa hoàn thành' }}
+                </el-tag>
+              </div>
+              <div v-if="currentLesson?.scorePercentage" class="mt-2 text-gray-500">
+                Điểm hiện tại: {{ currentLesson.scorePercentage.toFixed(0) }}%
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- No Transcript -->
+        <!-- Empty state -->
         <div v-else class="transcript-empty">
-          <el-icon size="24" class="mb-2"><WarningFilled /></el-icon>
-          <span class="text-sm">Bài học chưa có transcript</span>
+          <el-icon size="24" class="mb-2 text-gray-400"><WarningFilled /></el-icon>
+          <span class="text-sm text-gray-500">Bài học chưa có transcript</span>
         </div>
       </div>
     </template>
@@ -101,7 +151,7 @@
         <div v-if="hasQuestions">
           <TaskGroupRenderer
             v-for="(task, index) in groupedTasks"
-            :key="'task-' + task.taskGroupId + '-' + index"
+            :key="'task-' + task.taskGroupId + '-' + index + '-' + retryCount"
             :task="task"
             :answers="player.userAnswers.value"
             :label="'Task ' + (index + 1)"
@@ -121,7 +171,7 @@
             <div class="space-y-8">
               <div
                 v-for="(q, idx) in standaloneQuestions"
-                :key="'standalone-' + q.id"
+                :key="'standalone-' + q.id + '-' + retryCount"
                 class="flex gap-4"
               >
                 <div class="shrink-0 pt-0.5">
@@ -139,6 +189,7 @@
                   ></div>
                   <QuestionRenderer
                     :question="q"
+                    :key="`q-${q.id}-${retryCount}`"
                     :model-value="player.userAnswers.value[q.id] || null"
                     @update:model-value="
                       (val) => player.handleAnswerUpdate({ questionId: q.id, value: val })
@@ -165,7 +216,7 @@
       <div class="w-full flex justify-between items-center">
         <div class="text-sm hidden sm:block"></div>
         <div class="flex gap-3 w-full sm:w-auto justify-end">
-          <template v-if="(player.showResult.value || isLessonCompleted) && !isRetrying">
+          <template v-if="player.showResult.value">
             <div
               v-if="lastResult"
               class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg mr-2"
@@ -182,16 +233,18 @@
             </el-button>
             <el-button size="large" @click="retryLesson">Làm lại</el-button>
           </template>
-          <el-button
-            v-else
-            type="primary"
-            size="large"
-            :loading="player.submitting.value"
-            @click="handleSubmit"
-            :disabled="player.answeredCount.value === 0"
-          >
-            Nộp bài
-          </el-button>
+
+          <template v-else>
+            <el-button
+              type="primary"
+              size="large"
+              :loading="player.submitting.value"
+              @click="handleSubmit"
+              :disabled="player.answeredCount.value === 0"
+            >
+              Nộp bài
+            </el-button>
+          </template>
         </div>
       </div>
     </template>
@@ -236,11 +289,10 @@ const player = useLearningPlayer(listeningStore)
 const isLoading = ref(true)
 const audioPlayerRef = ref(null)
 const unlockingTranscript = ref(false)
-const isRetrying = ref(false)
+const retryCount = ref(0)
 
 const currentLesson = computed(() => listeningStore.currentLesson)
 const topicLessons = computed(() => listeningStore.currentTopicLessons || [])
-const isLessonCompleted = computed(() => currentLesson.value?.isCompleted)
 const groupedTasks = computed(() => currentLesson.value?.groupedQuestions?.tasks || [])
 const standaloneQuestions = computed(
   () => currentLesson.value?.groupedQuestions?.standaloneQuestions || [],
@@ -258,7 +310,6 @@ const hasQuestions = computed(() => totalQuestions.value > 0)
 
 const shouldShowTimer = computed(() => {
   if (player.showResult.value) return false
-  if (isLessonCompleted.value) return false
   if (player.remainingTime.value <= 0) return false
   return true
 })
@@ -270,7 +321,10 @@ onMounted(() => {
 watch(
   () => route.params.lessonId,
   (newId) => {
-    if (newId) loadData(newId)
+    if (newId) {
+      retryCount.value = 0
+      loadData(newId)
+    }
   },
 )
 
@@ -288,30 +342,26 @@ const loadData = async (lessonId) => {
 
     await nextTick()
 
-    if (!isLessonCompleted.value || isRetrying.value) {  // ← ADD CHECK
-      player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
+    // Luôn set timer từ timeLimitSeconds
+    player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
+
+    if (!player.showResult.value) {
       player.startTimer(() => handleSubmit())
     }
 
     isLoading.value = false
-    isRetrying.value = false  // ← RESET FLAG
-
   } catch (error) {
     console.error('Load data error:', error)
     isLoading.value = false
-    isRetrying.value = false  // ← RESET ON ERROR
   }
 }
 
-// ✅ Handle audio play event
 const handleAudioPlay = async () => {
   if (!currentLesson.value?.id) return
-
   try {
     await listeningStore.trackPlay(currentLesson.value.id)
-    console.log('✅ Play tracked successfully')
   } catch (error) {
-    console.error('❌ Failed to track play:', error)
+    console.error('Failed to track play:', error)
   }
 }
 
@@ -320,23 +370,33 @@ const handleAudioError = (error) => {
   ElMessage.error('Không thể phát audio. Vui lòng thử lại.')
 }
 
-// ✅ Handle transcript unlock
+const canUnlockTranscript = computed(() => {
+  if (!currentLesson.value) return false
+  if (currentLesson.value.transcriptUnlocked) return true
+
+  // Chỉ khi đã hoàn thành bài học
+  return currentLesson.value.isCompleted || false
+})
+
 const unlockTranscript = async () => {
   if (!currentLesson.value?.id) return
 
-  unlockingTranscript.value = true
+  if (!canUnlockTranscript.value) {
+    ElMessage.warning({
+      message: 'Bạn cần hoàn thành bài học (đạt ≥80%) để mở transcript.',
+      duration: 4000
+    })
+    return
+  }
 
+  unlockingTranscript.value = true
   try {
     await listeningStore.viewTranscript(currentLesson.value.id)
-
-    // ✅ CRITICAL: Force refetch lesson để lấy transcript content
     await listeningStore.fetchLessonDetail(currentLesson.value.id)
-
     ElMessage.success('Đã mở khóa transcript!')
-    console.log('✅ Transcript unlocked and refetched')
   } catch (error) {
-    console.error('❌ Failed to unlock transcript:', error)
-    ElMessage.error('Không thể mở khóa transcript')
+    console.error('Failed to unlock transcript:', error)
+    ElMessage.error(error.response?.data?.message || 'Không thể mở khóa transcript')
   } finally {
     unlockingTranscript.value = false
   }
@@ -351,6 +411,7 @@ const handleSubmit = async () => {
 
 const switchLesson = (id) => {
   isLoading.value = true
+  retryCount.value = 0
   router.push({ name: 'user-listening-lesson', params: { lessonId: id } })
 }
 
@@ -360,8 +421,10 @@ const goToNextLesson = () => {
 
 const retryLesson = () => {
   console.log('🔄 Retrying lesson...')
-  isRetrying.value = true
+  retryCount.value++
   player.showResult.value = false
+  player.submitting.value = false
+  player.userAnswers.value = {}
   player.clearQuestionsState(groupedTasks.value, standaloneQuestions.value)
   loadData(currentLesson.value.id)
 }
@@ -380,23 +443,97 @@ const getStandaloneStartIndex = () => {
 </script>
 
 <style scoped>
-.transcript-content {
-  padding: 1rem;
-  background: white;
+.transcript-card {
+  border-radius: 0.75rem;
   border: 1px solid rgb(229 231 235);
-  border-radius: 0.5rem;
-  color: rgb(55 65 81);
-  line-height: 1.75;
-  white-space: pre-wrap;
+  background: white;
+  overflow: hidden;
 }
 
-html.dark .transcript-content {
+html.dark .transcript-card {
   background: rgb(31 41 55);
+  border-color: rgb(55 65 81);
+}
+
+.transcript-card.translation {
+  background: rgb(254 249 195);
+  border-color: rgb(250 204 21);
+}
+
+html.dark .transcript-card.translation {
+  background: rgb(113 63 18);
+  border-color: rgb(161 98 7);
+}
+
+.transcript-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgb(249 250 251);
+  border-bottom: 1px solid rgb(229 231 235);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(55 65 81);
+}
+
+html.dark .transcript-label {
+  background: rgb(17 24 39);
   border-color: rgb(55 65 81);
   color: rgb(209 213 219);
 }
 
-.transcript-locked,
+.transcript-card.translation .transcript-label {
+  background: rgb(253 224 71);
+  border-color: rgb(250 204 21);
+  color: rgb(113 63 18);
+}
+
+html.dark .transcript-card.translation .transcript-label {
+  background: rgb(161 98 7);
+  border-color: rgb(202 138 4);
+  color: rgb(254 249 195);
+}
+
+.transcript-content {
+  padding: 1.25rem;
+  color: rgb(55 65 81);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.9375rem;
+}
+
+html.dark .transcript-content {
+  color: rgb(209 213 219);
+}
+
+.transcript-card.translation .transcript-content {
+  color: rgb(113 63 18);
+  font-style: italic;
+}
+
+html.dark .transcript-card.translation .transcript-content {
+  color: rgb(254 249 195);
+}
+
+.transcript-locked {
+  min-height: 16rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgb(249 250 251);
+  border: 2px dashed rgb(209 213 219);
+  border-radius: 0.75rem;
+}
+
+html.dark .transcript-locked {
+  background: rgb(31 41 55);
+  border-color: rgb(75 85 99);
+}
+
 .transcript-empty {
   height: 8rem;
   display: flex;
@@ -409,7 +546,6 @@ html.dark .transcript-content {
   border-radius: 0.5rem;
 }
 
-html.dark .transcript-locked,
 html.dark .transcript-empty {
   background: rgb(31 41 55);
   border-color: rgb(75 85 99);

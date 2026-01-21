@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import com.thanhnb.englishlearning.entity.grammar.UserGrammarProgress;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -18,6 +19,8 @@ public interface UserGrammarProgressRepository extends JpaRepository<UserGrammar
 
        // Tìm tiến độ cụ thể của người dùng
        Optional<UserGrammarProgress> findByUserIdAndLessonId(Long userId, Long lessonId);
+
+       List<UserGrammarProgress> findByUserIdAndIsCompletedTrue(Long userId);
 
        // Tìm tiến độ của tất cả người dùng trong topic
        @Query("SELECT ugp FROM UserGrammarProgress ugp JOIN ugp.lesson gl " +
@@ -66,6 +69,11 @@ public interface UserGrammarProgressRepository extends JpaRepository<UserGrammar
                      @Param("topicId") Long topicId);
 
        // ===== NEW QUERIES FOR READING PROGRESS TRACKING =====
+
+       List<UserGrammarProgress> findByUserIdAndIsCompletedTrueAndScorePercentageLessThanAndCompletedAtBefore(
+                     Long userId,
+                     Double maxScore,
+                     LocalDateTime cutoffDate);
 
        @Query("""
                          SELECT p FROM UserGrammarProgress p

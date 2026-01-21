@@ -22,8 +22,10 @@
           'h-16 flex items-center border-b border-gray-200 dark:border-gray-800 shrink-0',
           'bg-gradient-to-r transition-all duration-300 overflow-hidden',
           isTeacher ? 'from-green-600 to-green-700' : 'from-blue-600 to-purple-600',
-          isTeacher ? 'dark:from-green-700 dark:to-green-800' : 'dark:from-blue-700 dark:to-purple-700',
-          isCollapsed ? 'justify-center' : 'px-4'
+          isTeacher
+            ? 'dark:from-green-700 dark:to-green-800'
+            : 'dark:from-blue-700 dark:to-purple-700',
+          isCollapsed ? 'justify-center' : 'px-4',
         ]"
       >
         <div class="flex items-center min-w-max">
@@ -35,7 +37,7 @@
           <span
             :class="[
               'text-lg font-bold text-white whitespace-nowrap transition-all duration-300 ml-3',
-              isCollapsed ? 'opacity-0 w-0' : 'opacity-100'
+              isCollapsed ? 'opacity-0 w-0' : 'opacity-100',
             ]"
           >
             {{ isAdmin ? 'Admin Panel' : 'Teacher Panel' }}
@@ -77,6 +79,10 @@
             <el-icon><Microphone /></el-icon>
             <template #title>QL Nghe hiểu</template>
           </el-menu-item>
+          <el-menu-item :index="aiImportPath" class="menu-item-custom">
+            <el-icon><MagicStick /></el-icon>
+            <template #title>AI Nhập liệu</template>
+          </el-menu-item>
         </el-menu>
       </div>
 
@@ -96,7 +102,9 @@
     </aside>
 
     <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-      <header class="h-16 bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 lg:px-8 shrink-0 z-30">
+      <header
+        class="h-16 bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 lg:px-8 shrink-0 z-30"
+      >
         <button
           class="lg:hidden w-10 h-10 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           @click="toggleMobileMenu"
@@ -108,7 +116,9 @@
 
         <el-breadcrumb separator="/" class="hidden lg:block text-sm">
           <el-breadcrumb-item :to="{ path: dashboardPath }">
-            <span class="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors">
+            <span
+              class="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+            >
               Dashboard
             </span>
           </el-breadcrumb-item>
@@ -149,7 +159,9 @@
                   {{ userRole }}
                 </p>
               </div>
-              <el-icon class="hidden md:block text-gray-500 dark:text-gray-400"><ArrowDown /></el-icon>
+              <el-icon class="hidden md:block text-gray-500 dark:text-gray-400"
+                ><ArrowDown
+              /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
@@ -207,15 +219,20 @@ const { isDark, toggleTheme } = useDarkMode()
 const isCollapsed = ref(false)
 const isMobileMenuOpen = ref(false)
 
-const toggleSidebar = () => isCollapsed.value = !isCollapsed.value
-const toggleMobileMenu = () => isMobileMenuOpen.value = !isMobileMenuOpen.value
-const closeMobileMenu = () => isMobileMenuOpen.value = false
+const toggleSidebar = () => (isCollapsed.value = !isCollapsed.value)
+const toggleMobileMenu = () => (isMobileMenuOpen.value = !isMobileMenuOpen.value)
+const closeMobileMenu = () => (isMobileMenuOpen.value = false)
 const handleMenuSelect = () => closeMobileMenu()
 
-watch(() => route.path, () => closeMobileMenu())
+watch(
+  () => route.path,
+  () => closeMobileMenu(),
+)
 
 const isAdmin = computed(() => authStore.isAdminAuthenticated && authStore.admin?.role === 'ADMIN')
-const isTeacher = computed(() => authStore.isTeacherAuthenticated && authStore.teacher?.role === 'TEACHER')
+const isTeacher = computed(
+  () => authStore.isTeacherAuthenticated && authStore.teacher?.role === 'TEACHER',
+)
 
 const currentUser = computed(() => {
   if (isAdmin.value) return authStore.admin
@@ -236,10 +253,11 @@ const userAvatar = computed(() => {
 })
 
 // Dynamic paths
-const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/teacher/dashboard')
-const grammarPath = computed(() => isAdmin.value ? '/admin/grammar' : '/teacher/grammar')
-const readingPath = computed(() => isAdmin.value ? '/admin/reading' : '/teacher/reading')
-const listeningPath = computed(() => isAdmin.value ? '/admin/listening' : '/teacher/listening')
+const dashboardPath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/teacher/dashboard'))
+const grammarPath = computed(() => (isAdmin.value ? '/admin/grammar' : '/teacher/grammar'))
+const readingPath = computed(() => (isAdmin.value ? '/admin/reading' : '/teacher/reading'))
+const listeningPath = computed(() => (isAdmin.value ? '/admin/listening' : '/teacher/listening'))
+const aiImportPath = computed(() => (isAdmin.value ? '/admin/ai-import' : '/teacher/ai-import'))
 
 const currentPageTitle = computed(() => {
   const path = route.path
@@ -258,6 +276,7 @@ const currentPageTitle = computed(() => {
     '/teacher/profile': 'Thông tin cá nhân',
     '/admin/change-password': 'Đổi mật khẩu',
     '/teacher/change-password': 'Đổi mật khẩu',
+    '/admin/ai-import': 'AI Nhập liệu',
   }
   return titleMap[path] || 'Dashboard'
 })
@@ -292,37 +311,82 @@ onMounted(() => {
 
 <style scoped>
 /* Giữ nguyên Style cũ */
-.overflow-y-auto::-webkit-scrollbar { width: 6px; }
-.overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
-.overflow-y-auto::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.3); border-radius: 3px; }
-.overflow-y-auto::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.5); }
-html.dark .overflow-y-auto::-webkit-scrollbar-thumb { background: rgba(75, 85, 99, 0.5); }
-html.dark .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: rgba(75, 85, 99, 0.7); }
+.overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 3px;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+html.dark .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.5);
+}
+html.dark .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.7);
+}
 
 :deep(.menu-item-custom) {
-  height: 48px; line-height: 48px; margin: 4px 8px; border-radius: 8px;
-  color: #4b5563; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 48px;
+  line-height: 48px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  color: #4b5563;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-html.dark :deep(.menu-item-custom) { color: #d1d5db; }
+html.dark :deep(.menu-item-custom) {
+  color: #d1d5db;
+}
 
 :deep(.el-menu--collapse .menu-item-custom) {
-  display: flex !important; align-items: center !important; justify-content: center !important;
-  padding: 0 !important; margin: 4px 0 !important; width: 70px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 4px 0 !important;
+  width: 70px !important;
 }
-:deep(.el-menu--collapse .menu-item-custom .el-icon) { margin: 0 !important; }
+:deep(.el-menu--collapse .menu-item-custom .el-icon) {
+  margin: 0 !important;
+}
 
 :deep(.el-menu-item.is-active) {
-  background-color: #eff6ff !important; color: #2563eb !important; font-weight: 600; transform: translateX(0);
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  font-weight: 600;
+  transform: translateX(0);
 }
 html.dark :deep(.el-menu-item.is-active) {
-  background-color: rgba(37, 99, 235, 0.15) !important; color: #60a5fa !important;
+  background-color: rgba(37, 99, 235, 0.15) !important;
+  color: #60a5fa !important;
 }
 
-:deep(.el-menu-item:hover) { background-color: #f3f4f6 !important; transform: translateX(2px); }
-html.dark :deep(.el-menu-item:hover) { background-color: rgba(255, 255, 255, 0.05) !important; }
+:deep(.el-menu-item:hover) {
+  background-color: #f3f4f6 !important;
+  transform: translateX(2px);
+}
+html.dark :deep(.el-menu-item:hover) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
 
-:deep(.el-menu-item [class^='el-icon']) { margin-right: 12px; font-size: 20px; transition: transform 0.3s; }
-:deep(.el-menu--collapse .el-menu-item [class^='el-icon']) { margin-right: 0; }
-:deep(.el-menu--collapse) { width: 70px; }
-:deep(.el-menu) { transition: width 0.3s; border-right: none; }
+:deep(.el-menu-item [class^='el-icon']) {
+  margin-right: 12px;
+  font-size: 20px;
+  transition: transform 0.3s;
+}
+:deep(.el-menu--collapse .el-menu-item [class^='el-icon']) {
+  margin-right: 0;
+}
+:deep(.el-menu--collapse) {
+  width: 70px;
+}
+:deep(.el-menu) {
+  transition: width 0.3s;
+  border-right: none;
+}
 </style>

@@ -1,4 +1,4 @@
-import axiosClient from '@/api/config'
+import api from '@/api/config'
 
 export const userAPI = {
   // ==================== 1. UNIFIED USER ENDPOINTS (/me) ====================
@@ -9,7 +9,7 @@ export const userAPI = {
    * GET /api/users/me
    */
   getProfile() {
-    return axiosClient.get('/api/users/me')
+    return api.get('/api/users/me')
   },
 
   /**
@@ -17,7 +17,7 @@ export const userAPI = {
    * GET /api/users/me/stats
    */
   getStats() {
-    return axiosClient.get('/api/users/me/stats')
+    return api.get('/api/users/me/stats')
   },
 
   /**
@@ -25,7 +25,7 @@ export const userAPI = {
    * GET /api/users/me/activity
    */
   getActivity() {
-    return axiosClient.get('/api/users/me/activity')
+    return api.get('/api/users/me/activity')
   },
 
   /**
@@ -33,7 +33,7 @@ export const userAPI = {
    * GET /api/users/me/streak
    */
   getStreakInfo() {
-    return axiosClient.get('/api/users/me/streak')
+    return api.get('/api/users/me/streak')
   },
 
   /**
@@ -42,7 +42,7 @@ export const userAPI = {
    * Payload: { fullName: "..." }
    */
   updateProfile(data) {
-    return axiosClient.put('/api/users/me', data)
+    return api.put('/api/users/me', data)
   },
 
   /**
@@ -51,7 +51,7 @@ export const userAPI = {
    * Payload: { oldPassword, newPassword, confirmPassword }
    */
   changePassword(data) {
-    return axiosClient.put('/api/users/me/change-password', data)
+    return api.put('/api/users/me/change-password', data)
   },
 
   // ==================== 2. PUBLIC / COMMON ENDPOINTS ====================
@@ -61,7 +61,7 @@ export const userAPI = {
    * GET /api/users/username/{username}
    */
   getUserByUsername(username) {
-    return axiosClient.get(`/api/users/username/${username}`)
+    return api.get(`/api/users/username/${username}`)
   },
 
   // ==================== 3. ADMIN ONLY ENDPOINTS ====================
@@ -71,7 +71,7 @@ export const userAPI = {
    * GET /api/users
    */
   getAllUsers() {
-    return axiosClient.get('/api/users')
+    return api.get('/api/users')
   },
 
   /**
@@ -79,7 +79,7 @@ export const userAPI = {
    * GET /api/users/{id}
    */
   getUserById(id) {
-    return axiosClient.get(`/api/users/${id}`)
+    return api.get(`/api/users/${id}`)
   },
 
   /**
@@ -87,7 +87,7 @@ export const userAPI = {
    * GET /api/users/email/{email}
    */
   getUserByEmail(email) {
-    return axiosClient.get(`/api/users/email/${email}`)
+    return api.get(`/api/users/email/${email}`)
   },
 
   /**
@@ -95,7 +95,7 @@ export const userAPI = {
    * DELETE /api/users/{id}
    */
   deleteUser(id) {
-    return axiosClient.delete(`/api/users/${id}`)
+    return api.delete(`/api/users/${id}`)
   },
 
   /**
@@ -103,7 +103,7 @@ export const userAPI = {
    * PUT /api/users/{id}/block
    */
   blockUser(id) {
-    return axiosClient.put(`/api/users/${id}/block`)
+    return api.put(`/api/users/${id}/block`)
   },
 
   /**
@@ -111,7 +111,7 @@ export const userAPI = {
    * PUT /api/users/{id}/unblock
    */
   unblockUser(id) {
-    return axiosClient.put(`/api/users/${id}/unblock`)
+    return api.put(`/api/users/${id}/unblock`)
   },
 
   /**
@@ -119,7 +119,7 @@ export const userAPI = {
    * PUT /api/users/{id}/points?points=...
    */
   addPoints(id, points) {
-    return axiosClient.put(`/api/users/${id}/points`, null, {
+    return api.put(`/api/users/${id}/points`, null, {
       params: { points }
     })
   },
@@ -129,7 +129,7 @@ export const userAPI = {
    * PUT /api/users/{id}/streak?streakDays=...
    */
   updateStreakDays(id, streakDays) {
-    return axiosClient.put(`/api/users/${id}/streak`, null, {
+    return api.put(`/api/users/${id}/streak`, null, {
       params: { streakDays }
     })
   },
@@ -139,7 +139,7 @@ export const userAPI = {
    * GET /api/users/active
    */
   getActiveUsers() {
-    return axiosClient.get('/api/users/active')
+    return api.get('/api/users/active')
   },
 
   /**
@@ -147,7 +147,7 @@ export const userAPI = {
    * GET /api/users/top-points
    */
   getTopUsersByPoints(minPoints = 0) {
-    return axiosClient.get('/api/users/top-points', {
+    return api.get('/api/users/top-points', {
       params: { minPoints }
     })
   },
@@ -157,7 +157,7 @@ export const userAPI = {
    * GET /api/users/top-streak
    */
   getTopUsersByStreak(minStreakDays = 0) {
-    return axiosClient.get('/api/users/top-streak', {
+    return api.get('/api/users/top-streak', {
       params: { minStreakDays }
     })
   }

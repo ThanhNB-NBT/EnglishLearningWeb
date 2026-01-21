@@ -47,30 +47,16 @@
           <QuestionList ref="questionListRef" :init-lesson-id="selectedLessonIdForQuestion" :config="grammarConfig" />
         </div>
       </el-tab-pane>
-
-      <!-- Tab 4: AI Import -->
-      <el-tab-pane name="parsing" lazy>
-        <template #label>
-          <span class="flex items-center gap-2 px-2 py-1">
-            <el-icon><MagicStick /></el-icon>
-            AI Import
-          </span>
-        </template>
-        <div class="p-4">
-          <AIParsingPanel />
-        </div>
-      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, nextTick } from 'vue'
-import { Collection, Document, QuestionFilled, MagicStick } from '@element-plus/icons-vue'
+import { ref, nextTick } from 'vue'
+import { Collection, Document, QuestionFilled } from '@element-plus/icons-vue'
 import TopicList from '@/components/admin/shared/topic/TopicList.vue'
 import LessonsList from '@/components/admin/grammar/LessonList.vue'
 import QuestionList from '@/components/admin/grammar/QuestionList.vue'
-const AIParsingPanel = defineAsyncComponent(() => import('@/components/admin/grammar/AIParsingPanel.vue'))
 import { useGrammarAdminStore } from '@/stores/admin/grammarAdmin'
 
 const grammarStore = useGrammarAdminStore()

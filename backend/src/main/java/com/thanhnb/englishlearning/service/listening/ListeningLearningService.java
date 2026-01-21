@@ -266,7 +266,7 @@ public class ListeningLearningService extends BaseLearningService<ListeningLesso
 
         public String unlockTranscriptForUser(Long userId, Long lessonId) {
                 if (!canUnlockTranscript(userId, lessonId)) {
-                        return "Bạn cần nghe thêm hoặc hoàn thành bài học để mở Transcript.";
+                        return "Bạn cần hoàn thành bài học (đạt ≥80%) để mở Transcript.";
                 }
 
                 UserListeningProgress progress = findProgress(userId, lessonId)
@@ -276,6 +276,7 @@ public class ListeningLearningService extends BaseLearningService<ListeningLesso
                 if (!Boolean.TRUE.equals(progress.getHasViewedTranscript())) {
                         progress.setHasViewedTranscript(true);
                         saveProgress(progress);
+                        log.info("User {} unlocked transcript for lesson {}", userId, lessonId);
                         return "Đã mở khóa transcript";
                 }
                 return "Transcript đã được mở trước đó";
@@ -302,14 +303,15 @@ public class ListeningLearningService extends BaseLearningService<ListeningLesso
                         return false;
 
                 UserListeningProgress p = pOpt.get();
+
+                // Nếu đã unlock rồi thì OK
                 if (Boolean.TRUE.equals(p.getHasViewedTranscript()))
                         return true;
 
-                int playCount = p.getPlayCount() == null ? 0 : p.getPlayCount();
-                return playCount >= 2 || Boolean.TRUE.equals(p.getIsCompleted());
+                // Chỉ unlock khi ĐÃ HOÀN THÀNH bài học (isCompleted = true)
+                return Boolean.TRUE.equals(p.getIsCompleted());
         }
 
-        // ✅ Đã thêm lại hàm này
         public ListeningProgressSummary getProgressSummary(Long userId) {
                 List<UserListeningProgress> completedLessons = getCompletedLessons(userId);
 

@@ -51,6 +51,8 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
        // Số lượng lesson trong topic
        long countByTopicId(Long topicId);
 
+       long countByIsActiveTrue();
+
        int countByTopicIdAndIsActiveTrue(Long topicId);
 
        @Query("SELECT gl FROM GrammarLesson gl WHERE gl.topic.id = :topicId ORDER BY gl.orderIndex ASC")
@@ -80,4 +82,5 @@ public interface GrammarLessonRepository extends JpaRepository<GrammarLesson, Lo
 
        // Đếm số lesson theo lesson type trong topic
        long countByTopicIdAndLessonTypeAndIsActiveTrue(Long topicId, LessonType lessonType);
+       
 }

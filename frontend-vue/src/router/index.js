@@ -196,6 +196,14 @@ const router = createRouter({
           component: () => import('@/views/admin/user/CleanupManagementView.vue'),
           meta: { title: 'Cleanup User' },
         },
+        {
+          path: 'ai-import', // Đường dẫn sẽ là: /admin/ai-import
+          name: 'admin-ai-import',
+          component: () => import('@/views/admin/AIImportView.vue'),
+          meta: {
+            title: 'AI Nhập liệu thông minh',
+          }
+        },
       ],
     },
 

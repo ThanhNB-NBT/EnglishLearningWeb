@@ -1,5 +1,5 @@
 <template>
-  <LearningSplitLayout mode="split" v-if="!isLoading" :key="`lesson-${currentLesson?.id}`">
+  <LearningSplitLayout mode="split" v-if="!isLoading" :key="`lesson-${currentLesson?.id}-${retryCount}`">
     <template #header-left>
       <el-button link :icon="ArrowLeft" @click="$router.push('/user/reading')">Thoát</el-button>
       <div class="ml-2 hidden sm:block">
@@ -62,7 +62,7 @@
         <div v-if="hasQuestions">
           <TaskGroupRenderer
             v-for="(task, index) in groupedTasks"
-            :key="'task-' + task.taskGroupId + '-' + index"
+            :key="'task-' + task.taskGroupId + '-' + index + '-' + retryCount"
             :task="task"
             :answers="player.userAnswers.value"
             :label="'Task ' + (index + 1)"
@@ -82,7 +82,7 @@
             <div class="space-y-8">
               <div
                 v-for="(q, idx) in standaloneQuestions"
-                :key="'standalone-' + q.id"
+                :key="'standalone-' + q.id + '-' + retryCount"
                 class="flex gap-4"
               >
                 <div class="shrink-0 pt-0.5">
@@ -100,6 +100,7 @@
                   ></div>
                   <QuestionRenderer
                     :question="q"
+                    :key="`q-${q.id}-${retryCount}`"
                     :model-value="player.userAnswers.value[q.id] || null"
                     @update:model-value="
                       (val) => player.handleAnswerUpdate({ questionId: q.id, value: val })
@@ -126,7 +127,8 @@
       <div class="w-full flex justify-between items-center">
         <div class="text-sm hidden sm:block"></div>
         <div class="flex gap-3 w-full sm:w-auto justify-end">
-          <template v-if="(player.showResult.value || isLessonCompleted) && !isRetrying">
+          <template v-if="player.showResult.value">
+            <!-- Đã nộp bài - Hiển thị kết quả -->
             <div
               v-if="lastResult"
               class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg mr-2"
@@ -143,16 +145,19 @@
             </el-button>
             <el-button size="large" @click="retryLesson">Làm lại</el-button>
           </template>
-          <el-button
-            v-else
-            type="primary"
-            size="large"
-            :loading="player.submitting.value"
-            @click="handleSubmit"
-            :disabled="player.answeredCount.value === 0"
-          >
-            Nộp bài
-          </el-button>
+
+          <template v-else>
+            <!-- Đang làm bài - Hiển thị nút Nộp bài -->
+            <el-button
+              type="primary"
+              size="large"
+              :loading="player.submitting.value"
+              @click="handleSubmit"
+              :disabled="player.answeredCount.value === 0"
+            >
+              Nộp bài
+            </el-button>
+          </template>
         </div>
       </div>
     </template>
@@ -184,11 +189,10 @@ const readingStore = useReadingUserStore()
 const player = useLearningPlayer(readingStore)
 
 const isLoading = ref(true)
-const isRetrying = ref(false)
+const retryCount = ref(0) // ✅ Force remount counter
 
 const currentLesson = computed(() => readingStore.currentLesson)
 const topicLessons = computed(() => readingStore.currentTopicLessons || [])
-const isLessonCompleted = computed(() => currentLesson.value?.isCompleted)
 const groupedTasks = computed(() => currentLesson.value?.groupedQuestions?.tasks || [])
 const standaloneQuestions = computed(
   () => currentLesson.value?.groupedQuestions?.standaloneQuestions || [],
@@ -206,7 +210,6 @@ const hasQuestions = computed(() => totalQuestions.value > 0)
 
 const shouldShowTimer = computed(() => {
   if (player.showResult.value) return false
-  if (isLessonCompleted.value) return false
   if (player.remainingTime.value <= 0) return false
   return true
 })
@@ -218,7 +221,10 @@ onMounted(() => {
 watch(
   () => route.params.lessonId,
   (newId) => {
-    if (newId) loadData(newId)
+    if (newId) {
+      retryCount.value = 0
+      loadData(newId)
+    }
   },
 )
 
@@ -236,18 +242,18 @@ const loadData = async (lessonId) => {
 
     await nextTick()
 
-    if (!isLessonCompleted.value || isRetrying.value) {  // ← ADD CHECK
-      player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
+    // ✅ Luôn set timer từ timeLimitSeconds
+    player.remainingTime.value = currentLesson.value?.timeLimitSeconds || 300
+
+    // Chỉ start timer nếu chưa xem kết quả
+    if (!player.showResult.value) {
       player.startTimer(() => handleSubmit())
     }
 
     isLoading.value = false
-    isRetrying.value = false  // ← RESET FLAG
-
   } catch (error) {
     console.error('Load data error:', error)
     isLoading.value = false
-    isRetrying.value = false  // ← RESET ON ERROR
   }
 }
 
@@ -260,6 +266,7 @@ const handleSubmit = async () => {
 
 const switchLesson = (id) => {
   isLoading.value = true
+  retryCount.value = 0
   router.push({ name: 'user-reading-lesson', params: { lessonId: id } })
 }
 
@@ -267,11 +274,22 @@ const goToNextLesson = () => {
   if (nextLessonId.value) switchLesson(nextLessonId.value)
 }
 
+// ✅ FIXED: Retry function
 const retryLesson = () => {
   console.log('🔄 Retrying lesson...')
-  isRetrying.value = true
+
+  // 1. Increment retry counter để force remount
+  retryCount.value++
+
+  // 2. Reset player state
   player.showResult.value = false
+  player.submitting.value = false
+  player.userAnswers.value = {}
+
+  // 3. Clear questions state
   player.clearQuestionsState(groupedTasks.value, standaloneQuestions.value)
+
+  // 4. Reload data
   loadData(currentLesson.value.id)
 }
 

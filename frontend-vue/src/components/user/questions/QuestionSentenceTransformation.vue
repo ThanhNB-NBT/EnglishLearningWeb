@@ -18,12 +18,19 @@
       </div>
     </div>
 
-    <!-- ✅ NEW: Display correct answer after submit -->
-    <div v-if="disabled && showFeedback && question.data?.correctAnswer" class="mt-2 text-sm">
-      <span class="text-gray-500 dark:text-gray-400">Đáp án đúng: </span>
-      <span class="font-bold text-green-700 dark:text-green-400">
-        {{ beginningPhrase }} {{ question.data.correctAnswer }}
-      </span>
+    <!-- ✅ FIXED: Chỉ hiển thị khi SAI -->
+    <div v-if="disabled && showFeedback && !isCorrect && question.data?.correctAnswer" class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+      <div class="flex items-start gap-2">
+        <svg class="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+        </svg>
+        <div class="flex-1">
+          <div class="text-xs font-semibold text-red-700 dark:text-red-400 mb-0.5">Đáp án đúng:</div>
+          <div class="text-sm font-bold text-red-800 dark:text-red-300">
+            {{ beginningPhrase }} {{ question.data.correctAnswer }}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -45,12 +52,12 @@ const beginningPhrase = computed(
   () => props.question?.data?.beginningPhrase || props.question?.data?.beginWith || '',
 )
 
-const isCorrect = computed(() => {
-  return props.question.isCorrect === true
-})
+const isCorrect = computed(() => props.question.isCorrect === true)
 
 const getInputClass = () => {
   if (!props.disabled || !props.showFeedback) return ''
-  return isCorrect.value ? 'text-green-700 font-bold' : 'text-red-600 border-red-500'
+  return isCorrect.value
+    ? 'text-green-700 font-bold border-green-600'
+    : 'text-red-600 font-bold border-red-500'
 }
 </script>

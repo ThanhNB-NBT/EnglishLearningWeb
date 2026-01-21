@@ -1,5 +1,8 @@
 package com.thanhnb.englishlearning.service.reading;
 
+import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateTaskGroupDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupResponseDTO;
 import com.thanhnb.englishlearning.dto.reading.ReadingLessonDTO;
 import com.thanhnb.englishlearning.entity.reading.ReadingLesson;
 import com.thanhnb.englishlearning.entity.topic.Topic;
@@ -11,6 +14,7 @@ import com.thanhnb.englishlearning.repository.reading.UserReadingProgressReposit
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
 import com.thanhnb.englishlearning.repository.topic.TopicRepository;
 import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.question.TaskGroupService;
 import com.thanhnb.englishlearning.service.user.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,8 @@ public class ReadingLessonService {
     private final UserReadingProgressRepository progressRepository;
     private final TeacherPermissionService teacherPermissionService;
     private final UserService userService;
+    private final TaskGroupService taskGroupService;
+    private final ReadingQuestionService questionService;
 
     // ═════════════════════════════════════════════════════════════════
     // READ OPERATIONS
@@ -156,7 +162,7 @@ public class ReadingLessonService {
     public void fixOrderIndexes(Long topicId) {
         // Lấy danh sách
         List<ReadingLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
-        
+
         // ✅ Sort lại trong memory để đảm bảo ổn định (ID tăng dần nếu trùng Order)
         lessons.sort(Comparator.comparingInt(ReadingLesson::getOrderIndex)
                 .thenComparingLong(ReadingLesson::getId));
@@ -165,7 +171,7 @@ public class ReadingLessonService {
         for (int i = 0; i < lessons.size(); i++) {
             ReadingLesson lesson = lessons.get(i);
             int expected = i + 1;
-            
+
             if (!Integer.valueOf(expected).equals(lesson.getOrderIndex())) {
                 lesson.setOrderIndex(expected);
                 changed = true;
@@ -181,6 +187,100 @@ public class ReadingLessonService {
     public Integer getNextOrderIndex(Long topicId) {
         Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
         return (max != null ? max : 0) + 1;
+    }
+
+    // ReadingLessonService.java
+
+    /**
+     * ✅ CREATE LESSON WITH QUESTIONS AND TASK GROUPS
+     */
+    @Transactional
+    public ReadingLessonDTO createLessonWithQuestionsAndTasks(ReadingLessonDTO dto) {
+        // 1. Validate
+        validateForCreate(dto);
+        teacherPermissionService.checkTopicPermission(dto.getTopicId());
+
+        if (lessonRepository.existsByTitleIgnoreCase(dto.getTitle())) {
+            throw new IllegalArgumentException("Title already exists");
+        }
+
+        // 2. Get topic
+        Topic topic = topicRepository.findById(dto.getTopicId())
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+
+        User currentUser = userService.getCurrentUser();
+
+        // 3. Create lesson
+        ReadingLesson lesson = ReadingLesson.builder()
+                .topic(topic)
+                .title(dto.getTitle())
+                .content(dto.getContent())
+                .contentTranslation(dto.getContentTranslation())
+                .orderIndex(dto.getOrderIndex())
+                .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 600)
+                .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 25)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .createdAt(LocalDateTime.now())
+                .modifiedBy(currentUser)
+                .build();
+
+        lesson = lessonRepository.save(lesson);
+        log.info("✅ Created reading lesson: id={}, title={}", lesson.getId(), lesson.getTitle());
+
+        // 4. Create TaskGroups and Questions (same logic as Grammar)
+        if (dto.getTaskGroups() != null && !dto.getTaskGroups().isEmpty()) {
+            for (ReadingLessonDTO.TaskGroupImportData taskGroupData : dto.getTaskGroups()) {
+                CreateTaskGroupDTO taskGroupDTO = CreateTaskGroupDTO.builder()
+                        .taskName(taskGroupData.getTaskName())
+                        .instruction(taskGroupData.getInstruction())
+                        .orderIndex(taskGroupData.getOrderIndex())
+                        .build();
+
+                TaskGroupResponseDTO taskGroup = taskGroupService.createTaskGroup(
+                        ParentType.READING,
+                        lesson.getId(),
+                        taskGroupDTO);
+
+                if (taskGroupData.getQuestions() != null && !taskGroupData.getQuestions().isEmpty()) {
+                    for (CreateQuestionDTO questionDTO : taskGroupData.getQuestions()) {
+                        questionDTO.setTaskGroupId(taskGroup.getId());
+                        questionDTO.setParentType(ParentType.READING);
+                        questionDTO.setParentId(lesson.getId());
+
+                        if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                            questionDTO.setOrderIndex(
+                                    questionRepository.findMaxOrderIndexByLessonId(ParentType.READING, lesson.getId())
+                                            .orElse(0) + 1);
+                        }
+
+                        questionService.createQuestion(lesson.getId(), questionDTO);
+                    }
+                }
+            }
+        }
+
+        // 5. Standalone questions
+        if (dto.getStandaloneQuestions() != null && !dto.getStandaloneQuestions().isEmpty()) {
+            for (CreateQuestionDTO questionDTO : dto.getStandaloneQuestions()) {
+                questionDTO.setTaskGroupId(null);
+                questionDTO.setParentType(ParentType.READING);
+                questionDTO.setParentId(lesson.getId());
+
+                if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                    questionDTO.setOrderIndex(
+                            questionRepository.findMaxOrderIndexByLessonId(ParentType.READING, lesson.getId())
+                                    .orElse(0) + 1);
+                }
+
+                questionService.createQuestion(lesson.getId(), questionDTO);
+            }
+        }
+
+        // 6. Return with questions
+        ReadingLessonDTO result = toDTO(lesson);
+        result.setGroupedQuestions(questionService.getGroupedQuestions(lesson.getId()));
+
+        return result;
     }
 
     // ═════════════════════════════════════════════════════════════════

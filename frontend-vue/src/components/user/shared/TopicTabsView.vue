@@ -8,18 +8,6 @@
           {{ title }}
         </h1>
       </div>
-
-      <!-- Progress Summary -->
-      <div v-if="progressSummary" class="progress-summary">
-        <el-progress
-          :percentage="progressSummary.completionRate"
-          :color="progressSummary.completionRate >= 80 ? '#67C23A' : '#409EFF'"
-        >
-          <span class="progress-text">
-            {{ progressSummary.completedLessons }}/{{ progressSummary.totalLessons }} bài
-          </span>
-        </el-progress>
-      </div>
     </div>
 
     <!-- Level Tabs -->
