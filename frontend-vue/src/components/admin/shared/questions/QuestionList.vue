@@ -133,8 +133,36 @@
           :disabled="!currentLessonId"
           class="!rounded-lg font-bold hidden sm:flex"
         >
-          Bulk
+          Tạo nhiều
         </el-button>
+
+        <el-dropdown trigger="click" @command="handleImportExportCommand">
+          <el-button type="success" plain>
+            <el-icon><Operation /></el-icon>
+            Import/Export
+            <el-icon class="el-icon--right"><arrow-down /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <!-- Import section -->
+              <el-dropdown-item command="template" :icon="Download">
+                Tải Template Excel
+              </el-dropdown-item>
+              <el-dropdown-item command="upload" :icon="UploadFilled">
+                Import từ Excel
+              </el-dropdown-item>
+
+              <!-- Export section -->
+              <el-dropdown-item
+                command="export"
+                :icon="Download"
+                :disabled="!currentLessonId || allQuestions.length === 0"
+              >
+                Export ra Excel
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
         <el-button :icon="Refresh" @click="loadQuestions" :disabled="!currentLessonId" circle />
 
@@ -144,8 +172,8 @@
           :icon="Sort"
           :disabled="!currentLessonId"
           @click="handleValidateOrder"
+          tooltip="Sắp xếp lại câu hỏi"
         >
-          Sắp xếp lại
         </el-button>
 
         <el-tooltip content="Xóa hàng loạt" placement="top">
@@ -356,12 +384,18 @@
     />
 
     <BulkCreateDialog ref="bulkDialogRef" :config="config" @success="handleFormSuccess" />
+
+    <ExcelImportDialog
+      ref="excelImportRef"
+      :parent-type="config.moduleType"
+      @saved="handleFormSuccess"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import {
   Plus,
   Refresh,
@@ -382,6 +416,10 @@ import QuestionFormDialog from './QuestionFormDialog.vue'
 import BulkCreateDialog from './BulkCreateDialog.vue'
 import TaskGroupDisplay from './TaskGroupDisplay.vue'
 import TaskGroupManagementDialog from './TaskGroupManagementDialog.vue'
+import ExcelImportDialog from './ExcelImportDialog.vue'
+import { questionImportApi } from '@/api/modules/question.api'
+import { Download, UploadFilled, Operation } from '@element-plus/icons-vue'
+import { ElLoading } from 'element-plus'
 
 const props = defineProps({
   initLessonId: { type: Number, default: null },
@@ -400,6 +438,7 @@ const questionStore = useQuestionStore()
 const questionFormRef = ref(null)
 const bulkDialogRef = ref(null)
 const taskGroupDialogRef = ref(null)
+const excelImportRef = ref(null)
 
 // ==================== STATE ====================
 const lessonsLoading = ref(false)
@@ -659,6 +698,88 @@ const handleSizeChange = (val) => {
   currentPage.value = 1
 }
 const handlePageChange = (val) => (currentPage.value = val)
+
+const handleImportExportCommand = async (command) => {
+  if (command === 'template') {
+    await downloadTemplate()
+  } else if (command === 'upload') {
+    excelImportRef.value?.open(currentLessonId.value)
+  } else if (command === 'export') {
+    await exportQuestions()
+  }
+}
+
+const exportQuestions = async () => {
+  if (!currentLessonId.value) {
+    ElMessage.warning('Vui lòng chọn bài học')
+    return
+  }
+
+  if (allQuestions.value.length === 0) {
+    ElMessage.warning('Bài học chưa có câu hỏi nào để export')
+    return
+  }
+
+  const loading = ElLoading.service({
+    lock: true,
+    text: 'Đang export...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
+
+  try {
+    const response = await questionImportApi.exportQuestions(
+      props.config.moduleType,
+      currentLessonId.value,
+      currentLesson.value?.title
+    )
+
+    // Create download link
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+
+    // Generate filename
+    const timestamp = new Date().getTime()
+    const lessonTitle = currentLesson.value?.title || 'lesson'
+    const safeName = lessonTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    a.download = `questions_${safeName}_${timestamp}.xlsx`
+
+    a.click()
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success({
+      message: `✅ Đã export ${allQuestions.value.length} câu hỏi`,
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('Export error:', error)
+    ElMessage.error('Lỗi export: ' + (error.response?.data?.message || error.message))
+  } finally {
+    loading.close()
+  }
+}
+
+const downloadTemplate = async () => {
+  try {
+    const response = await questionImportApi.downloadTemplate()
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'questions_import_template.xlsx'
+    a.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('Đã tải template')
+  } catch (error) {
+    ElMessage.error('Lỗi tải template')
+    console.error('Failed to download template:', error)
+  }
+}
 
 // ==================== LIFECYCLE ====================
 const initializeData = async () => {

@@ -1,6 +1,9 @@
 package com.thanhnb.englishlearning.service.grammar;
 
 import com.thanhnb.englishlearning.dto.grammar.GrammarLessonDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateTaskGroupDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupResponseDTO;
 import com.thanhnb.englishlearning.entity.grammar.GrammarLesson;
 import com.thanhnb.englishlearning.entity.topic.Topic;
 import com.thanhnb.englishlearning.entity.user.User;
@@ -10,6 +13,7 @@ import com.thanhnb.englishlearning.repository.grammar.GrammarLessonRepository;
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
 import com.thanhnb.englishlearning.repository.topic.TopicRepository;
 import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.question.TaskGroupService;
 import com.thanhnb.englishlearning.service.user.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -38,6 +42,8 @@ public class GrammarLessonService {
     private final QuestionRepository questionRepository;
     private final TeacherPermissionService teacherPermissionService;
     private final UserService userService;
+    private final TaskGroupService taskGroupService;
+    private final GrammarQuestionService questionService;
 
     // ═════════════════════════════════════════════════════════════════
     // READ OPERATIONS
@@ -188,6 +194,111 @@ public class GrammarLessonService {
         Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
         return (max != null ? max : 0) + 1;
     }
+
+    // GrammarLessonService.java
+
+/**
+ * ✅ CREATE LESSON WITH QUESTIONS AND TASK GROUPS
+ * Used by AI Import after user reviews and confirms
+ */
+@Transactional
+public GrammarLessonDTO createLessonWithQuestionsAndTasks(GrammarLessonDTO dto) {
+    // 1. Validate basic info
+    validateForCreate(dto);
+    teacherPermissionService.checkTopicPermission(dto.getTopicId());
+    
+    // 2. Check unique title
+    if (lessonRepository.existsByTopicIdAndTitleIgnoreCase(dto.getTopicId(), dto.getTitle())) {
+        throw new IllegalArgumentException("Title already exists in this topic");
+    }
+    
+    // 3. Get topic
+    Topic topic = topicRepository.findById(dto.getTopicId())
+            .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+    
+    User currentUser = userService.getCurrentUser();
+    
+    // 4. Create lesson
+    GrammarLesson lesson = GrammarLesson.builder()
+            .topic(topic)
+            .title(dto.getTitle())
+            .lessonType(dto.getLessonType())
+            .content(dto.getContent())
+            .orderIndex(dto.getOrderIndex())
+            .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 0)
+            .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 10)
+            .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+            .createdAt(LocalDateTime.now())
+            .modifiedBy(currentUser)
+            .build();
+    
+    lesson = lessonRepository.save(lesson);
+    log.info("✅ Created lesson: id={}, title={}", lesson.getId(), lesson.getTitle());
+    
+    // 5. Create TaskGroups if present
+    if (dto.getTaskGroups() != null && !dto.getTaskGroups().isEmpty()) {
+        for (GrammarLessonDTO.TaskGroupImportData taskGroupData : dto.getTaskGroups()) {
+            CreateTaskGroupDTO taskGroupDTO = CreateTaskGroupDTO.builder()
+                    .taskName(taskGroupData.getTaskName())
+                    .instruction(taskGroupData.getInstruction())
+                    .orderIndex(taskGroupData.getOrderIndex())
+                    .build();
+            
+            TaskGroupResponseDTO taskGroup = taskGroupService.createTaskGroup(
+                ParentType.GRAMMAR,
+                lesson.getId(),
+                taskGroupDTO
+            );
+            
+            log.info("✅ Created TaskGroup: id={}, name={}", taskGroup.getId(), taskGroup.getTaskName());
+            
+            // 6. Create questions in task group
+            if (taskGroupData.getQuestions() != null && !taskGroupData.getQuestions().isEmpty()) {
+                for (CreateQuestionDTO questionDTO : taskGroupData.getQuestions()) {
+                    questionDTO.setTaskGroupId(taskGroup.getId());
+                    questionDTO.setParentType(ParentType.GRAMMAR);
+                    questionDTO.setParentId(lesson.getId());
+                    
+                    // Auto-assign order if missing
+                    if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                        questionDTO.setOrderIndex(
+                            questionRepository.findMaxOrderIndexByLessonId(ParentType.GRAMMAR, lesson.getId())
+                                .orElse(0) + 1
+                        );
+                    }
+                    
+                    questionService.createQuestion(lesson.getId(), questionDTO);
+                }
+                log.info("✅ Created {} questions in TaskGroup", taskGroupData.getQuestions().size());
+            }
+        }
+    }
+    
+    // 7. Create standalone questions
+    if (dto.getStandaloneQuestions() != null && !dto.getStandaloneQuestions().isEmpty()) {
+        for (CreateQuestionDTO questionDTO : dto.getStandaloneQuestions()) {
+            questionDTO.setTaskGroupId(null); // Ensure standalone
+            questionDTO.setParentType(ParentType.GRAMMAR);
+            questionDTO.setParentId(lesson.getId());
+            
+            if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                questionDTO.setOrderIndex(
+                    questionRepository.findMaxOrderIndexByLessonId(ParentType.GRAMMAR, lesson.getId())
+                        .orElse(0) + 1
+                );
+            }
+            
+            questionService.createQuestion(lesson.getId(), questionDTO);
+        }
+        log.info("✅ Created {} standalone questions", dto.getStandaloneQuestions().size());
+    }
+    
+    // 8. Return DTO with questions
+    GrammarLessonDTO result = toDTO(lesson);
+    result.setGroupedQuestions(questionService.getGroupedQuestions(lesson.getId()));
+    
+    return result;
+}
 
     // ═════════════════════════════════════════════════════════════════
     // PRIVATE HELPERS

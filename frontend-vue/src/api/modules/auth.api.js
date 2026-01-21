@@ -1,4 +1,4 @@
-import apiClient from '@/api/config'
+import api from '@/api/config'
 
 export const authAPI = {
   // ==================== USER ENDPOINTS ====================
@@ -8,7 +8,7 @@ export const authAPI = {
    * POST /api/auth/user/register
    */
   registerUser: (data) => {
-    return apiClient.post('/api/auth/user/register', {
+    return api.post('/api/auth/user/register', {
       username: data.username,
       email: data.email,
       password: data.password,
@@ -21,7 +21,7 @@ export const authAPI = {
    * POST /api/auth/user/login
    */
   loginUser: (credentials) => {
-    return apiClient.post('/api/auth/user/login', {
+    return api.post('/api/auth/user/login', {
       usernameOrEmail: credentials.usernameOrEmail,
       password: credentials.password
     })
@@ -32,7 +32,7 @@ export const authAPI = {
    * POST /api/auth/user/verify-email
    */
   verifyEmail: (data) => {
-    return apiClient.post('/api/auth/user/verify-email', {
+    return api.post('/api/auth/user/verify-email', {
       email: data.email,
       otp: data.otp
     })
@@ -43,7 +43,7 @@ export const authAPI = {
    * POST /api/auth/user/resend-otp
    */
   resendVerifyEmail: (data) => {
-    return apiClient.post('/api/auth/user/resend-verify-email', {
+    return api.post('/api/auth/user/resend-verify-email', {
       email: data.email
     })
   },
@@ -53,7 +53,7 @@ export const authAPI = {
    * POST /api/auth/user/forgot-password
    */
   forgotPassword: (data) => {
-    return apiClient.post('/api/auth/user/forgot-password', {
+    return api.post('/api/auth/user/forgot-password', {
       email: data.email
     })
   },
@@ -63,7 +63,7 @@ export const authAPI = {
    * POST /api/auth/user/verify-reset-password
    */
   verifyResetPassword: (data) => {
-    return apiClient.post('/api/auth/user/verify-reset-password', {
+    return api.post('/api/auth/user/verify-reset-password', {
       email: data.email,
       otp: data.otp
     })
@@ -74,7 +74,7 @@ export const authAPI = {
    * POST /api/auth/user/reset-password
    */
   resetPassword: (data) => {
-    return apiClient.post('/api/auth/user/reset-password', {
+    return api.post('/api/auth/user/reset-password', {
       email: data.email,
       newPassword: data.newPassword
     })
@@ -85,7 +85,7 @@ export const authAPI = {
    * POST /api/auth/user/logout
    */
   logoutUser: () => {
-    return apiClient.post('/api/auth/user/logout')
+    return api.post('/api/auth/user/logout')
   },
 
   /**
@@ -93,7 +93,7 @@ export const authAPI = {
    * POST /api/auth/user/logout-all
    */
   logoutUserAll: () => {
-    return apiClient.post('/api/auth/user/logout-all')
+    return api.post('/api/auth/user/logout-all')
   },
 
   // ==================== ADMIN ENDPOINTS ====================
@@ -103,7 +103,7 @@ export const authAPI = {
    * POST /api/auth/admin/login
    */
   loginAdmin: (credentials) => {
-    return apiClient.post('/api/auth/admin/login', {
+    return api.post('/api/auth/admin/login', {
       usernameOrEmail: credentials.usernameOrEmail,
       password: credentials.password
     })
@@ -115,7 +115,7 @@ export const authAPI = {
    * Requires admin token
    */
   createAdmin: (data) => {
-    return apiClient.post('/api/auth/admin/create', {
+    return api.post('/api/auth/admin/create', {
       username: data.username,
       email: data.email,
       password: data.password,
@@ -128,7 +128,7 @@ export const authAPI = {
    * POST /api/auth/admin/forgot-password
    */
   forgotPasswordAdmin: (data) => {
-    return apiClient.post('/api/auth/admin/forgot-password', {
+    return api.post('/api/auth/admin/forgot-password', {
       email: data.email
     })
   },
@@ -138,7 +138,7 @@ export const authAPI = {
    * POST /api/auth/admin/verify-reset-password
    */
   verifyResetPasswordAdmin: (data) => {
-    return apiClient.post('/api/auth/admin/verify-reset-password', {
+    return api.post('/api/auth/admin/verify-reset-password', {
       email: data.email,
       otp: data.otp
     })
@@ -149,7 +149,7 @@ export const authAPI = {
    * POST /api/auth/admin/reset-password
    */
   resetPasswordAdmin: (data) => {
-    return apiClient.post('/api/auth/admin/reset-password', {
+    return api.post('/api/auth/admin/reset-password', {
       email: data.email,
       newPassword: data.newPassword
     })
@@ -160,7 +160,7 @@ export const authAPI = {
    * POST /api/auth/admin/logout
    */
   logoutAdmin: () => {
-    return apiClient.post('/api/auth/admin/logout')
+    return api.post('/api/auth/admin/logout')
   },
 
   /**
@@ -168,7 +168,7 @@ export const authAPI = {
    * POST /api/auth/admin/logout-all
    */
   logoutAdminAll: () => {
-    return apiClient.post('/api/auth/admin/logout-all')
+    return api.post('/api/auth/admin/logout-all')
   },
 
   // ==================== TEACHER ENDPOINTS ====================
@@ -177,7 +177,7 @@ export const authAPI = {
    * POST /api/auth/teacher/login
    */
   loginTeacher: (credentials) => {
-    return apiClient.post('/api/auth/teacher/login', {
+    return api.post('/api/auth/teacher/login', {
       usernameOrEmail: credentials.usernameOrEmail,
       password: credentials.password
     })
@@ -188,7 +188,7 @@ export const authAPI = {
    * POST /api/auth/teacher/create
    */
   createTeacher: (data) => {
-    return apiClient.post('/api/auth/teacher/create', {
+    return api.post('/api/auth/teacher/create', {
       username: data.username,
       email: data.email,
       password: data.password,
@@ -201,7 +201,7 @@ export const authAPI = {
    * POST /api/auth/teacher/logout
    */
   logoutTeacher:  () => {
-    return apiClient.post('/api/auth/teacher/logout')
+    return api.post('/api/auth/teacher/logout')
   },
 
   /**
@@ -209,25 +209,25 @@ export const authAPI = {
    * POST /api/auth/teacher/logout-all
    */
   logoutTeacherAll: () => {
-    return apiClient.post('/api/auth/teacher/logout-all')
+    return api.post('/api/auth/teacher/logout-all')
   },
 
   // Password reset cho teacher (giống admin)
   forgotPasswordTeacher: (data) => {
-    return apiClient.post('/api/auth/teacher/forgot-password', {
+    return api.post('/api/auth/teacher/forgot-password', {
       email: data.email
     })
   },
 
   verifyResetPasswordTeacher: (data) => {
-    return apiClient.post('/api/auth/teacher/verify-reset-password', {
+    return api.post('/api/auth/teacher/verify-reset-password', {
       email:  data.email,
       otp: data.otp
     })
   },
 
   resetPasswordTeacher: (data) => {
-    return apiClient.post('/api/auth/teacher/reset-password', {
+    return api.post('/api/auth/teacher/reset-password', {
       email:  data.email,
       newPassword: data.newPassword
     })
@@ -265,7 +265,7 @@ export const authAPI = {
    * GET /api/admin/cleanup/stats
    */
   getCleanupStats: () => {
-    return apiClient.get('/api/admin/cleanup/stats')
+    return api.get('/api/admin/cleanup/stats')
   },
 
   /**
@@ -273,7 +273,7 @@ export const authAPI = {
    * GET /api/admin/cleanup/unverified-users
    */
   getUnverifiedUsers: (limit = 50) => {
-    return apiClient.get(`/api/admin/cleanup/unverified-users?limit=${limit}`)
+    return api.get(`/api/admin/cleanup/unverified-users?limit=${limit}`)
   },
 
 
@@ -282,7 +282,7 @@ export const authAPI = {
    * GET /api/admin/cleanup/preview
    */
   previewCleanup: () => {
-    return apiClient.get('/api/admin/cleanup/preview')
+    return api.get('/api/admin/cleanup/preview')
   },
 
   /**
@@ -290,6 +290,6 @@ export const authAPI = {
    * POST /api/admin/cleanup/run-now
    */
   runCleanup: () => {
-    return apiClient.post('/api/admin/cleanup/run-now')
+    return api.post('/api/admin/cleanup/run-now')
   },
 }

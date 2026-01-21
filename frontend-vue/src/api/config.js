@@ -1,7 +1,7 @@
 import axios from 'axios'
 import router from '@/router'
 
-const apiClient = axios.create({
+const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8980',
   timeout: 30000,
   headers: {
@@ -51,7 +51,7 @@ function convertPaginationParams(config) {
 }
 
 // ==================== REQUEST INTERCEPTOR ====================
-apiClient.interceptors.request.use(
+api.interceptors.request.use(
   (config) => {
     convertPaginationParams(config)
 
@@ -109,7 +109,7 @@ apiClient.interceptors.request.use(
 )
 
 // ==================== RESPONSE INTERCEPTOR ====================
-apiClient.interceptors.response.use(
+api.interceptors.response.use(
   (response) => {
     // ✅ Convert backend pagination (0-indexed) back to frontend (1-indexed)
     if (response.data?.data?.page !== undefined) {
@@ -132,7 +132,7 @@ apiClient.interceptors.response.use(
       )
 
       await delay(delayMs)
-      return apiClient(originalRequest)
+      return api(originalRequest)
     }
 
     // ✅ Handle 401 Unauthorized
@@ -204,4 +204,4 @@ apiClient.interceptors.response.use(
   },
 )
 
-export default apiClient
+export default api

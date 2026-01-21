@@ -1,5 +1,5 @@
 // src/api/modules/teacher_topic.api.js
-import apiClient from '@/api/config'
+import api from '@/api/config'
 
 /**
  * ✅ Teacher Topic API - For managing assigned topics
@@ -11,7 +11,7 @@ export const teacherTopicAPI = {
    * GET /api/teacher/my-topics/paginated?moduleType=GRAMMAR&page=0&size=10
    */
   getMyTopicsPaginated: (moduleType, page = 0, size = 10, sortBy = 'orderIndex', sortDir = 'asc') => {
-    return apiClient.get('/api/teacher/my-topics/paginated', {
+    return api.get('/api/teacher/my-topics/paginated', {
       params: {
         moduleType,
         page,
@@ -26,7 +26,7 @@ export const teacherTopicAPI = {
    * GET /api/teacher/my-topics?moduleType=GRAMMAR
    */
   getMyTopicsByModule: (moduleType) => {
-    return apiClient.get('/api/teacher/my-topics', {
+    return api.get('/api/teacher/my-topics', {
       params: { moduleType }
     })
   },
@@ -36,7 +36,7 @@ export const teacherTopicAPI = {
    * GET /api/teacher/check-assignment/{topicId}
    */
   checkAssignment: (topicId) => {
-    return apiClient.get(`/api/teacher/check-assignment/${topicId}`)
+    return api.get(`/api/teacher/check-assignment/${topicId}`)
   }
 }
 

@@ -34,7 +34,10 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
                      ParentType parentType,
                      Long parentId);
 
-       @Query("SELECT q FROM Question q WHERE q.parentType = :parentType AND q.parentId = :parentId ORDER BY q.orderIndex ASC")
+       @Query("SELECT q FROM Question q " +
+                     "LEFT JOIN FETCH q.taskGroup " +
+                     "WHERE q.parentType = :parentType AND q.parentId = :parentId " +
+                     "ORDER BY q.orderIndex ASC")
        List<Question> findByParentTypeAndParentIdOrderByOrderIndexAsc(
                      @Param("parentType") ParentType parentType,
                      @Param("parentId") Long parentId);

@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ai_recommendations", indexes = {
-    @Index(name = "idx_user_priority", columnList = "user_id, priority, created_at")
+    @Index(name = "idx_user_priority", columnList = "user_id, priority, created_at"),
+    @Index(name = "idx_expires", columnList = "expires_at, is_completed"),
 })
 @Getter
 @Setter

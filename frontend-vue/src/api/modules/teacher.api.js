@@ -1,5 +1,5 @@
 // src/api/modules/teacher.api.js - FIXED VERSION
-import apiClient from '@/api/config'
+import api from '@/api/config'
 
 // ==================== DEFINITIONS ====================
 
@@ -9,7 +9,7 @@ const adminOperations = {
    * POST /api/admin/teachers/assign
    */
   assignTeacher: (data) => {
-    return apiClient.post('/api/admin/teachers/assign', {
+    return api.post('/api/admin/teachers/assign', {
       teacherId: data.teacherId,
       topicId: data.topicId,
     })
@@ -20,7 +20,7 @@ const adminOperations = {
    * DELETE /api/admin/teachers/assignments/{assignmentId}
    */
   revokeAssignment: (assignmentId) => {
-    return apiClient.delete(`/api/admin/teachers/assignments/${assignmentId}`)
+    return api.delete(`/api/admin/teachers/assignments/${assignmentId}`)
   },
 
   /**
@@ -28,7 +28,7 @@ const adminOperations = {
    * DELETE /api/admin/teachers/assignments/{teacherId}/{topicId}/hard-delete
    */
   hardDeleteAssignment: (teacherId, topicId) => {
-    return apiClient.delete(
+    return api.delete(
       `/api/admin/teachers/assignments/${teacherId}/${topicId}/hard-delete`,
     )
   },
@@ -38,7 +38,7 @@ const adminOperations = {
    * GET /api/admin/teachers/{teacherId}/assignments
    */
   getTeacherAssignments: (teacherId) => {
-    return apiClient.get(`/api/admin/teachers/${teacherId}/assignments`)
+    return api.get(`/api/admin/teachers/${teacherId}/assignments`)
   },
 
   /**
@@ -46,7 +46,7 @@ const adminOperations = {
    * GET /api/admin/teachers/topics/{topicId}/teachers
    */
   getTopicTeachers: (topicId) => {
-    return apiClient.get(`/api/admin/teachers/topics/${topicId}/teachers`)
+    return api.get(`/api/admin/teachers/topics/${topicId}/teachers`)
   },
 
   /**
@@ -54,7 +54,7 @@ const adminOperations = {
    * GET /api/admin/teachers/assignments
    */
   getAllAssignments: () => {
-    return apiClient.get('/api/admin/teachers/assignments')
+    return api.get('/api/admin/teachers/assignments')
   },
 
   /**
@@ -62,7 +62,7 @@ const adminOperations = {
    * DELETE /api/admin/teachers/{teacherId}/assignments
    */
   revokeAllTeacherAssignments: (teacherId) => {
-    return apiClient.delete(`/api/admin/teachers/${teacherId}/assignments`)
+    return api.delete(`/api/admin/teachers/${teacherId}/assignments`)
   },
 
   /**
@@ -70,7 +70,7 @@ const adminOperations = {
    * DELETE /api/admin/teachers/topics/{topicId}/assignments
    */
   revokeAllTopicAssignments: (topicId) => {
-    return apiClient.delete(`/api/admin/teachers/topics/${topicId}/assignments`)
+    return api.delete(`/api/admin/teachers/topics/${topicId}/assignments`)
   }
 }
 
@@ -80,7 +80,7 @@ const teacherOperations = {
    * GET /api/teacher/my-assignments
    */
   getMyAssignments: () => {
-    return apiClient.get('/api/teacher/my-assignments')
+    return api.get('/api/teacher/my-assignments')
   },
 
   /**
@@ -88,7 +88,7 @@ const teacherOperations = {
    * GET /api/teacher/profile
    */
   getProfile: () => {
-    return apiClient.get('/api/teacher/profile')
+    return api.get('/api/teacher/profile')
   },
 
   /**
@@ -96,7 +96,7 @@ const teacherOperations = {
    * GET /api/teacher/check-assignment/{topicId}
    */
   checkAssignment: (topicId) => {
-    return apiClient.get(`/api/teacher/check-assignment/${topicId}`)
+    return api.get(`/api/teacher/check-assignment/${topicId}`)
   },
 
   /**
@@ -104,7 +104,7 @@ const teacherOperations = {
    * GET /api/teacher/stats
    */
   getTeacherStats: () => {
-    return apiClient.get('/api/teacher/stats')
+    return api.get('/api/teacher/stats')
   },
 }
 

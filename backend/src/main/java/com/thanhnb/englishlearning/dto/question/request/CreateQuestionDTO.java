@@ -37,9 +37,15 @@ public class CreateQuestionDTO {
     @Positive(message = "Order index phải là số dương")
     @Schema(description = "Thứ tự hiển thị (tùy chọn, tự động nếu null)", example = "1")
     private Integer orderIndex;
-    
+
     @Schema(description = "ID của TaskGroup (null = standalone question)", example = "5")
     private Long taskGroupId;
+
+    @Schema(description = "Tên TaskGroup từ Excel (dùng để match hoặc tạo mới)", example = "Task 1: Multiple Choice")
+    private String taskGroupName;
+    
+    @Schema(description = "Hướng dẫn TaskGroup từ Excel", example = "Choose the correct answer (A, B, C or D)")
+    private String taskInstruction;
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "questionType")
     @JsonSubTypes({

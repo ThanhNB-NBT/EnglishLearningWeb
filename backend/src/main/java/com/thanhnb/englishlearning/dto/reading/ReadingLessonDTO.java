@@ -2,9 +2,13 @@ package com.thanhnb.englishlearning.dto.reading;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
 import com.thanhnb.englishlearning.dto.question.response.QuestionResponseDTO;
 import com.thanhnb.englishlearning.dto.question.response.TaskGroupedQuestionsDTO;
 import com.thanhnb.englishlearning.enums.EnglishLevel;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.thanhnb.englishlearning.config.Views;
 
 import jakarta.validation.constraints.*;
@@ -75,7 +79,7 @@ public class ReadingLessonDTO {
 
     @JsonView(Views.Public.class)
     private LocalDateTime createdAt;
-    
+
     @JsonView(Views.Public.class)
     private LocalDateTime modifiedAt;
 
@@ -123,6 +127,28 @@ public class ReadingLessonDTO {
 
     @JsonView(Views.Public.class)
     private TaskGroupedQuestionsDTO groupedQuestions;
+
+    // ═════════════════════════════════════════════════════════════════
+    // AI IMPORT FIELDS (Temporary - only used during import flow)
+    // ═════════════════════════════════════════════════════════════════
+
+    @Schema(description = "Task groups with questions (AI import only)")
+    @JsonView(Views.Admin.class) // Chỉ admin thấy
+    private List<TaskGroupImportData> taskGroups;
+
+    @Schema(description = "Standalone questions (AI import only)")
+    @JsonView(Views.Admin.class)
+    private List<CreateQuestionDTO> standaloneQuestions;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TaskGroupImportData {
+        private String taskName;
+        private String instruction;
+        private Integer orderIndex;
+        private List<CreateQuestionDTO> questions;
+    }
 
     // ═════════════════════════════════════════════════════════════════
     // STATIC FACTORY METHODS

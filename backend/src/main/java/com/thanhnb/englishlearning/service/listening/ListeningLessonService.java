@@ -1,6 +1,9 @@
 package com.thanhnb.englishlearning.service.listening;
 
 import com.thanhnb.englishlearning.dto.listening.ListeningLessonDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateQuestionDTO;
+import com.thanhnb.englishlearning.dto.question.request.CreateTaskGroupDTO;
+import com.thanhnb.englishlearning.dto.question.response.TaskGroupResponseDTO;
 import com.thanhnb.englishlearning.entity.listening.ListeningLesson;
 import com.thanhnb.englishlearning.entity.topic.Topic;
 import com.thanhnb.englishlearning.entity.user.User;
@@ -11,6 +14,7 @@ import com.thanhnb.englishlearning.repository.listening.UserListeningProgressRep
 import com.thanhnb.englishlearning.repository.question.QuestionRepository;
 import com.thanhnb.englishlearning.repository.topic.TopicRepository;
 import com.thanhnb.englishlearning.service.permission.TeacherPermissionService;
+import com.thanhnb.englishlearning.service.question.TaskGroupService;
 import com.thanhnb.englishlearning.service.user.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,8 @@ public class ListeningLessonService {
     private final AudioStorageService audioStorage;
     private final TeacherPermissionService teacherPermissionService;
     private final UserService userService;
+    private final ListeningQuestionService questionService;
+    private final TaskGroupService taskGroupService;
 
     // ═════════════════════════════════════════════════════════════════
     // READ OPERATIONS
@@ -189,7 +195,7 @@ public class ListeningLessonService {
     public void fixOrderIndexes(Long topicId) {
         // Lấy danh sách
         List<ListeningLesson> lessons = lessonRepository.findByTopicIdOrderByOrderIndexAsc(topicId);
-        
+
         // ✅ Sort lại trong memory để đảm bảo ổn định (ID tăng dần nếu trùng Order)
         lessons.sort(Comparator.comparingInt(ListeningLesson::getOrderIndex)
                 .thenComparingLong(ListeningLesson::getId));
@@ -198,7 +204,7 @@ public class ListeningLessonService {
         for (int i = 0; i < lessons.size(); i++) {
             ListeningLesson lesson = lessons.get(i);
             int expected = i + 1;
-            
+
             if (!Integer.valueOf(expected).equals(lesson.getOrderIndex())) {
                 lesson.setOrderIndex(expected);
                 changed = true;
@@ -214,6 +220,116 @@ public class ListeningLessonService {
     public Integer getNextOrderIndex(Long topicId) {
         Integer max = lessonRepository.findMaxOrderIndexByTopicId(topicId);
         return (max != null ? max : 0) + 1;
+    }
+
+    /**
+     * CREATE LESSON WITH QUESTIONS AND TASK GROUPS
+     * Note: Audio file upload is separate (can be null initially)
+     */
+    @Transactional
+    public ListeningLessonDTO createLessonWithQuestionsAndTasks(
+            ListeningLessonDTO dto,
+            MultipartFile audioFile) throws IOException {
+
+        // 1. Validate
+        validateForCreate(dto);
+        teacherPermissionService.checkTopicPermission(dto.getTopicId());
+
+        if (lessonRepository.existsByTitleIgnoreCase(dto.getTitle())) {
+            throw new IllegalArgumentException("Title already exists");
+        }
+
+        // 2. Get topic
+        Topic topic = topicRepository.findById(dto.getTopicId())
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+
+        User currentUser = userService.getCurrentUser();
+
+        // 3. Create lesson WITHOUT audio first
+        ListeningLesson lesson = ListeningLesson.builder()
+                .topic(topic)
+                .title(dto.getTitle())
+                .transcript(dto.getTranscript())
+                .transcriptTranslation(dto.getTranscriptTranslation())
+                .orderIndex(dto.getOrderIndex())
+                .timeLimitSeconds(dto.getTimeLimitSeconds() != null ? dto.getTimeLimitSeconds() : 600)
+                .pointsReward(dto.getPointsReward() != null ? dto.getPointsReward() : 25)
+                .allowUnlimitedReplay(dto.getAllowUnlimitedReplay() != null ? dto.getAllowUnlimitedReplay() : true)
+                .maxReplayCount(dto.getMaxReplayCount() != null ? dto.getMaxReplayCount() : 3)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .createdAt(LocalDateTime.now())
+                .modifiedBy(currentUser)
+                .build();
+
+        lesson = lessonRepository.save(lesson);
+        log.info("✅ Created listening lesson: id={}, title={}", lesson.getId(), lesson.getTitle());
+
+        // 4. Upload audio if provided
+        if (audioFile != null && !audioFile.isEmpty()) {
+            String audioUrl = audioStorage.uploadAudio(audioFile, lesson.getId());
+            lesson.setAudioUrl(audioUrl);
+            lesson = lessonRepository.save(lesson);
+            log.info("✅ Uploaded audio: {}", audioUrl);
+        } else if (dto.getAudioUrl() != null) {
+            // Use existing URL if provided (for AI-generated placeholder)
+            lesson.setAudioUrl(dto.getAudioUrl());
+            lesson = lessonRepository.save(lesson);
+        }
+
+        // 5. Create TaskGroups and Questions (same logic as above)
+        if (dto.getTaskGroups() != null && !dto.getTaskGroups().isEmpty()) {
+            for (ListeningLessonDTO.TaskGroupImportData taskGroupData : dto.getTaskGroups()) {
+                CreateTaskGroupDTO taskGroupDTO = CreateTaskGroupDTO.builder()
+                        .taskName(taskGroupData.getTaskName())
+                        .instruction(taskGroupData.getInstruction())
+                        .orderIndex(taskGroupData.getOrderIndex())
+                        .build();
+
+                TaskGroupResponseDTO taskGroup = taskGroupService.createTaskGroup(
+                        ParentType.LISTENING,
+                        lesson.getId(),
+                        taskGroupDTO);
+
+                if (taskGroupData.getQuestions() != null && !taskGroupData.getQuestions().isEmpty()) {
+                    for (CreateQuestionDTO questionDTO : taskGroupData.getQuestions()) {
+                        questionDTO.setTaskGroupId(taskGroup.getId());
+                        questionDTO.setParentType(ParentType.LISTENING);
+                        questionDTO.setParentId(lesson.getId());
+
+                        if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                            questionDTO.setOrderIndex(
+                                    questionRepository.findMaxOrderIndexByLessonId(ParentType.LISTENING, lesson.getId())
+                                            .orElse(0) + 1);
+                        }
+
+                        questionService.createQuestion(lesson.getId(), questionDTO);
+                    }
+                }
+            }
+        }
+
+        // 6. Standalone questions
+        if (dto.getStandaloneQuestions() != null && !dto.getStandaloneQuestions().isEmpty()) {
+            for (CreateQuestionDTO questionDTO : dto.getStandaloneQuestions()) {
+                questionDTO.setTaskGroupId(null);
+                questionDTO.setParentType(ParentType.LISTENING);
+                questionDTO.setParentId(lesson.getId());
+
+                if (questionDTO.getOrderIndex() == null || questionDTO.getOrderIndex() == 0) {
+                    questionDTO.setOrderIndex(
+                            questionRepository.findMaxOrderIndexByLessonId(ParentType.LISTENING, lesson.getId())
+                                    .orElse(0) + 1);
+                }
+
+                questionService.createQuestion(lesson.getId(), questionDTO);
+            }
+        }
+
+        // 7. Return with questions
+        ListeningLessonDTO result = toDTO(lesson);
+        result.setGroupedQuestions(questionService.getGroupedQuestions(lesson.getId()));
+
+        return result;
     }
 
     // ═════════════════════════════════════════════════════════════════

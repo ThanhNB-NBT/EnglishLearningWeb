@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +31,8 @@ public interface UserListeningProgressRepository extends JpaRepository<UserListe
                         """)
         List<UserListeningProgress> findByUserIdAndIsCompletedTrueOrderByCompletedAtDesc(@Param("userId") Long userId);
 
+        List<UserListeningProgress> findByUserIdAndIsCompletedTrue(Long userId);
+
         Integer countByLessonIdAndIsCompletedTrue(Long lessonId);
 
         @Query("SELECT COUNT(p) FROM UserListeningProgress p " +
@@ -49,4 +52,9 @@ public interface UserListeningProgressRepository extends JpaRepository<UserListe
         @Modifying
         @Query("DELETE FROM UserListeningProgress ulp WHERE ulp.user.id = :userId")
         int deleteByUserId(@Param("userId") Long userId);
+
+        List<UserListeningProgress> findByUserIdAndIsCompletedTrueAndScorePercentageLessThanAndCompletedAtBefore(
+                        Long userId,
+                        Double maxScore,
+                        LocalDateTime cutoffDate);
 }

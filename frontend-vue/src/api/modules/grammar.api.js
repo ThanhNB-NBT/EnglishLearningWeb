@@ -1,14 +1,14 @@
 // src/api/modules/grammar.api.js
-import apiClient from '../config'
+import api from '../config'
 
 // ==================== USER APIs ====================
 export const grammarUserAPI = {
-  getTopics: () => apiClient.get('/api/grammar/topics'),
-  getLessonsByTopic: (topicId) => apiClient.get(`/api/grammar/topics/${topicId}/lessons`),
-  getLessonDetail: (lessonId) => apiClient.get(`/api/grammar/lessons/${lessonId}`),
-  submitLesson: (data) => apiClient.post('/api/grammar/lessons/submit', data),
-  getCompletedLessons: () => apiClient.get('/api/grammar/progress/completed'),
-  getProgressSummary: () => apiClient.get('/api/grammar/progress/summary'),
+  getTopics: () => api.get('/api/grammar/topics'),
+  getLessonsByTopic: (topicId) => api.get(`/api/grammar/topics/${topicId}/lessons`),
+  getLessonDetail: (lessonId) => api.get(`/api/grammar/lessons/${lessonId}`),
+  submitLesson: (data) => api.post('/api/grammar/lessons/submit', data),
+  getCompletedLessons: () => api.get('/api/grammar/progress/completed'),
+  getProgressSummary: () => api.get('/api/grammar/progress/summary'),
 }
 
 // ==================== ADMIN APIs ====================
@@ -20,40 +20,40 @@ export const grammarAdminAPI = {
    */
   getLessonsByTopic: (topicId, params = {}) => {
     const { page = 1, size = 20, sort = 'orderIndex:asc' } = params
-    return apiClient.get(`/api/admin/grammar/topics/${topicId}/lessons`, {
+    return api.get(`/api/admin/grammar/topics/${topicId}/lessons`, {
       params: { page, size, sort },
     })
   },
 
-  getLessonById: (id) => apiClient.get(`/api/admin/grammar/lessons/${id}`),
-  createLesson: (data) => apiClient.post('/api/admin/grammar/lessons', data),
-  updateLesson: (id, data) => apiClient.put(`/api/admin/grammar/lessons/${id}`, data),
-  deleteLesson: (id) => apiClient.delete(`/api/admin/grammar/lessons/${id}`),
-  toggleLessonStatus: (id) => apiClient.post(`/api/admin/grammar/lessons/${id}/toggle-status`),
+  getLessonById: (id) => api.get(`/api/admin/grammar/lessons/${id}`),
+  createLesson: (data) => api.post('/api/admin/grammar/lessons', data),
+  updateLesson: (id, data) => api.put(`/api/admin/grammar/lessons/${id}`, data),
+  deleteLesson: (id) => api.delete(`/api/admin/grammar/lessons/${id}`),
+  toggleLessonStatus: (id) => api.post(`/api/admin/grammar/lessons/${id}/toggle-status`),
   getNextLessonOrderIndex: (topicId) =>
-    apiClient.get(`/api/admin/grammar/topics/${topicId}/lessons/next-order`),
+    api.get(`/api/admin/grammar/topics/${topicId}/lessons/next-order`),
   fixLessonOrder: (topicId) =>
-    apiClient.post(`/api/admin/grammar/topics/${topicId}/lessons/fix-order`),
+    api.post(`/api/admin/grammar/topics/${topicId}/lessons/fix-order`),
 
   // === Questions ===
   getQuestionsByLesson: (lessonId) =>
-    apiClient.get(`/api/admin/grammar/lessons/${lessonId}/questions`),
+    api.get(`/api/admin/grammar/lessons/${lessonId}/questions`),
 
   getTaskStats: (lessonId) =>
-    apiClient.get(`/api/admin/grammar/lessons/${lessonId}/task-stats`),
+    api.get(`/api/admin/grammar/lessons/${lessonId}/task-stats`),
 
   // Existing question CRUD
-  getQuestionById: (id) => apiClient.get(`/api/admin/grammar/questions/${id}`),
+  getQuestionById: (id) => api.get(`/api/admin/grammar/questions/${id}`),
   createQuestion: (lessonId, data) =>
-    apiClient.post(`/api/admin/grammar/lessons/${lessonId}/questions`, data),
-  updateQuestion: (id, data) => apiClient.put(`/api/admin/grammar/questions/${id}`, data),
-  deleteQuestion: (id) => apiClient.delete(`/api/admin/grammar/questions/${id}`),
+    api.post(`/api/admin/grammar/lessons/${lessonId}/questions`, data),
+  updateQuestion: (id, data) => api.put(`/api/admin/grammar/questions/${id}`, data),
+  deleteQuestion: (id) => api.delete(`/api/admin/grammar/questions/${id}`),
   bulkDeleteQuestions: (ids) =>
-    apiClient.delete('/api/admin/grammar/questions/bulk', { data: ids }),
+    api.delete('/api/admin/grammar/questions/bulk', { data: ids }),
   getNextQuestionOrderIndex: (lessonId) =>
-    apiClient.get(`/api/admin/grammar/lessons/${lessonId}/questions/next-order`),
+    api.get(`/api/admin/grammar/lessons/${lessonId}/questions/next-order`),
   createQuestionsBulk: (lessonId, data) =>
-    apiClient.post(`/api/admin/grammar/lessons/${lessonId}/questions/bulk`, data),
+    api.post(`/api/admin/grammar/lessons/${lessonId}/questions/bulk`, data),
   fixQuestionOrder: (lessonId) =>
-    apiClient.post(`/api/admin/grammar/lessons/${lessonId}/questions/fix-order`),
+    api.post(`/api/admin/grammar/lessons/${lessonId}/questions/fix-order`),
 }

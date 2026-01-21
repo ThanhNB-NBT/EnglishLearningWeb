@@ -30,13 +30,13 @@
       </div>
     </div>
 
-    <!-- ✅ NEW: Display correct answer after submit -->
+    <!-- ✅ FIXED: Chỉ hiển thị khi SAI -->
     <div
-      v-if="disabled && showFeedback && question.data?.correction"
-      class="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
+      v-if="disabled && showFeedback && !isCorrect && question.data?.correction"
+      class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800"
     >
-      <div class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Đáp án đúng:</div>
-      <div class="text-sm font-mono text-green-700 dark:text-green-400">
+      <div class="text-xs font-bold text-red-700 dark:text-red-400 mb-1">Đáp án đúng:</div>
+      <div class="text-sm font-mono text-red-800 dark:text-red-300">
         {{ question.data.correction }}
       </div>
     </div>
@@ -65,8 +65,8 @@ const initData = () => {
       const parsed = JSON.parse(props.modelValue)
       localModel.value = { error: parsed.error || '', correction: parsed.correction || '' }
     } catch (e) {
+      console.error('Failed to parse modelValue string:', e)
       localModel.value = { error: '', correction: '' }
-      console.error('Failed to parse modelValue as JSON:', e)
     }
   }
 }
@@ -74,9 +74,8 @@ onMounted(initData)
 watch(() => props.modelValue, initData)
 const emitUpdate = () => emit('update:modelValue', { ...localModel.value })
 
-const isCorrect = computed(() => {
-  return props.question.isCorrect === true
-})
+const isCorrect = computed(() => props.question.isCorrect === true)
+
 const getInputClass = () => {
   if (!props.disabled || !props.showFeedback) return ''
   return isCorrect.value

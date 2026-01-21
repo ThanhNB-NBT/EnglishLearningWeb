@@ -1,5 +1,5 @@
 // src/api/modules/taskGroup.api.js
-import apiClient from '../config'
+import api from '../config'
 
 /**
  * TaskGroup API - Generic cho tất cả module types (Grammar, Listening, Reading)
@@ -12,7 +12,7 @@ export const taskGroupAPI = {
    * @returns {Promise}
    */
   getTaskGroupsByLesson: (parentType, lessonId) =>
-    apiClient.get(`/api/admin/task-groups/${parentType}/${lessonId}`),
+    api.get(`/api/admin/task-groups/${parentType}/${lessonId}`),
 
   /**
    * Lấy chi tiết một TaskGroup
@@ -20,7 +20,7 @@ export const taskGroupAPI = {
    * @returns {Promise}
    */
   getTaskGroupById: (taskGroupId) =>
-    apiClient.get(`/api/admin/task-groups/${taskGroupId}`),
+    api.get(`/api/admin/task-groups/${taskGroupId}`),
 
   /**
    * Tạo TaskGroup mới
@@ -30,7 +30,7 @@ export const taskGroupAPI = {
    * @returns {Promise}
    */
   createTaskGroup: (parentType, lessonId, data) =>
-    apiClient.post(`/api/admin/task-groups/${parentType}/${lessonId}`, data),
+    api.post(`/api/admin/task-groups/${parentType}/${lessonId}`, data),
 
   /**
    * Cập nhật TaskGroup
@@ -39,7 +39,7 @@ export const taskGroupAPI = {
    * @returns {Promise}
    */
   updateTaskGroup: (taskGroupId, data) =>
-    apiClient.put(`/api/admin/task-groups/${taskGroupId}`, data),
+    api.put(`/api/admin/task-groups/${taskGroupId}`, data),
 
   /**
    * Xóa TaskGroup (cascade delete questions)
@@ -47,5 +47,5 @@ export const taskGroupAPI = {
    * @returns {Promise}
    */
   deleteTaskGroup: (taskGroupId) =>
-    apiClient.delete(`/api/admin/task-groups/${taskGroupId}`),
+    api.delete(`/api/admin/task-groups/${taskGroupId}`),
 }

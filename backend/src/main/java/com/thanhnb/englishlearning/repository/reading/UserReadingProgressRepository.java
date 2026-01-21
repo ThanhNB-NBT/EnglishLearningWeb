@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,8 @@ public interface UserReadingProgressRepository extends JpaRepository<UserReading
          */
         List<UserReadingProgress> findByUserId(Long userId);
 
+        List<UserReadingProgress> findByUserIdAndIsCompletedTrue(Long userId);
+
         /**
          * Tìm các bài đã hoàn thành của user, sắp xếp theo thời gian
          */
@@ -36,6 +39,11 @@ public interface UserReadingProgressRepository extends JpaRepository<UserReading
                             ORDER BY p.completedAt DESC
                         """)
         List<UserReadingProgress> findByUserIdAndIsCompletedTrueOrderByCompletedAtDesc(@Param("userId") Long userId);
+
+        List<UserReadingProgress> findByUserIdAndIsCompletedTrueAndScorePercentageLessThanAndCompletedAtBefore(
+                        Long userId,
+                        Double maxScore,
+                        LocalDateTime cutoffDate);
 
         // ==================== EXISTENCE CHECKS ====================
 
